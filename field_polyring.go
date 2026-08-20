@@ -6,7 +6,7 @@ import (
 	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
-	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
+	limbs "github.com/mistcash/grosh26/emulated/internal/limbcomposition"
 )
 
 const nbChallengeLimbs = 2
