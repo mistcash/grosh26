@@ -6,10 +6,45 @@ import (
 	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
-	limbs "github.com/mistcash/grosh26/emulated/internal/limbcomposition"
+	. "github.com/consensys/gnark/std/math/emulated" //go-lint:ignore
+	limbs "github.com/mistcash/grosh26/internal/limbcomposition"
 )
 
 const nbChallengeLimbs = 2
+
+// staticFieldParams is a wrapper to avoid calling the dynamic methods in DynamicFieldParams
+// all the time. The native field stays intact and we can cache the values.
+type fParams[T FieldParams] struct {
+	fp              T
+	nbLimbs, nbBits uint
+}
+
+func newStaticFieldParams[T FieldParams](field *big.Int) fParams[T] {
+	var fp T
+	nbLimbs, nbBits := GetEffectiveFieldParams[T](field)
+	return fParams[T]{fp: fp, nbLimbs: nbLimbs, nbBits: nbBits}
+}
+
+// PolyRingChecker tracks polynomial ring group checks to perform
+type PolyRingChecker[T FieldParams] struct {
+	fp     fParams[T]
+	checks []*PolyRingGroupChecks[T]
+	f      *Field[T]
+	api    frontend.API
+}
+
+// NewPolyRingChecker creates a new PolyRingChecker instance.
+func NewPolyRingChecker[T FieldParams](api frontend.API, f *Field[T]) *PolyRingChecker[T] {
+	var fp T
+	nbLimbs, nbBits := GetEffectiveFieldParams[T](api.Compiler().Field())
+	return &PolyRingChecker[T]{
+		fp:  fParams[T]{fp: fp, nbLimbs: nbLimbs, nbBits: nbBits},
+		f:   f,
+		api: api,
+	}
+}
+
+// var deferredPolyChecks[T FieldParams] []*PolyRingGroupChecks[T]
 
 // op degree -> number of checks of this degree
 var opsDegreeTracking map[int]int = map[int]int{}
@@ -80,12 +115,12 @@ type polyRingMulCheck[T FieldParams] struct {
 
 // NewPolyRingCheck registers a new polynomial ring group with the given modulus
 // and returns it. Pass nil for modEvalFn for default polynomial evaluation
-func (f *Field[T]) NewPolyRingCheck(mod *Poly[T], modEvalFn EvalFnType[T]) *PolyRingGroupChecks[T] {
+func (prc *PolyRingChecker[T]) NewPolyRingCheck(mod *Poly[T], modEvalFn EvalFnType[T]) *PolyRingGroupChecks[T] {
 	groupCheck := &PolyRingGroupChecks[T]{
 		mod:       mod,
 		modEvalFn: modEvalFn,
 	}
-	f.deferredPolyChecks = append(f.deferredPolyChecks, groupCheck)
+	prc.checks = append(prc.checks, groupCheck)
 
 	return groupCheck
 }
@@ -107,14 +142,14 @@ func (group *PolyRingGroupChecks[T]) ToCommit(elements ...*Element[T]) {
 // returns the remainder (reduced result) and the quotient. The computation
 // is performed inside a hint, so it is the callers responsibility to perform
 // the deferred polynomial ring multiplication check.
-func (f *Field[T]) MulPolyRings(group *PolyRingGroupChecks[T], inputs_ ...*Poly[T]) (rem *Poly[T], err error) {
+func (prc *PolyRingChecker[T]) MulPolyRings(group *PolyRingGroupChecks[T], inputs_ ...*Poly[T]) (rem *Poly[T], err error) {
 	// guards against replacing the entries in inputs_ slice but preserves
 	// pointers to each *Poly[T] for cached evaluations
 	inputs := make([]*Poly[T], len(inputs_))
 	copy(inputs, inputs_)
 
 	mod := *group.mod
-	nbLimbs, nbBits := int(f.fParams.NbLimbs()), f.fParams.BitsPerLimb()
+	nbLimbs, nbBits := int(prc.fp.nbLimbs), prc.fp.nbBits
 
 	// total number of terms for all input polynomials
 	nbTerms := 0
@@ -147,17 +182,17 @@ func (f *Field[T]) MulPolyRings(group *PolyRingGroupChecks[T], inputs_ ...*Poly[
 	hintInputs := make([]frontend.Variable, 0, nbMetaDataVars+(nbPoly+nbTermsLimbs)+(1+nbModTermsLimbs))
 
 	hintInputs = append(hintInputs, nbBits, nbLimbs, nbPoly)
-	hintInputs = append(hintInputs, f.Modulus().Limbs...)
+	hintInputs = append(hintInputs, prc.f.Modulus().Limbs...)
 
 	// loop through inputs to compute the number of terms
 	for _, inputPoly := range inputs {
-		hintInputs = f.serialisePoly(inputPoly, hintInputs)
+		hintInputs = prc.serialisePoly(inputPoly, hintInputs)
 	}
 
-	hintInputs = f.serialisePoly(&mod, hintInputs)
+	hintInputs = prc.serialisePoly(&mod, hintInputs)
 
 	// call
-	ret, err := f.api.NewHint(polyRingMulHint, 1+nbQTermsLimbs+1+nbRemLimbs, hintInputs...)
+	ret, err := prc.api.NewHint(polyRingMulHint, 1+nbQTermsLimbs+1+nbRemLimbs, hintInputs...)
 
 	if err != nil {
 		return nil, err
@@ -171,7 +206,7 @@ func (f *Field[T]) MulPolyRings(group *PolyRingGroupChecks[T], inputs_ ...*Poly[
 		retPtr += nbLimbs
 		// quotient is only used by the prover to generate the rlc, so don't need
 		// rangechecks on these
-		quo.Coeffs[i] = f.newInternalElement(termLimbs, 0)
+		quo.Coeffs[i] = prc.f.UnsafeFromLimbs(termLimbs)
 	}
 
 	// unpack remainder: skip nbRemTerms header, then read len(mod)-1 terms of nbLimbs each
@@ -180,7 +215,7 @@ func (f *Field[T]) MulPolyRings(group *PolyRingGroupChecks[T], inputs_ ...*Poly[
 	for i := range rem.Coeffs {
 		termLimbs := ret[retPtr : retPtr+nbLimbs]
 		retPtr += nbLimbs
-		rem.Coeffs[i] = f.packLimbs(termLimbs, true)
+		rem.Coeffs[i] = prc.f.NewElement(termLimbs)
 	}
 
 	opDeg := len(quo.Coeffs) + len(rem.Coeffs) - 2
@@ -365,16 +400,16 @@ func polyRingMul(fieldMod *big.Int, inputs [][]*big.Int, modPoly []*big.Int) (qu
 	return
 }
 
-func (f *Field[T]) MakePoly(coeffs ...any) *Poly[T] {
+func (prc *PolyRingChecker[T]) MakePoly(coeffs ...any) *Poly[T] {
 	poly := &Poly[T]{}
 	poly.Coeffs = make([]*Element[T], len(coeffs))
 
 	for i, coeff := range coeffs {
 		if coeff == 0 {
-			poly.Coeffs[i] = f.Zero()
+			poly.Coeffs[i] = prc.f.Zero()
 			continue
 		}
-		poly.Coeffs[i] = f.NewElement(coeff)
+		poly.Coeffs[i] = prc.f.NewElement(coeff)
 	}
 
 	return poly
@@ -385,21 +420,20 @@ func (f *Field[T]) MakePoly(coeffs ...any) *Poly[T] {
 //  1. commit the remainders to obtain a random challenge z for random
 //     linear combination of all quotients
 //  2. batch the quotients with adjacent powers RLC using challenge z
-//     q_acc = ∑_i z^i * q_i
+//     qAcc = ∑_i z^i * q_i
 //  3. commit the quotients rlc with challenge z to obtain challenge x
 //  4. assert equality of remainders and quotients rlc polynomials at x
 //     i.e. ∑_i z^i * ( ∏_j inputs_j(x) - r_i(x) ) == (∑_i z^i * q_i)(x) * mod_i(x)
 //
-// savings come from batching quotients outside the circuit – q_acc = ∑_i z^i * q_i
-func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
+// savings come from batching quotients outside the circuit – qAcc = ∑_i z^i * q_i
+func (prc *PolyRingChecker[T]) performDeferredRingChecks(api frontend.API) error {
 	// use given api. We are in defer and API may be different to what we have
 	// stored.
 
-	if len(f.deferredPolyChecks) == 0 {
+	if len(prc.checks) == 0 {
 		return nil
 	}
 
-	f.log.Printf("Poly Ring Multiplications by Degree: %v", opsDegreeTracking)
 	opsDegreeTracking = map[int]int{} // reset tracking for next run
 
 	// get committer from the api
@@ -412,7 +446,7 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 
 	// prepare all remainder coefficients to commit to from each group
 	var remainderCoeffCommits []frontend.Variable
-	for _, group := range f.deferredPolyChecks {
+	for _, group := range prc.checks {
 
 		// additional variables to commit to for obtaining schwartz zippel lemma challenge.
 		remainderCoeffCommits = append(remainderCoeffCommits, group.toCommit...)
@@ -439,14 +473,14 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 
 	// z can be shared across all groups
 	quotientbatchesCoeffCommits := []frontend.Variable{z}
-	for _, group := range f.deferredPolyChecks {
+	for _, group := range prc.checks {
 		quotients := make([]*Poly[T], len(group.checks))
 		for i, check := range group.checks {
 			quotients[i] = check.q
 		}
 
-		// q_acc = ∑_i z^i * q_i
-		group.qAcc, err = f.callQuotientsRLCHint(quotients, z)
+		// qAcc = ∑_i z^i * q_i
+		group.qAcc, err = prc.f.callQuotientsRLCHint(quotients, z)
 
 		if err != nil {
 			return fmt.Errorf("deferredPolyCheck callQuotientsRLCHint error: %w", err)
@@ -468,7 +502,7 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 	}
 
 	// Decompose challenges into emulated elements (full-width, multi-limb).
-	nativesToEl, err := f.NativeToEmulated(nbChallengeLimbs, z, x)
+	nativesToEl, err := prc.f.NativeToEmulated(nbChallengeLimbs, z, x)
 	if err != nil {
 		return fmt.Errorf("NativeToEmulated error: %w", err)
 	}
@@ -477,7 +511,7 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 
 	maxTerms := 1
 	maxChecks := 1
-	for _, group := range f.deferredPolyChecks {
+	for _, group := range prc.checks {
 		maxTerms = max(maxTerms, len(group.mod.Coeffs), len(group.qAcc.Coeffs))
 		for _, check := range group.checks {
 			for _, input := range check.inputs {
@@ -488,64 +522,66 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 	}
 
 	xPowers := make([]*Element[T], maxTerms)
-	xPowers[0] = f.One()
+	xPowers[0] = prc.f.One()
 	if maxTerms > 1 {
 		xPowers[1] = xEmulated
 		for i := 2; i < maxTerms; i++ {
-			xPowers[i] = f.Mul(xPowers[i-1], xEmulated)
+			xPowers[i] = prc.f.Mul(xPowers[i-1], xEmulated)
 		}
 	}
 
 	zPowers := make([]*Element[T], maxChecks)
-	zPowers[0] = f.One()
+	zPowers[0] = prc.f.One()
 	if maxChecks > 1 {
 		zPowers[1] = zEmulated
 		for i := 2; i < maxChecks; i++ {
-			zPowers[i] = f.Mul(zPowers[i-1], zEmulated)
+			zPowers[i] = prc.f.Mul(zPowers[i-1], zEmulated)
 		}
 	}
 
 	// 4. assert the ring check at x for each group
-	for _, group := range f.deferredPolyChecks {
+	for _, group := range prc.checks {
 		// lhsRlc = ∑_i z^i * (∏_j inputs_i_j(x) - r_i(x))
 		lhsEvals := make([]*Element[T], len(group.checks))
 
 		// Evaluations don't need to be reduced, we can reduce at the very end to
 		// when asserting equality.
 		for i, check := range group.checks {
-			// lhs = inputs_i_0(x)
-			lhs := f.evalPolyWithChallenge(check.inputs[0], xPowers)
+			// lhs = inputs_0(x)
+			lhs := prc.evalPolyWithChallenge(check.inputs[0], xPowers)
 
 			// lhs = ∏_j inputs_j(x)
 			for j := 1; j < len(check.inputs); j++ {
-				lhs = f.Mul(lhs, f.evalPolyWithChallenge(check.inputs[j], xPowers))
+				lhs = prc.f.Mul(lhs, prc.evalPolyWithChallenge(check.inputs[j], xPowers))
 			}
 
 			// compute (∏_j inputs_j(x)) - r(x)
-			lhs = f.Sub(lhs, f.evalPolyWithChallenge(check.r, xPowers))
+			lhs = prc.f.Sub(lhs, prc.evalPolyWithChallenge(check.r, xPowers))
 			lhsEvals[i] = lhs
 		}
 
-		lhsRlc := f.InnerProductNoReduce(lhsEvals, zPowers)
+		lhsRlc := prc.InnerProductNoReduce(lhsEvals, zPowers)
+		lhsRlc = prc.f.Reduce(lhsRlc)
 
 		if group.modEvalFn == nil {
 			group.modEvalFn = func(xPowers []*Element[T]) *Element[T] {
-				return f.evalPolyWithChallenge(group.mod, xPowers)
+				return prc.evalPolyWithChallenge(group.mod, xPowers)
 			}
 		}
 
-		// compute q_acc(x) * mod(x)
-		rhs := f.MulNoReduce(
-			f.evalPolyWithChallenge(group.qAcc, xPowers),
-			group.modEvalFn(xPowers),
-		)
+		// compute qAcc(x) * mod(x)
+		qAcc := prc.evalPolyWithChallenge(group.qAcc, xPowers)
+		// qAcc = prc.f.Reduce(qAcc)
+
+		// compute qAcc(x) * mod(x)
+		rhs := prc.f.MulNoReduce(qAcc, group.modEvalFn(xPowers))
 
 		// AssertIsEqual reduces inputs for comparison
-		f.AssertIsEqual(lhsRlc, rhs)
+		prc.f.AssertIsEqual(lhsRlc, rhs)
 	}
 
 	// cleanup all deffered polynomial ring checks
-	f.deferredPolyChecks = nil
+	prc.checks = nil
 
 	return nil
 }
@@ -556,12 +592,12 @@ func (f *Field[T]) performDeferredRingChecks(api frontend.API) error {
 // modulo the emulated field prime. This is used in the deferred ring check to
 // batch multiple quotient polynomials together outside the circuit, saving
 // constraints by avoiding individual quotient evaluations.
-func (f *Field[T]) callQuotientsRLCHint(quotients []*Poly[T], z frontend.Variable) (*Poly[T], error) {
+func (prc *PolyRingChecker[T]) callQuotientsRLCHint(quotients []*Poly[T], z frontend.Variable) (*Poly[T], error) {
 	if len(quotients) == 0 {
 		return nil, fmt.Errorf("BatchPolyQuotients: no quotient polynomials")
 	}
 
-	nbLimbs, nbBits := int(f.fParams.NbLimbs()), f.fParams.BitsPerLimb()
+	nbLimbs, nbBits := int(prc.fp.nbLimbs), prc.fp.nbBits
 
 	// the output polynomial has the maximum number of terms among all inputs
 	maxTerms := 0
@@ -576,14 +612,14 @@ func (f *Field[T]) callQuotientsRLCHint(quotients []*Poly[T], z frontend.Variabl
 	// hint input layout: nbBits | nbLimbs | nbPolys | fieldMod | z | for each poly: nbTerms | limbs...
 	hintInputs := make([]frontend.Variable, 0, 5+nbLimbs+nbPolys) // nbLimbs from modulus Element
 	hintInputs = append(hintInputs, nbBits, nbLimbs, nbChallengeLimbs, nbPolys, z)
-	hintInputs = append(hintInputs, f.Modulus().Limbs...)
+	hintInputs = append(hintInputs, prc.f.Modulus().Limbs...)
 
 	for _, q := range quotients {
-		hintInputs = f.serialisePoly(q, hintInputs)
+		hintInputs = prc.serialisePoly(q, hintInputs)
 	}
 
 	nbOutputs := maxTerms * nbLimbs
-	ret, err := f.api.NewHint(quotientsRLCHint, nbOutputs, hintInputs...)
+	ret, err := prc.api.NewHint(quotientsRLCHint, nbOutputs, hintInputs...)
 	if err != nil {
 		return nil, fmt.Errorf("BatchPolyQuotients hint: %w", err)
 	}
@@ -591,7 +627,7 @@ func (f *Field[T]) callQuotientsRLCHint(quotients []*Poly[T], z frontend.Variabl
 	result := &Poly[T]{Coeffs: make([]*Element[T], maxTerms)}
 	for i := range result.Coeffs {
 		termLimbs := ret[i*nbLimbs : (i+1)*nbLimbs]
-		result.Coeffs[i] = f.packLimbs(termLimbs, false)
+		result.Coeffs[i] = prc.f.NewElement(termLimbs)
 	}
 
 	return result, nil
@@ -670,32 +706,32 @@ func quotientsRLCHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 // evalPolyWithChallenge evaluates p at a point whose powers are given by at,
 // where at[i] = at^i. Precomputing and sharing powers across multiple
 // polynomial evaluations at the same point avoids redundant multiplications.
-func (f *Field[T]) evalPolyWithChallenge(p *Poly[T], at []*Element[T]) *Element[T] {
+func (prc *PolyRingChecker[T]) evalPolyWithChallenge(p *Poly[T], at []*Element[T]) *Element[T] {
 	if p.evaluation == nil {
-		p.evaluation = f.InnerProductNoReduce(p.Coeffs, at)
+		p.evaluation = prc.InnerProductNoReduce(p.Coeffs, at)
 	}
 	return p.evaluation
 }
 
 // innerProduct computes the inner product of two vectors of Element.
-func (f *Field[T]) InnerProduct(a, b []*Element[T]) *Element[T] {
-	return f.Reduce(f.InnerProductNoReduce(a, b))
+func (prc *PolyRingChecker[T]) InnerProduct(a, b []*Element[T]) *Element[T] {
+	return prc.f.Reduce(prc.InnerProductNoReduce(a, b))
 }
 
 // InnerProductNoReduce computes the inner product of two vectors of
 // *Element[T] without performing reduction.
-func (f *Field[T]) InnerProductNoReduce(a, b []*Element[T]) *Element[T] {
+func (prc *PolyRingChecker[T]) InnerProductNoReduce(a, b []*Element[T]) *Element[T] {
 	n := len(a)
 	terms := make([]*Element[T], n)
 	for i := 0; i < n; i++ {
 		if a[i] == nil || b[i] == nil || b[i].isStrictZero() || a[i].isStrictZero() {
 			// don't add anything, one of the multiplier is zero
-		} else if bConstVal, bIsConst := f.constantValue(b[i]); bIsConst && bConstVal.Cmp(one) == 0 {
+		} else if bConstVal, bIsConst := prc.f.constantValue(b[i]); bIsConst && bConstVal.Cmp(one) == 0 {
 			terms[i] = a[i]
-		} else if aConstVal, aIsConst := f.constantValue(a[i]); aIsConst && aConstVal.Cmp(one) == 0 {
+		} else if aConstVal, aIsConst := prc.f.constantValue(a[i]); aIsConst && aConstVal.Cmp(one) == 0 {
 			terms[i] = b[i]
 		} else {
-			terms[i] = f.MulNoReduce(a[i], b[i])
+			terms[i] = prc.f.MulNoReduce(a[i], b[i])
 		}
 	}
 	var eval *Element[T]
@@ -713,47 +749,47 @@ func (f *Field[T]) InnerProductNoReduce(a, b []*Element[T]) *Element[T] {
 				}
 				nextOverflow := maxTermOverflow + additionOverflow
 				// if next overflow exceeds the maximum, reduce before adding
-				if nextOverflow+1 > f.maxOverflow() {
+				if nextOverflow+1 > prc.f.maxOverflow() {
 					// add with input reduction
-					eval = f.Add(eval, term)
+					eval = prc.f.Add(eval, term)
 				} else {
 					// add without overflow checks
-					eval = f.add(eval, term, nextOverflow)
+					eval = prc.f.Add(eval, term, nextOverflow)
 				}
 			}
 		}
 	}
 	if eval == nil {
-		return f.Zero()
+		return prc.f.Zero()
 	}
 	return eval
 }
 
 // NativeToEmulated decomposes a native field var into FieldBitLen/nbBits
 // limbs, return Element[T] truncated to limitLimbs.
-func (f *Field[T]) NativeToEmulated(limitLimbs int, v ...frontend.Variable) ([]*Element[T], error) {
-	nbBits := int(f.fParams.BitsPerLimb())
-	nbLimbs := f.api.Compiler().FieldBitLen()/nbBits + 1
+func (prc *PolyRingChecker[T]) NativeToEmulated(limitLimbs int, v ...frontend.Variable) ([]*Element[T], error) {
+	nbBits := int(prc.fp.nbBits)
+	nbLimbs := prc.api.Compiler().FieldBitLen()/nbBits + 1
 	hintInputs := make([]frontend.Variable, 0, 2+len(v))
 	hintInputs = append(hintInputs, nbBits, nbLimbs)
 	hintInputs = append(hintInputs, v...)
-	ret, err := f.api.NewHint(splitNativeToLimbsHint, nbLimbs*len(v), hintInputs...)
+	ret, err := prc.api.NewHint(splitNativeToLimbsHint, nbLimbs*len(v), hintInputs...)
 	if err != nil {
 		return nil, err
 	}
 	elements := make([]*Element[T], len(v))
 	for i := range elements {
 		// packLimbs performs range checks on limbs
-		elements[i] = f.packLimbs(ret[i*nbLimbs:(i+1)*nbLimbs], false)
+		elements[i] = prc.f.NewElement(ret[i*nbLimbs : (i+1)*nbLimbs])
 
 		rebuildEl := elements[i].Limbs[0]
 		placeValue := big.NewInt(1)
 		for j := 1; j < len(elements[i].Limbs); j++ {
 			placeValue.Lsh(placeValue, uint(nbBits))
-			rebuildEl = f.api.Add(rebuildEl, f.api.Mul(elements[i].Limbs[j], placeValue))
+			rebuildEl = prc.api.Add(rebuildEl, prc.api.Mul(elements[i].Limbs[j], placeValue))
 		}
 		// assert correct decomposition
-		f.api.AssertIsEqual(rebuildEl, v[i])
+		prc.api.AssertIsEqual(rebuildEl, v[i])
 		elements[i].Limbs = elements[i].Limbs[:limitLimbs]
 	}
 	return elements, nil
@@ -780,8 +816,8 @@ func splitNativeToLimbsHint(nativeMod *big.Int, inputs, outputs []*big.Int) erro
 
 // serialisePoly converts a polynomial into a slice of frontend.Variable
 // suitable for hints. format is nbTerms|...terms
-func (f *Field[T]) serialisePoly(poly *Poly[T], inputs []frontend.Variable) []frontend.Variable {
-	nbLimbs := int(f.fParams.NbLimbs())
+func (prc *PolyRingChecker[T]) serialisePoly(poly *Poly[T], inputs []frontend.Variable) []frontend.Variable {
+	nbLimbs := int(prc.fp.nbLimbs)
 	inputs = append(inputs, len(poly.Coeffs))
 	for _, coeff := range poly.Coeffs {
 		if coeff == nil || len(coeff.Limbs) == 0 {
@@ -823,9 +859,9 @@ type PolyRingAccumulator[T FieldParams] struct {
 // targetDeg can be set to limit the degree of the accumulated
 // polynomial targetDeg set to 0 means products will only happen
 // when Eval is called
-func (f *Field[T]) NewPolyRingAccumulator(checker *PolyRingGroupChecks[T], targetDeg int) *PolyRingAccumulator[T] {
+func (prc *PolyRingChecker[T]) NewPolyRingAccumulator(checker *PolyRingGroupChecks[T], targetDeg int) *PolyRingAccumulator[T] {
 	return &PolyRingAccumulator[T]{
-		f:         f,
+		f:         prc.f,
 		checker:   checker,
 		targetDeg: targetDeg,
 	}
@@ -862,7 +898,7 @@ func (acc *PolyRingAccumulator[T]) Eval() (result *Poly[T]) {
 	if len(acc.state) == 1 {
 		return acc.state[0]
 	}
-	result, err := acc.f.MulPolyRings(acc.checker, acc.state...)
+	result, err := acc.prc.f.MulPolyRings(acc.checker, acc.state...)
 	if err != nil {
 		panic(err)
 	}
