@@ -3,12 +3,15 @@ module github.com/mistcash/grosh26
 go 1.26.2
 
 require (
+	github.com/bits-and-blooms/bitset v1.24.6
 	github.com/consensys/gnark v0.16.0
 	github.com/consensys/gnark-crypto v0.21.0
+	github.com/leanovate/gopter v0.2.11
+	github.com/stretchr/testify v1.11.1
+	golang.org/x/crypto v0.55.0
 )
 
 require (
-	github.com/bits-and-blooms/bitset v1.24.6 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
@@ -20,9 +23,7 @@ require (
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/ronanh/intcomp v1.1.1 // indirect
 	github.com/rs/zerolog v1.35.1 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
