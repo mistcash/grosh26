@@ -599,22 +599,18 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
             {{- $pcIndex := index $PublicAndCommitmentCommitted $i }}
             {{- if gt (len $pcIndex) 0 }}
             publicAndCommitmentCommitted = new uint256[]({{(len $pcIndex)}});
-            assembly ("memory-safe") {
-                let publicAndCommitmentCommittedOffset := add(publicAndCommitmentCommitted, 0x20)
-                {{- $segment_start := index $pcIndex 0 }}
-                {{- $segment_end := index $pcIndex 0 }}
-                {{- $l := 0 }}
-                {{- range $k := intRange (sub (len $pcIndex) 1) }}
-                    {{- $next := index $pcIndex (sum $k 1) }}
-                    {{- if ne $next (sum $segment_end 1) }}
-                calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $l 0x20}}), add(input, {{mul 0x20 (sub $segment_start 1)}}), {{mul 0x20 (sum 1 (sub $segment_end $segment_start))}})
-                        {{- $segment_start = $next }}
-                        {{- $l = (sum $k 1) }}
-                    {{- end }}
-                    {{- $segment_end = $next }}
-                {{- end }}
-                calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $l 0x20}}), add(input, {{mul 0x20 (sub $segment_start 1)}}), {{mul 0x20 (sum 1 (sub $segment_end $segment_start))}})
-            }
+            {{- range $l, $idx := $pcIndex }}
+            {{- if lt (sub $idx 1) $numWitness }}
+            publicAndCommitmentCommitted[{{$l}}] = input[{{sub $idx 1}}];
+            {{- else }}
+            // this index refers to another commitment's wire (chained
+            // commitments, e.g. api.Commit(x, earlierCommitment)): that
+            // value only exists once the earlier commitment's hash has
+            // been computed, so it comes from publicCommitments rather
+            // than the calldata witness.
+            publicAndCommitmentCommitted[{{$l}}] = publicCommitments[{{sub (sub $idx 1) $numWitness}}];
+            {{- end }}
+            {{- end }}
             {{- end }}
 
             publicCommitments[{{$i}}] = uint256(
@@ -800,22 +796,18 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
         {{- $pcIndex := index $PublicAndCommitmentCommitted $i }}
         {{- if gt (len $pcIndex) 0 }}
         publicAndCommitmentCommitted = new uint256[]({{(len $pcIndex)}});
-        assembly ("memory-safe") {
-            let publicAndCommitmentCommittedOffset := add(publicAndCommitmentCommitted, 0x20)
-            {{- $segment_start := index $pcIndex 0 }}
-            {{- $segment_end := index $pcIndex 0 }}
-            {{- $l := 0 }}
-            {{- range $k := intRange (sub (len $pcIndex) 1) }}
-                {{- $next := index $pcIndex (sum $k 1) }}
-                {{- if ne $next (sum $segment_end 1) }}
-            calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $l 0x20}}), add(input, {{mul 0x20 (sub $segment_start 1)}}), {{mul 0x20 (sum 1 (sub $segment_end $segment_start))}})
-                    {{- $segment_start = $next }}
-                    {{- $l = (sum $k 1) }}
-                {{- end }}
-                {{- $segment_end = $next }}
-            {{- end }}
-            calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $l 0x20}}), add(input, {{mul 0x20 (sub $segment_start 1)}}), {{mul 0x20 (sum 1 (sub $segment_end $segment_start))}})
-        }
+        {{- range $l, $idx := $pcIndex }}
+        {{- if lt (sub $idx 1) $numWitness }}
+        publicAndCommitmentCommitted[{{$l}}] = input[{{sub $idx 1}}];
+        {{- else }}
+        // this index refers to another commitment's wire (chained
+        // commitments, e.g. api.Commit(x, earlierCommitment)): that
+        // value only exists once the earlier commitment's hash has
+        // been computed, so it comes from publicCommitments rather
+        // than the calldata witness.
+        publicAndCommitmentCommitted[{{$l}}] = publicCommitments[{{sub (sub $idx 1) $numWitness}}];
+        {{- end }}
+        {{- end }}
         {{- end }}
 
         {
