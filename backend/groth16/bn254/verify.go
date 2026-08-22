@@ -194,10 +194,19 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 		},
 	}
 
-	if len(vk.PublicAndCommitmentCommitted) > 1 {
-		log.Warn().Msg("exporting solidity verifier with more than one commitment is not supported")
-	} else if len(vk.PublicAndCommitmentCommitted) == 1 {
+	if len(vk.PublicAndCommitmentCommitted) == 1 {
 		log.Warn().Msg("exporting solidity verifier only supports `sha256` as `HashToField`. The generated contract may not work for proofs generated with other hash functions.")
+	}
+	// the generated contract hardcodes a single shared PEDERSEN_G constant
+	// (see the solidityTemplate constants block), reused across every
+	// commitment's pairing check. That's only sound if every commitment
+	// key was set up against the same G2 base point (pedersen.WithG2Point),
+	// which is what groth16 Setup does; guard the assumption explicitly
+	// since a violation would silently produce a wrong verifier.
+	for i := 1; i < len(vk.CommitmentKeys); i++ {
+		if vk.CommitmentKeys[i].G != vk.CommitmentKeys[0].G {
+			return fmt.Errorf("commitment keys must share the same G2 base point to export a Solidity verifier")
+		}
 	}
 
 	tmpl, err := template.New("").Funcs(helpers).Parse(solidityTemplate)
