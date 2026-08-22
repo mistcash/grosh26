@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	bn254groth16 "github.com/mistcash/grosh26/backend/groth16/bn254"
 	"github.com/consensys/gnark/frontend"
+	bn254groth16 "github.com/mistcash/grosh26/backend/groth16/bn254"
 	"github.com/stretchr/testify/assert"
 )
 

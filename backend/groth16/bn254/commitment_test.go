@@ -13,10 +13,10 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	bn254groth16 "github.com/mistcash/grosh26/backend/groth16/bn254"
 	cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	bn254groth16 "github.com/mistcash/grosh26/backend/groth16/bn254"
 	"github.com/stretchr/testify/assert"
 )
 
