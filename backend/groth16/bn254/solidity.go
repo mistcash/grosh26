@@ -103,18 +103,24 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
     uint256 constant DELTA_NEG_Y_1 = {{ (fpstr .Vk.G2.Delta.Y.A1) }};
 
     {{- if gt $numCommitments 0 }}
-    // Pedersen G point in G2 in powers of i
+    // Pedersen G point in G2 in powers of i. Shared by every commitment:
+    // groth16 Setup samples one G2 base for the whole circuit (see
+    // WithG2Point), and BatchVerifyMultiVk relies on that invariant.
     {{- $cmtVk0 := index .Vk.CommitmentKeys 0 }}
     uint256 constant PEDERSEN_G_X_0 = {{ (fpstr $cmtVk0.G.X.A0) }};
     uint256 constant PEDERSEN_G_X_1 = {{ (fpstr $cmtVk0.G.X.A1) }};
     uint256 constant PEDERSEN_G_Y_0 = {{ (fpstr $cmtVk0.G.Y.A0) }};
     uint256 constant PEDERSEN_G_Y_1 = {{ (fpstr $cmtVk0.G.Y.A1) }};
 
-    // Pedersen GSigmaNeg point in G2 in powers of i
-    uint256 constant PEDERSEN_GSIGMANEG_X_0 = {{ (fpstr $cmtVk0.GSigmaNeg.X.A0) }};
-    uint256 constant PEDERSEN_GSIGMANEG_X_1 = {{ (fpstr $cmtVk0.GSigmaNeg.X.A1) }};
-    uint256 constant PEDERSEN_GSIGMANEG_Y_0 = {{ (fpstr $cmtVk0.GSigmaNeg.Y.A0) }};
-    uint256 constant PEDERSEN_GSIGMANEG_Y_1 = {{ (fpstr $cmtVk0.GSigmaNeg.Y.A1) }};
+    // Pedersen GSigmaNeg point in G2 in powers of i, one per commitment.
+    // Unlike G, the sigma trapdoor is sampled independently for each
+    // commitment key, so these differ across commitments.
+    {{- range $i, $cmtVk := .Vk.CommitmentKeys }}
+    uint256 constant PEDERSEN_GSIGMANEG_{{$i}}_X_0 = {{ (fpstr $cmtVk.GSigmaNeg.X.A0) }};
+    uint256 constant PEDERSEN_GSIGMANEG_{{$i}}_X_1 = {{ (fpstr $cmtVk.GSigmaNeg.X.A1) }};
+    uint256 constant PEDERSEN_GSIGMANEG_{{$i}}_Y_0 = {{ (fpstr $cmtVk.GSigmaNeg.Y.A0) }};
+    uint256 constant PEDERSEN_GSIGMANEG_{{$i}}_Y_1 = {{ (fpstr $cmtVk.GSigmaNeg.Y.A1) }};
+    {{- end }}
     {{- end }}
 
     // Constant and public input points
@@ -616,26 +622,72 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
                 )
             ) % R;
             {{- end }}
-            // Commitments
-            pairings[ 0] = commitments[0];
-            pairings[ 1] = commitments[1];
-            pairings[ 2] = PEDERSEN_GSIGMANEG_X_1;
-            pairings[ 3] = PEDERSEN_GSIGMANEG_X_0;
-            pairings[ 4] = PEDERSEN_GSIGMANEG_Y_1;
-            pairings[ 5] = PEDERSEN_GSIGMANEG_Y_0;
-            pairings[ 6] = Px;
-            pairings[ 7] = Py;
-            pairings[ 8] = PEDERSEN_G_X_1;
-            pairings[ 9] = PEDERSEN_G_X_0;
-            pairings[10] = PEDERSEN_G_Y_1;
-            pairings[11] = PEDERSEN_G_Y_0;
+            // Fold the commitments and their proof of knowledge into a
+            // single (numCommitments+1)-pairing check, mirroring
+            // gnark-crypto's pedersen.BatchVerifyMultiVk: each commitment
+            // gets its own GSigmaNeg (the sigma trapdoor is sampled
+            // independently per commitment key) scaled by successive
+            // powers of a challenge derived from the public commitment
+            // hashes, and the already-folded proof of knowledge is
+            // checked once against the shared G.
+            {{- if gt $numCommitments 1 }}
+            uint256 challenge;
+            {
+                bytes memory challengeInput = new bytes({{mul $numCommitments 0x20}});
+                assembly ("memory-safe") {
+                    let dst := add(challengeInput, 0x20)
+                    {{- range $i := intRange $numCommitments }}
+                    mstore(add(dst, {{hex (mul $i 0x20)}}), mload(add(publicCommitments, {{hex (mul $i 0x20)}})))
+                    {{- end }}
+                }
+                challenge = uint256({{ hashFnName }}(challengeInput)) % R;
+            }
+            {{- end }}
+
+            uint256[{{mul 6 (sum $numCommitments 1)}}] memory pedersenPairings;
+            pedersenPairings[0] = commitments[0];
+            pedersenPairings[1] = commitments[1];
+            pedersenPairings[2] = PEDERSEN_GSIGMANEG_0_X_1;
+            pedersenPairings[3] = PEDERSEN_GSIGMANEG_0_X_0;
+            pedersenPairings[4] = PEDERSEN_GSIGMANEG_0_Y_1;
+            pedersenPairings[5] = PEDERSEN_GSIGMANEG_0_Y_0;
+            {{- if gt $numCommitments 1 }}
+            uint256 coeff = challenge;
+            {{- range $i := intRange (sub $numCommitments 1) }}
+            {{- $ii := sum $i 1 }}
+            {
+                bool ok;
+                assembly ("memory-safe") {
+                    let f := mload(0x40)
+                    mstore(f, mload(add(commitments, {{hex (mul (mul $ii 2) 0x20)}})))
+                    mstore(add(f, 0x20), mload(add(commitments, {{hex (mul (sum (mul $ii 2) 1) 0x20)}})))
+                    mstore(add(f, 0x40), coeff)
+                    ok := staticcall(gas(), PRECOMPILE_MUL, f, 0x60, add(pedersenPairings, {{hex (mul (mul $ii 6) 0x20)}}), 0x40)
+                }
+                if (!ok) revert CommitmentInvalid();
+            }
+            pedersenPairings[{{sum (mul $ii 6) 2}}] = PEDERSEN_GSIGMANEG_{{$ii}}_X_1;
+            pedersenPairings[{{sum (mul $ii 6) 3}}] = PEDERSEN_GSIGMANEG_{{$ii}}_X_0;
+            pedersenPairings[{{sum (mul $ii 6) 4}}] = PEDERSEN_GSIGMANEG_{{$ii}}_Y_1;
+            pedersenPairings[{{sum (mul $ii 6) 5}}] = PEDERSEN_GSIGMANEG_{{$ii}}_Y_0;
+            {{- if lt $ii (sub $numCommitments 1) }}
+            coeff = mulmod(coeff, challenge, R);
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            pedersenPairings[{{mul $numCommitments 6}}] = Px;
+            pedersenPairings[{{sum (mul $numCommitments 6) 1}}] = Py;
+            pedersenPairings[{{sum (mul $numCommitments 6) 2}}] = PEDERSEN_G_X_1;
+            pedersenPairings[{{sum (mul $numCommitments 6) 3}}] = PEDERSEN_G_X_0;
+            pedersenPairings[{{sum (mul $numCommitments 6) 4}}] = PEDERSEN_G_Y_1;
+            pedersenPairings[{{sum (mul $numCommitments 6) 5}}] = PEDERSEN_G_Y_0;
 
             // Verify pedersen commitments
             bool success;
             assembly ("memory-safe") {
                 let f := mload(0x40)
 
-                success := staticcall(gas(), PRECOMPILE_VERIFY, pairings, 0x180, f, 0x20)
+                success := staticcall(gas(), PRECOMPILE_VERIFY, pedersenPairings, {{hex (mul (mul 6 (sum $numCommitments 1)) 0x20)}}, f, 0x20)
                 success := and(success, mload(f))
             }
             if (!success) {
@@ -770,23 +822,70 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
         }
         {{- end }}
 
+        // Fold the commitments and their proof of knowledge into a single
+        // (numCommitments+1)-pairing check, mirroring gnark-crypto's
+        // pedersen.BatchVerifyMultiVk: each commitment gets its own
+        // GSigmaNeg (the sigma trapdoor is sampled independently per
+        // commitment key) scaled by successive powers of a challenge
+        // derived from the public commitment hashes, and the already-
+        // folded proof of knowledge is checked once against the shared G.
+        {{- if gt $numCommitments 1 }}
+        uint256 challenge;
+        {
+            bytes memory challengeInput = new bytes({{mul $numCommitments 0x20}});
+            assembly ("memory-safe") {
+                let dst := add(challengeInput, 0x20)
+                {{- range $i := intRange $numCommitments }}
+                mstore(add(dst, {{hex (mul $i 0x20)}}), mload(add(publicCommitments, {{hex (mul $i 0x20)}})))
+                {{- end }}
+            }
+            challenge = uint256({{ hashFnName }}(challengeInput)) % R;
+        }
+        {{- end }}
+
+        uint256[{{mul 6 (sum $numCommitments 1)}}] memory pedersenPairings;
+        pedersenPairings[0] = commitments[0];
+        pedersenPairings[1] = commitments[1];
+        pedersenPairings[2] = PEDERSEN_GSIGMANEG_0_X_1;
+        pedersenPairings[3] = PEDERSEN_GSIGMANEG_0_X_0;
+        pedersenPairings[4] = PEDERSEN_GSIGMANEG_0_Y_1;
+        pedersenPairings[5] = PEDERSEN_GSIGMANEG_0_Y_0;
+        {{- if gt $numCommitments 1 }}
+        uint256 coeff = challenge;
+        {{- range $i := intRange (sub $numCommitments 1) }}
+        {{- $ii := sum $i 1 }}
+        {
+            bool ok;
+            assembly ("memory-safe") {
+                let f := mload(0x40)
+                mstore(f, mload(add(commitments, {{hex (mul (mul $ii 2) 0x20)}})))
+                mstore(add(f, 0x20), mload(add(commitments, {{hex (mul (sum (mul $ii 2) 1) 0x20)}})))
+                mstore(add(f, 0x40), coeff)
+                ok := staticcall(gas(), PRECOMPILE_MUL, f, 0x60, add(pedersenPairings, {{hex (mul (mul $ii 6) 0x20)}}), 0x40)
+            }
+            if (!ok) revert CommitmentInvalid();
+        }
+        pedersenPairings[{{sum (mul $ii 6) 2}}] = PEDERSEN_GSIGMANEG_{{$ii}}_X_1;
+        pedersenPairings[{{sum (mul $ii 6) 3}}] = PEDERSEN_GSIGMANEG_{{$ii}}_X_0;
+        pedersenPairings[{{sum (mul $ii 6) 4}}] = PEDERSEN_GSIGMANEG_{{$ii}}_Y_1;
+        pedersenPairings[{{sum (mul $ii 6) 5}}] = PEDERSEN_GSIGMANEG_{{$ii}}_Y_0;
+        {{- if lt $ii (sub $numCommitments 1) }}
+        coeff = mulmod(coeff, challenge, R);
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        pedersenPairings[{{sum (mul $numCommitments 6) 2}}] = PEDERSEN_G_X_1;
+        pedersenPairings[{{sum (mul $numCommitments 6) 3}}] = PEDERSEN_G_X_0;
+        pedersenPairings[{{sum (mul $numCommitments 6) 4}}] = PEDERSEN_G_Y_1;
+        pedersenPairings[{{sum (mul $numCommitments 6) 5}}] = PEDERSEN_G_Y_0;
+
         // Verify pedersen commitments
         bool success;
         assembly ("memory-safe") {
+            calldatacopy(add(pedersenPairings, {{hex (mul (mul $numCommitments 6) 0x20)}}), add(proof.offset, {{ hex (sum 0x100 (mul $numCommitments 0x40)) }}), 0x40) // Copy PoK
             let f := mload(0x40)
 
-            calldatacopy(f, add(proof.offset, 0x100), 0x40) // Copy first commitment
-            mstore(add(f, 0x40), PEDERSEN_GSIGMANEG_X_1)
-            mstore(add(f, 0x60), PEDERSEN_GSIGMANEG_X_0)
-            mstore(add(f, 0x80), PEDERSEN_GSIGMANEG_Y_1)
-            mstore(add(f, 0xa0), PEDERSEN_GSIGMANEG_Y_0)
-            calldatacopy(add(f, 0xc0), add(proof.offset, {{ hex (sum 0x100 (mul $numCommitments 0x40)) }}), 0x40) // Copy PoK
-            mstore(add(f, 0x100), PEDERSEN_G_X_1)
-            mstore(add(f, 0x120), PEDERSEN_G_X_0)
-            mstore(add(f, 0x140), PEDERSEN_G_Y_1)
-            mstore(add(f, 0x160), PEDERSEN_G_Y_0)
-
-            success := staticcall(gas(), PRECOMPILE_VERIFY, f, 0x180, f, 0x20)
+            success := staticcall(gas(), PRECOMPILE_VERIFY, pedersenPairings, {{hex (mul (mul 6 (sum $numCommitments 1)) 0x20)}}, f, 0x20)
             success := and(success, mload(f))
         }
         if (!success) {
