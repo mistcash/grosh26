@@ -89,24 +89,13 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 			copy(commitmentPrehashSerialized[offset:], publicWitness[vk.PublicAndCommitmentCommitted[i][j]-1].Marshal())
 			offset += fr.Bytes
 		}
-		opt.HashToFieldFn.Write(commitmentPrehashSerialized[:offset])
-		hashBts := opt.HashToFieldFn.Sum(nil)
-		opt.HashToFieldFn.Reset()
-		nbBuf := fr.Bytes
-		if opt.HashToFieldFn.Size() < fr.Bytes {
-			nbBuf = opt.HashToFieldFn.Size()
-		}
-		var res fr.Element
-		res.SetBytes(hashBts[:nbBuf])
+		res := hashToFr(opt.HashToFieldFn, commitmentPrehashSerialized[:offset])
 		publicWitness = append(publicWitness, res)
 		copy(commitmentsSerialized[i*fr.Bytes:], res.Marshal())
 	}
 	if len(vk.CommitmentKeys) > 0 {
-		challenge, err := fr.Hash(commitmentsSerialized, []byte("G16-BSB22"), 1)
-		if err != nil {
-			return err
-		}
-		if err = pedersen.BatchVerifyMultiVk(vk.CommitmentKeys, proof.Commitments, []curve.G1Affine{proof.CommitmentPok}, challenge[0]); err != nil {
+		challenge := hashToFr(opt.HashToFieldFn, commitmentsSerialized)
+		if err = pedersen.BatchVerifyMultiVk(vk.CommitmentKeys, proof.Commitments, []curve.G1Affine{proof.CommitmentPok}, challenge); err != nil {
 			return err
 		}
 	}
