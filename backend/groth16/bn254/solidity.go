@@ -447,11 +447,16 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
             mstore(f, CONSTANT_X)
             mstore(add(f, 0x20), CONSTANT_Y)
             {{- if gt $numCommitments 0 }}
-            {{- if eq $numCommitments 1 }}
+            // ECADD only takes two points at a time, so summing more than
+            // two commitments needs a pairwise reduction rather than a
+            // single call over all of them.
             mstore(g, mload(commitments))
             mstore(add(g, 0x20), mload(add(commitments, 0x20)))
-            {{- else }}
-            success := and(success,  staticcall(gas(), PRECOMPILE_ADD, commitments, {{mul 0x40 $numCommitments}}, g, 0x40))
+            {{- range $i := intRange (sub $numCommitments 1) }}
+            {{- $ii := sum $i 1 }}
+            mstore(add(g, 0x40), mload(add(commitments, {{hex (mul (mul $ii 2) 0x20)}})))
+            mstore(add(g, 0x60), mload(add(commitments, {{hex (mul (sum (mul $ii 2) 1) 0x20)}})))
+            success := and(success, staticcall(gas(), PRECOMPILE_ADD, g, 0x80, g, 0x40))
             {{- end }}
             success := and(success,  staticcall(gas(), PRECOMPILE_ADD, f, 0x80, f, 0x40))
             {{- end }}
