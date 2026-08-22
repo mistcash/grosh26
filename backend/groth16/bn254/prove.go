@@ -7,6 +7,7 @@ package groth16
 
 import (
 	"fmt"
+	"hash"
 	"math/big"
 	"runtime"
 	"time"
@@ -17,16 +18,37 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/hash_to_field"
 	"github.com/consensys/gnark/backend"
-	"github.com/mistcash/grosh26/backend/groth16/internal"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/constraint/solver"
-	"github.com/mistcash/grosh26/internal/utils"
+	fcs "github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/logger"
 
-	fcs "github.com/consensys/gnark/frontend/cs"
+	"github.com/mistcash/grosh26/backend/groth16/internal"
+	"github.com/mistcash/grosh26/internal/utils"
 )
+
+// hashToFr writes buf into hFn and reduces the digest to a field element.
+// It is used both for the per-commitment public hash and for the
+// multi-commitment folding challenge, so that a Solidity-targeted hash
+// function (see solidity.WithProverTargetSolidityVerifier) covers the
+// folding challenge too: the default fr.Hash (RFC 9380 expand_message_xmd)
+// used upstream has no affordable Solidity replication, so the folding
+// challenge must go through the same overridable hasher as everything else
+// that the on-chain verifier needs to recompute.
+func hashToFr(hFn hash.Hash, buf []byte) fr.Element {
+	hFn.Write(buf)
+	hashBts := hFn.Sum(nil)
+	hFn.Reset()
+	nbBuf := fr.Bytes
+	if hFn.Size() < fr.Bytes {
+		nbBuf = hFn.Size()
+	}
+	var res fr.Element
+	res.SetBytes(hashBts[:nbBuf])
+	return res
+}
 
 // Proof represents a Groth16 proof that was encoded with a ProvingKey and can be verified
 // with a valid statement and a VerifyingKey
@@ -85,15 +107,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			return err
 		}
 
-		opt.HashToFieldFn.Write(constraint.SerializeCommitment(proof.Commitments[i].Marshal(), hashed, (fr.Bits-1)/8+1))
-		hashBts := opt.HashToFieldFn.Sum(nil)
-		opt.HashToFieldFn.Reset()
-		nbBuf := fr.Bytes
-		if opt.HashToFieldFn.Size() < fr.Bytes {
-			nbBuf = opt.HashToFieldFn.Size()
-		}
-		var res fr.Element
-		res.SetBytes(hashBts[:nbBuf])
+		res := hashToFr(opt.HashToFieldFn, constraint.SerializeCommitment(proof.Commitments[i].Marshal(), hashed, (fr.Bits-1)/8+1))
 		res.BigInt(out[0])
 		return nil
 	}))
@@ -120,11 +134,8 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	for i := range commitmentInfo {
 		copy(commitmentsSerialized[fr.Bytes*i:], wireValues[commitmentInfo[i].CommitmentIndex].Marshal())
 	}
-	challenge, err := fr.Hash(commitmentsSerialized, []byte("G16-BSB22"), 1)
-	if err != nil {
-		return nil, err
-	}
-	if _, err = proof.CommitmentPok.Fold(poks, challenge[0], ecc.MultiExpConfig{NbTasks: 1}); err != nil {
+	challenge := hashToFr(opt.HashToFieldFn, commitmentsSerialized)
+	if _, err = proof.CommitmentPok.Fold(poks, challenge, ecc.MultiExpConfig{NbTasks: 1}); err != nil {
 		return nil, err
 	}
 
