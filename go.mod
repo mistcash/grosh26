@@ -27,6 +27,3 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-// replace github.com/consensys/gnark v0.16.0 => github.com/shramee/gnark v0.0.0-20260820183050-b81c6dd4035d
-replace github.com/consensys/gnark v0.16.0 => /Users/shramee/www/crypto/gnark
