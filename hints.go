@@ -19,6 +19,5 @@ func GetPolyRingHints() []solver.Hint {
 		polyRingMulHint,
 		quotientsRLCHint,
 		splitNativeToLimbsHint,
-		identityHint,
 	}
 }

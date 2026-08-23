@@ -3,11 +3,9 @@ module github.com/mistcash/grosh26
 go 1.26.2
 
 require (
-	github.com/bits-and-blooms/bitset v1.24.6
 	github.com/consensys/gnark v0.16.0
 	github.com/consensys/gnark-crypto v0.21.0
 	github.com/ethereum/go-ethereum v1.17.5
-	github.com/leanovate/gopter v0.2.11
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.55.0
 )
@@ -21,6 +19,7 @@ require (
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/VictoriaMetrics/fastcache v1.13.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/bits-and-blooms/bitset v1.24.6 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cockroachdb/crlib v0.0.0-20241112164430-1264a2edc35b // indirect

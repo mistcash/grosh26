@@ -14,6 +14,16 @@ coefficient-wise operations, the Frobenius maps, the tower conversions, the G1
 and G2 point types, the subgroup checks, the residue witness hint, the setup,
 the prover and the off-chain verifier are all gnark's, used as they are.
 
+gnark comes from [tiny-gnark's `pre-merge` branch](https://github.com/mistcash/tiny-gnark/tree/pre-merge),
+a fork that keeps the upstream module path, so it is wired in with a single
+`replace` directive and every import still reads `github.com/consensys/gnark`.
+The fork is v0.16.0 plus fixes on their way upstream; the one this repository
+needs is in `frontend/cs/r1cs`, where `builder.Commit` looked an
+already-committed wire's commitment up in a list it had partly consumed. Two
+commitments were enough to make it pick the wrong one or run off the end, and
+the ring draws two before the range checker draws its own, so on stock gnark
+these circuits do not compile at all.
+
 ## Layout
 
 | path | what it is |
@@ -36,7 +46,7 @@ go run ./cmd/grosh26 solidity   # regenerate Verifier.sol from circuit.vk
 Artifacts land in `build/` (`-dir` to change it). `calldata.json` holds the
 packed proof and the 16 public inputs `verifyProof` takes.
 
-The circuit is 654,327 constraints; gnark's own `PairingCheck` over the same
+The circuit is 654,095 constraints; gnark's own `PairingCheck` over the same
 statement is 736,686, so the ring saves about 11%. Setup takes a couple of
 minutes and a proof under ten seconds.
 
