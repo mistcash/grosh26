@@ -1,10 +1,4 @@
-package groth16
-
-import (
-	"bytes"
-
-	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
-)
+package solidity
 
 // solidityTemplate
 // this is an experimental feature and gnark solidity generator as not been thoroughly tested
@@ -497,6 +491,27 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
     /// Followed by Pedersen commitments ({{$numCommitments}} × 64 bytes) and proof of knowledge
     /// (64 bytes) = {{ sum 256 (mul (sum $numCommitments 1) 64) }} bytes total.
     {{- end }}
+    {{- if gt $numCommitments 1 }}
+
+    /// Derive the challenge that folds the commitments' proofs of knowledge.
+    /// @notice The prover draws this with gnark-crypto's fr.Hash, i.e. RFC 9380
+    /// hash_to_field with expand_message_xmd over SHA-256 and domain separation
+    /// tag "G16-BSB22", so the verifier has to reproduce it exactly: 48 uniform
+    /// bytes, read big-endian and reduced mod R.
+    /// @param input The public commitment hashes, concatenated, 32 bytes each.
+    /// @return The folding challenge, an element of Fr.
+    function foldingChallenge(bytes memory input) internal view returns (uint256) {
+        // DST_prime = DST || I2OSP(len(DST), 1)
+        bytes memory dstPrime = abi.encodePacked("G16-BSB22", uint8(9));
+        // b_0 = H(I2OSP(0, r_in_bytes) || input || I2OSP(len_in_bytes, 2) || I2OSP(0, 1) || DST_prime)
+        bytes32 b0 = sha256(abi.encodePacked(new bytes(64), input, uint16(48), uint8(0), dstPrime));
+        bytes32 b1 = sha256(abi.encodePacked(b0, uint8(1), dstPrime));
+        bytes32 b2 = sha256(abi.encodePacked(b0 ^ b1, uint8(2), dstPrime));
+        // the 48 uniform bytes are b_1 || b_2[0:16]
+        return addmod(mulmod(uint256(b1), 1 << 128, R), uint256(b2) >> 128, R);
+    }
+    {{- end }}
+
     /// @return compressed The compressed proof. Elements are in the same order as for
     /// verifyCompressedProof. I.e. points (A, B, C) in compressed format.
     {{- if gt $numCommitments 0 }}
@@ -641,7 +656,7 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
                     mstore(add(dst, {{hex (mul $i 0x20)}}), mload(add(publicCommitments, {{hex (mul $i 0x20)}})))
                     {{- end }}
                 }
-                challenge = uint256({{ hashFnName }}(challengeInput)) % R;
+                challenge = foldingChallenge(challengeInput);
             }
             {{- end }}
 
@@ -836,7 +851,7 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
                 mstore(add(dst, {{hex (mul $i 0x20)}}), mload(add(publicCommitments, {{hex (mul $i 0x20)}})))
                 {{- end }}
             }
-            challenge = uint256({{ hashFnName }}(challengeInput)) % R;
+            challenge = foldingChallenge(challengeInput);
         }
         {{- end }}
 
@@ -947,33 +962,3 @@ contract Verifier{{ .Cfg.InterfaceDeclaration }} {
 {{- end }}
 }
 `
-
-// MarshalSolidity converts a proof to a byte array that can be used in a
-// Solidity contract.
-//
-// The output format is:
-//
-//	Ar.X (32) | Ar.Y (32) | Bs.X1 (32) | Bs.X0 (32) | Bs.Y1 (32) | Bs.Y0 (32) | Krs.X (32) | Krs.Y (32)
-//	[Commitment_0.X (32) | Commitment_0.Y (32) | ... | PoK.X (32) | PoK.Y (32)]
-//
-// This matches the bytes calldata expected by verifyProof and compressProof.
-func (proof *Proof) MarshalSolidity() []byte {
-	var buf bytes.Buffer
-	_, err := proof.WriteRawTo(&buf)
-	if err != nil {
-		panic(err)
-	}
-
-	if len(proof.Commitments) > 0 {
-		// WriteRawTo encodes: Ar(64) | Bs(128) | Krs(64) | len(4) | Commitments(N×64) | PoK(64)
-		// We need to strip the 4-byte slice length prefix to get:
-		// Ar(64) | Bs(128) | Krs(64) | Commitments(N×64) | PoK(64)
-		raw := buf.Bytes()
-		base := 8 * fp.Bytes // 256
-		result := make([]byte, 0, len(raw)-4)
-		result = append(result, raw[:base]...)
-		result = append(result, raw[base+4:]...)
-		return result
-	}
-	return buf.Bytes()[:8*fp.Bytes]
-}
