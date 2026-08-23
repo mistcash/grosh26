@@ -1,64 +1,70 @@
 # grosh26
 
-Polynomial ring emulation for gnark circuits, and a BN254 𝔽p¹² circuit built on
-it that verifies on chain.
+Polynomial ring emulation for gnark circuits: a BN254 pairing whose 𝔽p¹²
+arithmetic is checked in 𝔽p[x]/(x¹² - 18x⁶ + 82) instead of being reduced
+product by product, and the Solidity verifier that goes with it.
 
 Emulating a big field inside a small one is expensive because every product has
-to be reduced. The polynomial ring checker takes the other route: the prover
-hands back the product and the quotient of the Euclidean division through a
-hint, and every such claim in a circuit is batched into one identity checked at
-a single random point after `Define` returns.
+to be reduced. The ring takes the other route: the prover claims a product and
+its quotient through a hint, and every claim in a circuit is batched into one
+identity checked at a single random point after `Define` returns.
+
+Everything that is not the ring comes from gnark. The 𝔽p¹² element type and its
+coefficient-wise operations, the Frobenius maps, the tower conversions, the G1
+and G2 point types, the subgroup checks, the residue witness hint, the setup,
+the prover and the off-chain verifier are all gnark's, used as they are.
 
 ## Layout
 
 | path | what it is |
 | --- | --- |
-| `field_polyring.go` | the polynomial ring checker: deferred product checks over `𝔽p[x]/(mod)`, batched with a Schwartz-Zippel argument |
-| `std/fields_bn254` | 𝔽p¹² as the direct extension `𝔽p[x]/(x¹² - 18x⁶ + 82)`, with multiplication, squaring, inversion, division and the Frobenius maps |
-| `circuits/fq12` | the demonstration circuit: prove knowledge of a secret `X ∈ 𝔽p¹²` whose 65537-th power is a public `Y` |
-| `cmd/fq12` | the binary that compiles the circuit, runs the setup, proves, verifies and exports the Solidity verifier |
-| `backend/groth16/bn254` | gnark's BN254 Groth16 backend, vendored, with the multi-commitment fixes the generated verifier needs |
+| `field_polyring.go` | the ring checker: deferred product checks over `𝔽p[x]/(mod)`, batched with a Schwartz-Zippel argument |
+| `std/ring_bn254` | the ring bolted onto gnark's `fields_bn254.Ext12`, and the Miller loop and pairing check built on it |
+| `circuits/pairing` | the demonstration circuit: `e(P1,Q1)·e(P2,Q2) == 1` with the G1 points public |
+| `cmd/grosh26` | compile, set up, prove, verify, and export the verifier contract |
+| `solidity` | the Solidity generator, for circuits with more than one commitment |
 
 ## Running it
 
 ```sh
-go run ./cmd/fq12 setup                # circuit.r1cs, circuit.pk, circuit.vk, Verifier.sol
-go run ./cmd/fq12 prove -seed hello    # proof.bin, public.wtns, calldata.json
-go run ./cmd/fq12 verify               # off-chain check
-go run ./cmd/fq12 solidity             # regenerate Verifier.sol from circuit.vk
+go run ./cmd/grosh26 setup      # circuit.r1cs, circuit.pk, circuit.vk, Verifier.sol
+go run ./cmd/grosh26 prove      # proof.bin, public.wtns, calldata.json
+go run ./cmd/grosh26 verify     # off-chain check
+go run ./cmd/grosh26 solidity   # regenerate Verifier.sol from circuit.vk
 ```
 
-Artifacts land in `build/` by default (`-dir` to change it). `calldata.json`
-holds the packed proof and the 48 public inputs that `verifyProof` takes.
+Artifacts land in `build/` (`-dir` to change it). `calldata.json` holds the
+packed proof and the 16 public inputs `verifyProof` takes.
 
-The circuit is 27k constraints with 48 public inputs, so the setup takes a few
-seconds and a proof under a second on a laptop.
+The circuit is 654,327 constraints; gnark's own `PairingCheck` over the same
+statement is 736,686, so the ring saves about 11%. Setup takes a couple of
+minutes and a proof under ten seconds.
 
-## Provers and the generated verifier
+## Why the Solidity generator is ours
 
-The setup is gnark's. The proof is produced by gnark's Groth16 prover, but by
-the copy vendored in `backend/groth16/bn254` rather than the one in
-`github.com/consensys/gnark`, and that matters here.
+The prover is not. gnark's setup, prover and verifier are used unmodified — they
+handle multiple commitments fine. Its *generator* does not: this circuit draws
+three commitments (two for the ring checks, one for the range checker), and
+gnark's template neither sums more than two commitment points correctly nor
+derives the challenge that folds their proofs of knowledge.
 
-The circuit draws three commitments: two for the polynomial ring checks and one
-for the range checker. Upstream folds the commitments' proofs of knowledge with
-a challenge from `fr.Hash` (RFC 9380 `expand_message_xmd`), which a Solidity
-verifier has no affordable way to recompute; the vendored prover routes that
-challenge through the same keccak hasher as everything else the contract has to
-reproduce. A proof from the upstream prover is perfectly valid off chain and is
-rejected by the contract. `fq12 prove -upstream` produces one, and
-`TestSolidityVerifier` pins both outcomes.
-
-The 𝔽p¹² arithmetic follows
-[tiny-gnark's `ppp` branch](https://github.com/mistcash/tiny-gnark/blob/ppp/std/algebra/emulated/fields_bn254/e12.go),
-adapted to the standalone checker in this repository.
+The generator here does both. The folding challenge is what gnark's prover
+computes with `fr.Hash`, i.e. RFC 9380 `hash_to_field` with `expand_message_xmd`
+over SHA-256 and the domain separation tag `G16-BSB22`; the contract reproduces
+it in three `sha256` precompile calls. That is what lets the stock prover and
+this verifier agree.
 
 ## Tests
 
 ```sh
-go test ./...
+go test ./...        # includes a 654k-constraint setup, a couple of minutes
+go test -short ./... # skips it
 ```
 
-The on-chain test compiles the exported verifier with `solc` and runs it against
-go-ethereum's simulated backend. It skips when `solc` is not on `PATH`; set
+The on-chain tests compile the exported verifier with `solc` and run it against
+go-ethereum's simulated backend. They skip when `solc` is not on `PATH`; set
 `SOLC_BIN` to point at one.
+
+The 𝔽p¹² ring operations and the Miller loop follow
+[tiny-gnark's `ppp` branch](https://github.com/mistcash/tiny-gnark/tree/ppp/std/algebra/emulated),
+reduced to the parts that actually differ from gnark.

@@ -788,26 +788,32 @@ func (prc *PolyRingChecker[T]) InnerProduct(a, b []*Element[T]) *Element[T] {
 // *Element[T] without performing reduction.
 func (prc *PolyRingChecker[T]) InnerProductNoReduce(a, b []*Element[T]) *Element[T] {
 	n := len(a)
-	terms := make([]*Element[T], n)
+	// only non-nil terms are collected: a nil or zero coefficient contributes
+	// nothing, and [Field.Sum] would dereference it. Sparse polynomials -- line
+	// evaluations, the ring modulus -- leave most coefficients nil.
+	terms := make([]*Element[T], 0, n)
 	for i := 0; i < n; i++ {
-		if a[i] == nil || b[i] == nil || prc.isStrictZero(a[i]) || prc.isStrictZero(b[i]) {
-			// don't add anything, one of the multiplier is zero
-		} else if bConstVal, bIsConst := prc.f.ConstantValue(b[i]); bIsConst && bConstVal.Cmp(one) == 0 {
-			terms[i] = a[i]
-		} else if aConstVal, aIsConst := prc.f.ConstantValue(a[i]); aIsConst && aConstVal.Cmp(one) == 0 {
-			terms[i] = b[i]
-		} else {
-			terms[i] = prc.f.MulNoReduce(a[i], b[i])
+		switch {
+		case a[i] == nil || b[i] == nil || prc.isStrictZero(a[i]) || prc.isStrictZero(b[i]):
+			// don't add anything, one of the multipliers is zero
+		case isOne(prc.f, b[i]):
+			terms = append(terms, a[i])
+		case isOne(prc.f, a[i]):
+			terms = append(terms, b[i])
+		default:
+			terms = append(terms, prc.f.MulNoReduce(a[i], b[i]))
 		}
 	}
-	var eval *Element[T]
-
-	eval = prc.f.Sum(terms...)
-
-	if eval == nil {
+	if len(terms) == 0 {
 		return prc.f.Zero()
 	}
-	return eval
+	return prc.f.Sum(terms...)
+}
+
+// isOne reports whether e is the constant one.
+func isOne[T FieldParams](f *Field[T], e *Element[T]) bool {
+	v, isConst := f.ConstantValue(e)
+	return isConst && v.Cmp(one) == 0
 }
 
 // NativeToEmulated decomposes a native field var into FieldBitLen/nbBits
