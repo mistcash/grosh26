@@ -114,3 +114,5 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/consensys/gnark v0.16.0 => github.com/mistcash/tiny-gnark v0.0.0-20260823021757-e5aa518e2e6e
