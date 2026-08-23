@@ -491,7 +491,6 @@ func (prc *PolyRingChecker[T]) performDeferredRingChecks(api frontend.API) error
 
 	// z can be shared across all groups
 	quotientbatchesCoeffCommits := []frontend.Variable{z}
-	var qAccLimbs []frontend.Variable
 	for _, group := range prc.checks {
 		quotients := make([]*Poly[T], len(group.checks))
 		for i, check := range group.checks {
@@ -510,18 +509,9 @@ func (prc *PolyRingChecker[T]) performDeferredRingChecks(api frontend.API) error
 			if qCoeff == nil {
 				continue
 			}
-			qAccLimbs = append(qAccLimbs, qCoeff.Limbs...)
+			quotientbatchesCoeffCommits = append(quotientbatchesCoeffCommits, qCoeff.Limbs...)
 		}
 	}
-
-	// the quotient limbs are also range checked, so they end up committed a
-	// second time by the range checker's own commitment; commit stand-ins
-	// instead, see [PolyRingChecker.commitmentAliases].
-	aliases, err := prc.commitmentAliases(api, qAccLimbs)
-	if err != nil {
-		return fmt.Errorf("deferredPolyCheck quotient alias error: %w", err)
-	}
-	quotientbatchesCoeffCommits = append(quotientbatchesCoeffCommits, aliases...)
 
 	// 3. commit the quotients
 	x, err := committer.Commit(quotientbatchesCoeffCommits...)
@@ -611,44 +601,6 @@ func (prc *PolyRingChecker[T]) performDeferredRingChecks(api frontend.API) error
 	// cleanup all deffered polynomial ring checks
 	prc.checks = nil
 
-	return nil
-}
-
-// commitmentAliases returns fresh wires constrained to equal vars, for use as
-// stand-ins when committing.
-//
-// A wire may only be committed to once. The frontend does handle a wire being
-// committed by two commitments -- it substitutes the earlier commitment for the
-// wire -- but as of gnark v0.16.0 it looks the earlier commitment up in a list
-// it has already consumed part of (frontend/cs/r1cs, builder.Commit), so with
-// two or more prior commitments it either picks the wrong one or panics on an
-// out-of-range index. Committing an alias keeps the wire itself out of the
-// second commitment and off that path. The alias is constrained equal to the
-// wire it stands for, so the commitment binds the same value; the cost is one
-// constraint per wire.
-func (prc *PolyRingChecker[T]) commitmentAliases(api frontend.API, vars []frontend.Variable) ([]frontend.Variable, error) {
-	if len(vars) == 0 {
-		return nil, nil
-	}
-	aliases, err := api.NewHint(identityHint, len(vars), vars...)
-	if err != nil {
-		return nil, fmt.Errorf("alias hint: %w", err)
-	}
-	for i := range vars {
-		api.AssertIsEqual(aliases[i], vars[i])
-	}
-	return aliases, nil
-}
-
-// identityHint copies its inputs to its outputs. The copies are constrained
-// equal to the originals by [PolyRingChecker.commitmentAliases].
-func identityHint(_ *big.Int, inputs, outputs []*big.Int) error {
-	if len(inputs) != len(outputs) {
-		return fmt.Errorf("identityHint: %d inputs for %d outputs", len(inputs), len(outputs))
-	}
-	for i := range inputs {
-		outputs[i].Set(inputs[i])
-	}
 	return nil
 }
 
