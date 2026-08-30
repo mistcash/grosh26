@@ -1,4 +1,4 @@
-package emulated
+package polyring
 
 import (
 	"github.com/consensys/gnark/constraint/solver"
