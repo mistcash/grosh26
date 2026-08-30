@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(go:*)",
+      "Shell(git:*)",
+      "Shell(echo \"===== domain-modeling =====\"; cat ~/.commandcode/skills/domain-modeling/SKILL.md; echo; echo \"===== grill-with-docs/agents =====\"; find ~/.commandcode/skills/grill-with-docs/agents -type f | head; echo \"--- contents ---\"; for f in $(find ~/.commandcode/skills/grill-with-docs/agents -type f); do echo \"== $f ==\"; cat \"$f\"; done)",
+      "Shell(gh:*)",
+      "Shell(codex:*)"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}
