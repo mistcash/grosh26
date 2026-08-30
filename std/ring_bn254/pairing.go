@@ -9,7 +9,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
-	polyring "github.com/mistcash/grosh26"
+	"github.com/mistcash/grosh26"
 
 	"github.com/consensys/gnark/std/math/emulated"
 )
