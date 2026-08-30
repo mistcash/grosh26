@@ -89,7 +89,8 @@ func TestThreeCommitmentsOnChain(t *testing.T) {
 	var src bytes.Buffer
 	require.NoError(t, solidity.ExportSolidity(bnVK, &src))
 
-	contract := soltest.Deploy(t, solcPath, src.String())
+	deployment := soltest.Deploy(t, solcPath, src.String())
+	contract := deployment.Contract
 
 	publicInputs := [1]*big.Int{big.NewInt(6)}
 	var results []any

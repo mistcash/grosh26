@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
@@ -14,9 +15,11 @@ import (
 	gnarksolidity "github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/test"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
 	"github.com/mistcash/grosh26/circuits/pairing"
@@ -58,19 +61,34 @@ func TestCircuitRejectsNonPairing(t *testing.T) {
 
 // TestOnChain is the whole pipeline: compile the ring pairing circuit, set it
 // up and prove it with gnark, generate the verifier with our generator, and run
-// the proof against it on a real EVM. The setup dominates, so it is skipped
-// under -short.
+// the proof against it on a real EVM. Along the way it logs the circuit's R1CS
+// and SCS constraint counts, the pipeline timings and the on-chain gas. The
+// setup dominates, so it is skipped under -short.
 func TestOnChain(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping the full pairing circuit setup under -short")
 	}
 	solcPath := soltest.Solc(t)
 
+	start := time.Now()
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &pairing.Circuit{})
 	require.NoError(t, err)
+	t.Logf("r1cs compiled in %s: %d constraints, %d public inputs, %d secret wires, %d coefficients",
+		since(start), ccs.GetNbConstraints(), ccs.GetNbPublicVariables(),
+		ccs.GetNbSecretVariables(), ccs.GetNbCoefficients())
 
+	// the same circuit over the plonk-ish builder, for comparison
+	start = time.Now()
+	scsCcs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &pairing.Circuit{})
+	require.NoError(t, err)
+	t.Logf("scs compiled in %s: %d constraints, %d public inputs, %d secret wires, %d coefficients",
+		since(start), scsCcs.GetNbConstraints(), scsCcs.GetNbPublicVariables()-1,
+		scsCcs.GetNbSecretVariables(), scsCcs.GetNbCoefficients())
+
+	start = time.Now()
 	pk, vk, err := groth16.Setup(ccs)
 	require.NoError(t, err)
+	t.Logf("groth16 setup in %s", since(start))
 
 	assignment, err := pairing.AssignRandom()
 	require.NoError(t, err)
@@ -79,9 +97,14 @@ func TestOnChain(t *testing.T) {
 	publicWitness, err := fullWitness.Public()
 	require.NoError(t, err)
 
+	start = time.Now()
 	proof, err := groth16.Prove(ccs, pk, fullWitness, gnarksolidity.WithProverTargetSolidityVerifier(backend.GROTH16))
 	require.NoError(t, err)
+	t.Logf("groth16 prove in %s", since(start))
+
+	start = time.Now()
 	require.NoError(t, groth16.Verify(proof, vk, publicWitness, gnarksolidity.WithVerifierTargetSolidityVerifier(backend.GROTH16)))
+	t.Logf("groth16 verify in %s", since(start))
 
 	bnVK, ok := vk.(*groth16bn254.VerifyingKey)
 	require.True(t, ok)
@@ -92,7 +115,8 @@ func TestOnChain(t *testing.T) {
 
 	var src bytes.Buffer
 	require.NoError(t, solidity.ExportSolidity(bnVK, &src))
-	contract := soltest.Deploy(t, solcPath, src.String())
+	deployment := soltest.Deploy(t, solcPath, src.String())
+	contract := deployment.Contract
 
 	vector, ok := publicWitness.Vector().(fr.Vector)
 	require.True(t, ok)
@@ -103,16 +127,24 @@ func TestOnChain(t *testing.T) {
 		publicInputs[i] = new(big.Int)
 		vector[i].BigInt(publicInputs[i])
 	}
+	proofBytes := solidity.MarshalSolidity(bnProof)
+	t.Logf("proof: %d bytes, %d public inputs", len(proofBytes), len(publicInputs))
 
 	var results []any
 	require.NoError(t,
-		contract.Call(&bind.CallOpts{}, &results, "verifyProof", solidity.MarshalSolidity(bnProof), publicInputs),
+		contract.Call(&bind.CallOpts{}, &results, "verifyProof", proofBytes, publicInputs),
 		"a genuine proof must verify on-chain")
+
+	receipt := deployment.Send(t, "verifyProof", proofBytes, publicInputs)
+	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
+	t.Logf("verifyProof: %d gas", receipt.GasUsed)
 
 	tampered := publicInputs
 	tampered[0] = new(big.Int).Add(publicInputs[0], big.NewInt(1))
 	var out []any
 	require.Error(t,
-		contract.Call(&bind.CallOpts{}, &out, "verifyProof", solidity.MarshalSolidity(bnProof), tampered),
+		contract.Call(&bind.CallOpts{}, &out, "verifyProof", proofBytes, tampered),
 		"a proof for different public inputs must be rejected on-chain")
 }
+
+func since(start time.Time) time.Duration { return time.Since(start).Round(time.Millisecond) }

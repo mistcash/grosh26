@@ -34,9 +34,29 @@ func Solc(t *testing.T) string {
 	return p
 }
 
+// Deployment is a verifier contract live on a simulated chain: callable
+// view-style through Contract, or with real gas accounting through Send.
+type Deployment struct {
+	Contract *bind.BoundContract
+	sim      *simulated.Backend
+	auth     *bind.TransactOpts
+}
+
+// Send submits method(args...) as a real transaction and returns its mined
+// receipt, so callers can read the gas the execution burned on chain.
+func (d *Deployment) Send(t *testing.T, method string, args ...any) *types.Receipt {
+	t.Helper()
+	tx, err := d.Contract.Transact(d.auth, method, args...)
+	require.NoError(t, err)
+	d.sim.Commit()
+	receipt, err := bind.WaitMined(t.Context(), d.sim.Client(), tx)
+	require.NoError(t, err)
+	return receipt
+}
+
 // Deploy compiles source, which must hold exactly one contract, and deploys it
 // to a simulated chain torn down with the test.
-func Deploy(t *testing.T, solcPath, source string) *bind.BoundContract {
+func Deploy(t *testing.T, solcPath, source string) *Deployment {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -88,6 +108,7 @@ func Deploy(t *testing.T, solcPath, source string) *bind.BoundContract {
 	receipt, err := bind.WaitMined(t.Context(), sim.Client(), deployTx)
 	require.NoError(t, err)
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "verifier contract deployment failed")
+	t.Logf("deployed verifier: %d bytes of bytecode, %d gas", len(bytecodeHex)/2, receipt.GasUsed)
 
-	return contract
+	return &Deployment{Contract: contract, sim: sim, auth: auth}
 }
