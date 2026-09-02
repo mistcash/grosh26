@@ -192,11 +192,34 @@ func (v *Verifier) AssertProof(proof Proof, publicWitness PublicWitness) error {
 		return fmt.Errorf("invalid witness size, got %d, expected %d", len(publicWitness.Public), len(v.k)-1)
 	}
 
-	kSum := &v.k[0]
-	for i := range publicWitness.Public {
-		term := v.curve.ScalarMul(&v.k[i+1], &publicWitness.Public[i])
-		kSum = v.curve.Add(kSum, term)
+	// K-sum: k[0] + Σ k[i+1]·public[i]. The k[i] are compile-time constants
+	// and the public[i] are prover-influenced, so nothing rules out two
+	// summands landing on equal or negated points (a malicious prover can
+	// choose public-input scalars, and public-input scalars can also be
+	// chosen adversarially inside a recursively-verified circuit) -- there is
+	// no argument available that would let this run through v.curve's
+	// incomplete Add safely. Route the scalar-multiple terms through
+	// MultiScalarMul, matching gnark's own reference Groth16 verifier
+	// (std/recursion/groth16/verifier.go, IsValidProof): with no
+	// WithIncompleteArithmetic option, it folds terms via AddUnified, so the
+	// whole accumulation uses complete addition. Fold in the constant term
+	// k[0] with AddUnified rather than gnark's plain Add (gnark's Add there
+	// is safe only because K[0] is a fixed constant summed once at the end;
+	// AddUnified costs the same for a single fold and removes even that
+	// residual incomplete edge).
+	kTerms := make([]*G1Affine, len(v.k)-1)
+	for i := range kTerms {
+		kTerms[i] = &v.k[i+1]
 	}
+	kScalars := make([]*Scalar, len(publicWitness.Public))
+	for i := range publicWitness.Public {
+		kScalars[i] = &publicWitness.Public[i]
+	}
+	kSum, err := v.curve.MultiScalarMul(kTerms, kScalars)
+	if err != nil {
+		return fmt.Errorf("k-sum multi scalar mul: %w", err)
+	}
+	kSum = v.curve.AddUnified(kSum, &v.k[0])
 
 	v.pairing.AssertIsOnG1(&proof.Ar)
 	v.pairing.AssertIsOnG1(&proof.Krs)
