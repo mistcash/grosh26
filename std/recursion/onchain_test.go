@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/mistcash/grosh26/internal/soltest"
+	"github.com/mistcash/grosh26/internal/timing"
 	"github.com/mistcash/grosh26/solidity"
 	"github.com/mistcash/grosh26/std/recursion"
 )
@@ -43,15 +44,15 @@ func TestOuterOnChain(t *testing.T) {
 	require.NoError(t, err)
 
 	start := time.Now()
-	outerCcs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, recursion.NewCircuit(outerVK, fx.nbPublic))
+	outerCcs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, recursion.NewCircuit(outerVK))
 	require.NoError(t, err)
 	t.Logf("outer r1cs compiled in %s: %d constraints, %d public inputs",
-		since(start), outerCcs.GetNbConstraints(), outerCcs.GetNbPublicVariables()-1)
+		timing.Since(start), outerCcs.GetNbConstraints(), outerCcs.GetNbPublicVariables()-1)
 
 	start = time.Now()
 	outerPK, outerVKGnark, err := groth16.Setup(outerCcs)
 	require.NoError(t, err)
-	t.Logf("outer groth16 setup in %s", since(start))
+	t.Logf("outer groth16 setup in %s", timing.Since(start))
 
 	outerProofField, err := recursion.ValueOfProof(fx.proof)
 	require.NoError(t, err)
@@ -67,11 +68,11 @@ func TestOuterOnChain(t *testing.T) {
 	start = time.Now()
 	outerProof, err := groth16.Prove(outerCcs, outerPK, outerFullWitness, gnarksolidity.WithProverTargetSolidityVerifier(backend.GROTH16))
 	require.NoError(t, err)
-	t.Logf("outer groth16 prove in %s", since(start))
+	t.Logf("outer groth16 prove in %s", timing.Since(start))
 
 	start = time.Now()
 	require.NoError(t, groth16.Verify(outerProof, outerVKGnark, outerPublicWitness, gnarksolidity.WithVerifierTargetSolidityVerifier(backend.GROTH16)))
-	t.Logf("outer groth16 verify in %s", since(start))
+	t.Logf("outer groth16 verify in %s", timing.Since(start))
 
 	outerBnVK, ok := outerVKGnark.(*groth16backend.VerifyingKey)
 	require.True(t, ok)
@@ -136,5 +137,3 @@ func TestOuterOnChain(t *testing.T) {
 		contract.Call(&bind.CallOpts{}, &out, "verifyProof", genuineProofBytes, wrongInputs),
 		"a proof for different public inputs must be rejected on-chain")
 }
-
-func since(start time.Time) time.Duration { return time.Since(start).Round(time.Millisecond) }

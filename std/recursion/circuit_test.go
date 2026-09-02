@@ -23,10 +23,9 @@ import (
 // forms so tests can tamper at the native level before converting -- the same
 // pattern circuits/pairing/circuit_test.go uses.
 type innerFixture struct {
-	vk       *groth16backend.VerifyingKey
-	proof    *groth16backend.Proof
-	public   fr.Vector
-	nbPublic int
+	vk     *groth16backend.VerifyingKey
+	proof  *groth16backend.Proof
+	public fr.Vector
 }
 
 func newInnerFixture(t *testing.T) *innerFixture {
@@ -55,7 +54,7 @@ func newInnerFixture(t *testing.T) *innerFixture {
 	vector, ok := publicWitness.Vector().(fr.Vector)
 	require.True(t, ok)
 
-	return &innerFixture{vk: bnVK, proof: bnProof, public: vector, nbPublic: len(vector)}
+	return &innerFixture{vk: bnVK, proof: bnProof, public: vector}
 }
 
 // circuit builds the outer Circuit and its witness from the fixture's native
@@ -67,7 +66,7 @@ func (fx *innerFixture) circuit(t *testing.T, proof *groth16backend.Proof, publi
 	circuitProof, err := recursion.ValueOfProof(proof)
 	require.NoError(t, err)
 
-	unassigned := recursion.NewCircuit(vk, fx.nbPublic)
+	unassigned := recursion.NewCircuit(vk)
 	assignment := &recursion.Circuit{
 		Proof:         circuitProof,
 		PublicWitness: recursion.ValueOfPublicWitness(public),

@@ -24,6 +24,7 @@ import (
 
 	"github.com/mistcash/grosh26/circuits/pairing"
 	"github.com/mistcash/grosh26/internal/soltest"
+	"github.com/mistcash/grosh26/internal/timing"
 	"github.com/mistcash/grosh26/solidity"
 )
 
@@ -74,7 +75,7 @@ func TestOnChain(t *testing.T) {
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &pairing.Circuit{})
 	require.NoError(t, err)
 	t.Logf("r1cs compiled in %s: %d constraints, %d public inputs, %d secret wires, %d coefficients",
-		since(start), ccs.GetNbConstraints(), ccs.GetNbPublicVariables(),
+		timing.Since(start), ccs.GetNbConstraints(), ccs.GetNbPublicVariables(),
 		ccs.GetNbSecretVariables(), ccs.GetNbCoefficients())
 
 	// the same circuit over the plonk-ish builder, for comparison
@@ -82,13 +83,13 @@ func TestOnChain(t *testing.T) {
 	scsCcs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &pairing.Circuit{})
 	require.NoError(t, err)
 	t.Logf("scs compiled in %s: %d constraints, %d public inputs, %d secret wires, %d coefficients",
-		since(start), scsCcs.GetNbConstraints(), scsCcs.GetNbPublicVariables()-1,
+		timing.Since(start), scsCcs.GetNbConstraints(), scsCcs.GetNbPublicVariables()-1,
 		scsCcs.GetNbSecretVariables(), scsCcs.GetNbCoefficients())
 
 	start = time.Now()
 	pk, vk, err := groth16.Setup(ccs)
 	require.NoError(t, err)
-	t.Logf("groth16 setup in %s", since(start))
+	t.Logf("groth16 setup in %s", timing.Since(start))
 
 	assignment, err := pairing.AssignRandom()
 	require.NoError(t, err)
@@ -100,11 +101,11 @@ func TestOnChain(t *testing.T) {
 	start = time.Now()
 	proof, err := groth16.Prove(ccs, pk, fullWitness, gnarksolidity.WithProverTargetSolidityVerifier(backend.GROTH16))
 	require.NoError(t, err)
-	t.Logf("groth16 prove in %s", since(start))
+	t.Logf("groth16 prove in %s", timing.Since(start))
 
 	start = time.Now()
 	require.NoError(t, groth16.Verify(proof, vk, publicWitness, gnarksolidity.WithVerifierTargetSolidityVerifier(backend.GROTH16)))
-	t.Logf("groth16 verify in %s", since(start))
+	t.Logf("groth16 verify in %s", timing.Since(start))
 
 	bnVK, ok := vk.(*groth16bn254.VerifyingKey)
 	require.True(t, ok)
@@ -146,5 +147,3 @@ func TestOnChain(t *testing.T) {
 		contract.Call(&bind.CallOpts{}, &out, "verifyProof", proofBytes, tampered),
 		"a proof for different public inputs must be rejected on-chain")
 }
-
-func since(start time.Time) time.Duration { return time.Since(start).Round(time.Millisecond) }

@@ -25,11 +25,12 @@ type Circuit struct {
 // [frontend.Compile]: the verifying key is a Go-level constant, not part of
 // the witness, so both need the same one.
 //
-// nbPublic is the inner circuit's number of public inputs (excluding the
-// implicit one-wire); it sizes the placeholder PublicWitness for compilation.
-func NewCircuit(vk *VerifyingKey, nbPublic int) *Circuit {
+// The placeholder PublicWitness is sized from vk.k, whose length is the inner
+// circuit's number of public inputs (excluding the implicit one-wire) plus
+// one for the constant term.
+func NewCircuit(vk *VerifyingKey) *Circuit {
 	return &Circuit{
-		PublicWitness: PublicWitness{Public: make([]Scalar, nbPublic)},
+		PublicWitness: PublicWitness{Public: make([]Scalar, len(vk.k)-1)},
 		vk:            vk,
 	}
 }
