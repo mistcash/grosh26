@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -21,6 +24,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 
 	"github.com/mistcash/grosh26/circuits/poseidon"
+	"github.com/mistcash/grosh26/internal/timing"
 	"github.com/mistcash/grosh26/solidity"
 	"github.com/mistcash/grosh26/std/recursion"
 )
@@ -38,6 +42,11 @@ const (
 	proofFile     = "outer.proof"
 	witnessFile   = "outer.public.wtns"
 	calldataFile  = "calldata.json"
+
+	// outerFingerprintFile records the sha256 digest of the inner.vk the outer
+	// artifacts were compiled against, so cmdProve can detect a stale or
+	// mismatched artifact set instead of failing opaquely at proving time.
+	outerFingerprintFile = "outer.inner-vk.sha256"
 )
 
 // cmdSetup compiles the inner and outer circuits and runs their Groth16
@@ -57,14 +66,14 @@ func cmdSetup(dir string) error {
 		return fmt.Errorf("compile inner circuit: %w", err)
 	}
 	fmt.Printf("inner compiled in %s: %d constraints, %d public inputs\n",
-		since(start), innerCcs.GetNbConstraints(), innerCcs.GetNbPublicVariables()-1)
+		timing.Since(start), innerCcs.GetNbConstraints(), innerCcs.GetNbPublicVariables()-1)
 
 	start = time.Now()
 	innerPK, innerVK, err := groth16.Setup(innerCcs)
 	if err != nil {
 		return fmt.Errorf("inner groth16 setup: %w", err)
 	}
-	fmt.Printf("inner setup done in %s\n", since(start))
+	fmt.Printf("inner setup done in %s\n", timing.Since(start))
 
 	innerBnVK, ok := innerVK.(*groth16bn254.VerifyingKey)
 	if !ok {
@@ -77,33 +86,42 @@ func cmdSetup(dir string) error {
 	}); err != nil {
 		return err
 	}
+	innerFingerprint, err := fingerprintVK(innerVK)
+	if err != nil {
+		return fmt.Errorf("fingerprint inner verifying key: %w", err)
+	}
 
 	outerVK, err := recursion.NewVerifyingKey(innerBnVK)
 	if err != nil {
 		return fmt.Errorf("bake inner verifying key: %w", err)
 	}
-	nbPublic := innerCcs.GetNbPublicVariables() - 1
 
 	start = time.Now()
-	outerCcs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, recursion.NewCircuit(outerVK, nbPublic))
+	outerCcs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, recursion.NewCircuit(outerVK))
 	if err != nil {
 		return fmt.Errorf("compile outer circuit: %w", err)
 	}
 	fmt.Printf("outer compiled in %s: %d constraints, %d public inputs\n",
-		since(start), outerCcs.GetNbConstraints(), outerCcs.GetNbPublicVariables()-1)
+		timing.Since(start), outerCcs.GetNbConstraints(), outerCcs.GetNbPublicVariables()-1)
 
 	start = time.Now()
 	outerPK, outerGnarkVK, err := groth16.Setup(outerCcs)
 	if err != nil {
 		return fmt.Errorf("outer groth16 setup: %w", err)
 	}
-	fmt.Printf("outer setup done in %s\n", since(start))
+	fmt.Printf("outer setup done in %s\n", timing.Since(start))
 
 	if err := writeAll(map[string]io.WriterTo{
 		filepath.Join(dir, outerR1csFile): outerCcs,
 		filepath.Join(dir, outerPKFile):   outerPK,
 		filepath.Join(dir, outerVKFile):   outerGnarkVK,
 	}); err != nil {
+		return err
+	}
+	// record which inner.vk the outer artifacts above were compiled against,
+	// so cmdProve can catch a partial setup rerun or artifacts copied in from
+	// a different build instead of failing opaquely at prove time.
+	if err := writeString(filepath.Join(dir, outerFingerprintFile), innerFingerprint); err != nil {
 		return err
 	}
 	return exportSolidity(dir, outerGnarkVK)
@@ -125,6 +143,9 @@ func cmdProve(dir string) error {
 	if err := readFrom(filepath.Join(dir, innerVKFile), innerVK); err != nil {
 		return err
 	}
+	if err := checkOuterFingerprint(dir, innerVK); err != nil {
+		return err
+	}
 
 	innerAssignment, err := poseidon.AssignRandom()
 	if err != nil {
@@ -140,7 +161,7 @@ func cmdProve(dir string) error {
 	if err != nil {
 		return fmt.Errorf("prove inner: %w", err)
 	}
-	fmt.Printf("inner proved in %s\n", since(start))
+	fmt.Printf("inner proved in %s\n", timing.Since(start))
 
 	innerBnProof, ok := innerProof.(*groth16bn254.Proof)
 	if !ok {
@@ -190,7 +211,7 @@ func cmdProve(dir string) error {
 	if err != nil {
 		return fmt.Errorf("prove outer: %w", err)
 	}
-	fmt.Printf("outer proved in %s\n", since(start))
+	fmt.Printf("outer proved in %s\n", timing.Since(start))
 
 	if err := writeTo(filepath.Join(dir, proofFile), outerProof); err != nil {
 		return err
@@ -292,14 +313,59 @@ func writeCalldata(dir string, proof groth16.Proof, publicWitness witness.Witnes
 	return nil
 }
 
-func since(start time.Time) time.Duration { return time.Since(start).Round(time.Millisecond) }
+// fingerprintVK returns a stable hex digest of vk's serialized bytes, used to
+// check whether outer artifacts on disk were compiled against a particular
+// inner verifying key.
+func fingerprintVK(vk io.WriterTo) (string, error) {
+	h := sha256.New()
+	if _, err := vk.WriteTo(h); err != nil {
+		return "", fmt.Errorf("hash verifying key: %w", err)
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
 
-// writeAll writes every path/value pair, stopping at the first error. Go map
-// iteration order is random, so callers must not depend on write order across
-// entries.
+// checkOuterFingerprint fails loudly if the outer artifacts in dir were not
+// compiled against innerVK: it compares innerVK's fingerprint against the one
+// cmdSetup recorded alongside the outer artifacts when it built the outer
+// circuit around this exact inner verifying key. Without this, a partial or
+// interrupted setup rerun, or outer artifacts copied in from a different
+// build, would surface only as an opaque "constraint not satisfied" failure
+// deep inside cmdProve's outer groth16.Prove call.
+func checkOuterFingerprint(dir string, innerVK io.WriterTo) error {
+	got, err := fingerprintVK(innerVK)
+	if err != nil {
+		return fmt.Errorf("fingerprint inner verifying key: %w", err)
+	}
+	path := filepath.Join(dir, outerFingerprintFile)
+	recorded, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read %s: outer artifacts predate consistency fingerprinting, or setup was interrupted before finishing; re-run 'grosh26 setup' to produce a consistent artifact set (%w)", path, err)
+	}
+	if want := strings.TrimSpace(string(recorded)); got != want {
+		return fmt.Errorf("outer artifacts in %s do not match inner.vk on disk (inner.vk fingerprint %s, outer artifacts were built against %s); re-run 'grosh26 setup' to produce a consistent artifact set", dir, got, want)
+	}
+	return nil
+}
+
+// writeString writes s (plus a trailing newline) to path.
+func writeString(path, s string) error {
+	if err := os.WriteFile(path, []byte(s+"\n"), 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	fmt.Printf("wrote %s\n", path)
+	return nil
+}
+
+// writeAll writes every path/value pair in deterministic (sorted-path) order,
+// stopping at the first error.
 func writeAll(files map[string]io.WriterTo) error {
-	for path, v := range files {
-		if err := writeTo(path, v); err != nil {
+	paths := make([]string, 0, len(files))
+	for path := range files {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		if err := writeTo(path, files[path]); err != nil {
 			return err
 		}
 	}

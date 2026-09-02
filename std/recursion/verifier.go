@@ -31,14 +31,16 @@ type (
 // [NewVerifier] to bake it into the outer circuit as compile-time constants.
 //
 // It deliberately does not store gnark's in-circuit point types: those are
-// built by [sw_bn254.NewG1Affine] et al. via [emulated.ValueOf], which only
-// allocates real limbs once gnark's schema walker calls Element.Initialize on
-// it during witness parsing. A verifying key lives outside the witness --
-// stashed in an unexported field, it would never be walked, and the pairing
-// check would silently run against uninitialized (wrong) limbs instead of
-// failing loudly. [NewVerifier] builds the real in-circuit constants inside
-// Define instead, with [emulated.Field.NewElement], the same way
-// [sw_emulated.New] builds its own hardcoded curve generator.
+// normally built by [sw_bn254.NewG1Affine] et al. via [emulated.ValueOf].
+// gnark's own emulated-field arithmetic (emulated.Field.enforceWidthConditional,
+// called on every operand of every op) already calls Element.Initialize on
+// such elements before use regardless of whether they were ever walked as
+// part of a witness, so a ValueOf-built element stashed here would not
+// actually end up with uninitialized limbs. [NewVerifier] still builds the
+// real in-circuit constants explicitly, inside Define, with
+// [emulated.Field.NewElement] -- the same way [sw_emulated.New] builds its
+// own hardcoded curve generator -- as defense in depth matching that
+// convention, not as a workaround for a correctness bug.
 type VerifyingKey struct {
 	alphaNeg bn254.G1Affine
 	beta     bn254.G2Affine
@@ -113,9 +115,8 @@ type Verifier struct {
 	curve   *sw_emulated.Curve[emparams.BN254Fp, emparams.BN254Fr]
 	pairing *ring_bn254.Pairing
 
-	// the verifying key's points, built once as real in-circuit constants;
-	// see the note on [VerifyingKey] for why this has to happen here rather
-	// than ahead of time.
+	// the verifying key's points, built once as real in-circuit constants
+	// here rather than stored ahead of time; see the note on [VerifyingKey].
 	alphaNeg G1Affine
 	beta     G2Affine
 	gammaNeg G2Affine
@@ -187,6 +188,13 @@ func constG2(fp *emulated.Field[emparams.BN254Fp], p bn254.G2Affine) G2Affine {
 // checked as a single 4-term [ring_bn254.Pairing.PairingCheck] -- the
 // verifying key's γ, δ (and the folded-in α) are already negated in
 // [NewVerifyingKey], so the identity becomes a plain product-equals-one.
+//
+// AssertProof itself has no notion of BSB22 commitments -- there is no
+// Commitments field on [Proof] and no PoK check here. The "no commitments"
+// restriction documented on [NewVerifyingKey] and [ValueOfProof] holds only
+// because their rejection of vk.CommitmentKeys/proof.Commitments keeps len(v.k)
+// and len(publicWitness.Public) matching what an inner circuit without
+// commitments produces; it is not independently enforced below.
 func (v *Verifier) AssertProof(proof Proof, publicWitness PublicWitness) error {
 	if len(publicWitness.Public) != len(v.k)-1 {
 		return fmt.Errorf("invalid witness size, got %d, expected %d", len(publicWitness.Public), len(v.k)-1)
