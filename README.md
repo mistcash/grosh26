@@ -31,16 +31,18 @@ these circuits do not compile at all.
 | `field_polyring.go` | the ring checker: deferred product checks over `𝔽p[x]/(mod)`, batched with a Schwartz-Zippel argument |
 | `std/ring_bn254` | the ring bolted onto gnark's `fields_bn254.Ext12`, and the Miller loop and pairing check built on it |
 | `circuits/pairing` | the demonstration circuit: `e(P1,Q1)·e(P2,Q2) == 1` with the G1 points public |
-| `cmd/grosh26` | compile, set up, prove, verify, and export the verifier contract |
+| `circuits/poseidon` | the inner circuit for the recursion demo: a poseidon 2→1 compression preimage |
+| `std/recursion` | the outer Verifier circuit: a Groth16 proof of the inner circuit, checked via the ring pairing |
+| `cmd/grosh26` | drives the recursive flow: set up both circuits, prove inner then outer, verify, export the verifier contract |
 | `solidity` | the Solidity generator, for circuits with more than one commitment |
 
 ## Running it
 
 ```sh
-go run ./cmd/grosh26 setup      # circuit.r1cs, circuit.pk, circuit.vk, Verifier.sol
-go run ./cmd/grosh26 prove      # proof.bin, public.wtns, calldata.json
-go run ./cmd/grosh26 verify     # off-chain check
-go run ./cmd/grosh26 solidity   # regenerate Verifier.sol from circuit.vk
+go run ./cmd/grosh26 setup      # inner.{r1cs,pk,vk}, outer.{r1cs,pk,vk}, Verifier.sol
+go run ./cmd/grosh26 prove      # outer.proof, outer.public.wtns, calldata.json
+go run ./cmd/grosh26 verify     # off-chain check of the outer proof
+go run ./cmd/grosh26 solidity   # regenerate Verifier.sol from outer.vk
 ```
 
 Artifacts land in `build/` (`-dir` to change it). `calldata.json` holds the
