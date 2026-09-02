@@ -80,7 +80,7 @@ inner circuit, prove a random preimage, verify it, then compile and set up the
 outer circuit around that verifying key, and prove *that* the inner proof
 verifies.
 
-The outer circuit compiles to 1,269,392 constraints (a few seconds to prove,
+The outer circuit compiles to 1,269,953 constraints (a few seconds to prove,
 under a minute and a half to set up) and carries three BSB22 commitments —
 two from the ring's deferred checks, one from the range checker — the same
 shape the standalone pairing demo has, verified on-chain by the same
@@ -94,7 +94,7 @@ further tuning:
 | circuit | constraints | commitments | deploy (bytecode / gas) | `verifyProof` gas |
 | --- | --- | --- | --- | --- |
 | `circuits/pairing` (standalone ring pairing) | 659,592 | 3 | 12,931 bytes / 2,843,413 | 542,975 |
-| `std/recursion` (Groth16-in-Groth16) | 1,269,392 | 3 | 10,395 bytes / 2,294,920 | 459,994 |
+| `std/recursion` (Groth16-in-Groth16) | 1,269,953 | 3 | 10,395 bytes / 2,294,920 | 459,994 |
 
 The recursive proof is cheaper to verify on-chain than the standalone pairing
 demo despite the much larger circuit behind it — both proofs are 512 bytes and
