@@ -1,2 +1,5 @@
-# artifacts written by cmd/fq12
+# artifacts written by cmd/grosh26
 /build/
+
+# go build ./cmd/grosh26 output when run without -o
+/grosh26
