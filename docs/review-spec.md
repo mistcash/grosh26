@@ -161,20 +161,25 @@ is documented on `NewExt12` (`std/ring_bn254/ring.go:40-47`) and was
 re-discovered empirically while building `std/recursion.NewVerifier`, which
 now calls `ring_bn254.NewPairing` first for exactly this reason.
 
-### 2.5 Open item: the public-input sum uses incomplete addition
+### 2.5 The public-input sum uses complete addition
 
-`AssertProof` accumulates the public-input terms of `L` with
-`curve.Add` (`std/recursion/verifier.go:198`), which is gnark's *incomplete*
-addition formula: `sw_emulated.Curve.add` computes
-`λ = (q.y−p.y)/(q.x−p.x)` with no handling for `p == q` or `p == −q`. gnark's
-own reference Groth16-in-circuit verifier
-(`std/recursion/groth16/verifier.go:595-602` in the vendored fork) instead
-accumulates the equivalent sum with `MultiScalarMul`, which is complete.
-Nothing in this repo's `verifier.go` argues why the `k[i]` constants and the
-prover-influenced public-input scalar multiples can never collide in
-x-coordinate here. **This is tracked as an open question in #14, not yet
-resolved**, and should be treated as the primary open soundness question in
-`std/recursion` by anyone reviewing it.
+`AssertProof` accumulates the public-input terms of `L` (`Σᵢ wᵢ·Kᵢ`) with
+`curve.MultiScalarMul` (`std/recursion/verifier.go`), then folds in the
+constant term `K₀` with `curve.AddUnified`. This matches gnark's own
+reference Groth16-in-circuit verifier
+(`std/recursion/groth16/verifier.go:595-599` in the vendored fork), which
+routes the same sum through `MultiScalarMul` and then a single `Add` for
+`K₀`; this repo uses `AddUnified` rather than plain `Add` for that last fold,
+which costs the same for a single addition and removes even that residual
+incomplete-addition edge.
+
+Previously this accumulated the terms one at a time with `curve.Add`
+(gnark's *incomplete* addition formula: `sw_emulated.Curve.add` computes
+`λ = (q.y−p.y)/(q.x−p.x)` with no handling for `p == q` or `p == −q`), with
+no argument for why the `k[i]` constants and the prover-influenced
+public-input scalar multiples could never collide in x-coordinate. Fixed in
+#14 by switching to complete addition throughout, rather than attempting
+that argument.
 
 ### 2.6 Open item: the BSB22-commitment restriction is not structural
 
@@ -228,7 +233,7 @@ a single `(numCommitments+1)`-pairing check via the `PRECOMPILE_VERIFY`
 | 1 | Schwartz-Zippel challenge, full native width vs. 2-limb truncation | Fixed, #5 |
 | 2 | Quotient coefficients carry no range check | Deliberate, argued safe in §1.3 |
 | 3 | Verifying-key constants built via `Field.NewElement` rather than `emulated.ValueOf` | Deliberate (belt-and-suspenders); both are sound, §2.3 |
-| 4 | Public-input sum via incomplete `curve.Add` instead of `MultiScalarMul` | **Open**, #14 |
+| 4 | Public-input sum via incomplete `curve.Add` instead of `MultiScalarMul` | Fixed, #14 |
 | 5 | `AssertProof` has no structural BSB22-commitment guard | Open, #15 |
 
 ## Matches shipped code
