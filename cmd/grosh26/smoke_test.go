@@ -45,6 +45,7 @@ func TestRecursivePipeline(t *testing.T) {
 	for _, name := range []string{
 		"inner.r1cs", "inner.pk", "inner.vk",
 		"outer.r1cs", "outer.pk", "outer.vk",
+		"outer.inner-vk.sha256",
 		"Verifier.sol",
 	} {
 		requireExists(t, filepath.Join(artifactDir, name))
