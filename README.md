@@ -48,9 +48,53 @@ go run ./cmd/grosh26 solidity   # regenerate Verifier.sol from outer.vk
 Artifacts land in `build/` (`-dir` to change it). `calldata.json` holds the
 packed proof and the 16 public inputs `verifyProof` takes.
 
-The circuit is 654,095 constraints; gnark's own `PairingCheck` over the same
-statement is 736,686, so the ring saves about 11%. Setup takes a couple of
-minutes and a proof under ten seconds.
+The circuit is 659,592 constraints; gnark's own `PairingCheck` over the same
+statement is 736,686, so the ring saves about 10%. Setup takes under a minute
+and a proof a couple of seconds.
+
+## Recursion: a Groth16 proof inside a Groth16 proof
+
+`std/recursion` is a second, self-contained demonstration: a Groth16 verifier
+built as a circuit, so one Groth16 proof can attest that another Groth16 proof
+verifies. The inner statement (`circuits/poseidon`) is deliberately small —
+knowledge of a preimage `(a, b)` to a Poseidon2 2-to-1 compression digest — so
+that the interesting cost is entirely in the outer circuit, not the inner one.
+
+The outer `Verifier` circuit takes the inner circuit's verifying key as a
+compile-time constant (baked in via `NewVerifyingKey`, not a witness), and its
+`Define` reproduces the Groth16 pairing identity
+
+```
+e(A, B) · e(α, β)⁻¹ · e(L, γ)⁻¹ · e(C, δ)⁻¹ = 1
+```
+
+as a single four-term `PairingCheck` through [`ring_bn254`](std/ring_bn254),
+the same ring pairing the standalone demo above uses. `cmd/grosh26`'s `setup`
+and `prove` commands drive the whole thing end to end: compile and set up the
+inner circuit, prove a random preimage, verify it, then compile and set up the
+outer circuit around that verifying key, and prove *that* the inner proof
+verifies.
+
+The outer circuit compiles to 1,269,392 constraints (a few seconds to prove,
+under a minute and a half to set up) and carries three BSB22 commitments —
+two from the ring's deferred checks, one from the range checker — the same
+shape the standalone pairing demo has, verified on-chain by the same
+generator.
+
+## Gas
+
+Measured against go-ethereum's simulated backend, `solc --optimize`, no
+further tuning:
+
+| circuit | constraints | commitments | deploy (bytecode / gas) | `verifyProof` gas |
+| --- | --- | --- | --- | --- |
+| `circuits/pairing` (standalone ring pairing) | 659,592 | 3 | 12,931 bytes / 2,843,413 | 542,975 |
+| `std/recursion` (Groth16-in-Groth16) | 1,269,392 | 3 | 10,395 bytes / 2,294,920 | 459,994 |
+
+The recursive proof is cheaper to verify on-chain than the standalone pairing
+demo despite the much larger circuit behind it — both proofs are 512 bytes and
+the same shape (Groth16 with three commitments), so `verifyProof`'s gas is a
+function of the public input count (16 vs. 4), not of what was proved.
 
 ## Why the Solidity generator is ours
 
@@ -69,8 +113,8 @@ this verifier agree.
 ## Tests
 
 ```sh
-go test ./...        # includes a 654k-constraint setup, a couple of minutes
-go test -short ./... # skips it
+go test ./...        # includes full circuit setups (up to 1.3M constraints), several minutes
+go test -short ./... # skips them
 ```
 
 The on-chain tests compile the exported verifier with `solc` and run it against
@@ -80,3 +124,8 @@ go-ethereum's simulated backend. They skip when `solc` is not on `PATH`; set
 The 𝔽p¹² ring operations and the Miller loop follow
 [tiny-gnark's `ppp` branch](https://github.com/mistcash/tiny-gnark/tree/ppp/std/algebra/emulated),
 reduced to the parts that actually differ from gnark.
+
+## License
+
+Apache-2.0, see [LICENSE](LICENSE). See [CHANGELOG](CHANGELOG.md) for release
+notes.
