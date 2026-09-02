@@ -10,8 +10,6 @@ import (
 	limbs "github.com/mistcash/grosh26/internal/limbcomposition"
 )
 
-const nbChallengeLimbs = 2
-
 // staticFieldParams is a wrapper to avoid calling the dynamic methods in DynamicFieldParams
 // all the time. The native field stays intact and we can cache the values.
 type fParams[T FieldParams] struct {
@@ -519,8 +517,11 @@ func (prc *PolyRingChecker[T]) performDeferredRingChecks(api frontend.API) error
 		return fmt.Errorf("deferredPolyCheck quotient commit error: %w", err)
 	}
 
-	// Decompose challenges into emulated elements (full-width, multi-limb).
-	nativesToEl, err := prc.NativeToEmulated(nbChallengeLimbs, z, x)
+	// Decompose challenges into emulated elements at full native width: per
+	// the Fiat-Shamir construction from eprint 2024/640, the Schwartz-Zippel
+	// challenge is the verifier-side commitment randomness itself, used in
+	// full -- not a truncated prefix of it.
+	nativesToEl, err := prc.NativeToEmulated(z, x)
 	if err != nil {
 		return fmt.Errorf("NativeToEmulated error: %w", err)
 	}
@@ -629,7 +630,7 @@ func (prc *PolyRingChecker[T]) callQuotientsRLCHint(quotients []*Poly[T], z fron
 
 	// hint input layout: nbBits | nbLimbs | nbPolys | fieldMod | z | for each poly: nbTerms | limbs...
 	hintInputs := make([]frontend.Variable, 0, 5+nbLimbs+nbPolys) // nbLimbs from modulus Element
-	hintInputs = append(hintInputs, nbBits, nbLimbs, nbChallengeLimbs, nbPolys, z)
+	hintInputs = append(hintInputs, nbBits, nbLimbs, prc.fullChallengeLimbs(), nbPolys, z)
 	hintInputs = append(hintInputs, prc.f.Modulus().Limbs...)
 
 	for _, q := range quotients {
@@ -663,13 +664,14 @@ func quotientsRLCHint(nativeMod *big.Int, inputs, outputs []*big.Int) error {
 	nbLimbs := int(inputs[1].Int64())
 	nbChallengeLimbs := int(inputs[2].Int64())
 	nbPolys := int(inputs[3].Int64())
-	// we only use nbChallengeLimbs worth of the challenge
+	// nbChallengeLimbs is sized to the challenge's full native width (see
+	// PolyRingChecker.fullChallengeLimbs), so this mask never truncates z.
 	nbChallengeBits := uint(nbBits * nbChallengeLimbs)
 
 	z := new(big.Int) // full z
 	base := new(big.Int).Lsh(one, nbChallengeBits)
 	base.Sub(base, one)    // 0b111...1111 challenge bits
-	z.And(inputs[4], base) // mask z to nbChallengeLimbs bits
+	z.And(inputs[4], base) // mask z to its full native width
 
 	nbMetaDataVars := 5 + int(nbLimbs)
 
@@ -768,11 +770,22 @@ func isOne[T FieldParams](f *Field[T], e *Element[T]) bool {
 	return isConst && v.Cmp(one) == 0
 }
 
-// NativeToEmulated decomposes a native field var into FieldBitLen/nbBits
-// limbs, return Element[T] truncated to limitLimbs.
-func (prc *PolyRingChecker[T]) NativeToEmulated(limitLimbs int, v ...frontend.Variable) ([]*Element[T], error) {
+// fullChallengeLimbs returns the number of nbBits-wide limbs needed to hold a
+// native field element at full width, with no truncation: the number
+// NativeToEmulated decomposes into, and the width the deferred ring check's
+// off-circuit RLC hint must mask a challenge to for the two to agree.
+func (prc *PolyRingChecker[T]) fullChallengeLimbs() int {
 	nbBits := int(prc.fp.BitsPerLimb())
-	nbLimbs := prc.api.Compiler().FieldBitLen()/nbBits + 1
+	return prc.api.Compiler().FieldBitLen()/nbBits + 1
+}
+
+// NativeToEmulated decomposes each native field var into FieldBitLen/nbBits
+// limbs and returns it as a full-width Element[T], with no truncation: per
+// the Fiat-Shamir construction from eprint 2024/640, the Schwartz-Zippel
+// challenge is the verifier-side commitment randomness itself, used in full.
+func (prc *PolyRingChecker[T]) NativeToEmulated(v ...frontend.Variable) ([]*Element[T], error) {
+	nbBits := int(prc.fp.BitsPerLimb())
+	nbLimbs := prc.fullChallengeLimbs()
 	hintInputs := make([]frontend.Variable, 0, 2+len(v))
 	hintInputs = append(hintInputs, nbBits, nbLimbs)
 	hintInputs = append(hintInputs, v...)
@@ -793,7 +806,6 @@ func (prc *PolyRingChecker[T]) NativeToEmulated(limitLimbs int, v ...frontend.Va
 		}
 		// assert correct decomposition
 		prc.api.AssertIsEqual(rebuildEl, v[i])
-		elements[i].Limbs = elements[i].Limbs[:limitLimbs]
 	}
 	return elements, nil
 }
