@@ -1,13 +1,73 @@
 # grosh26
 
-Polynomial ring emulation for gnark circuits: a BN254 pairing whose 𝔽p¹²
-arithmetic is checked in 𝔽p[x]/(x¹² - 18x⁶ + 82) instead of being reduced
-product by product, and the Solidity verifier that goes with it.
+grosh26 is a Go library for [gnark](https://github.com/Consensys/gnark) that
+makes two things cheaper when you're building zk-SNARK circuits on BN254:
+verifying a Groth16 pairing *inside* another circuit, and verifying a Groth16
+proof with more than one commitment *on-chain*. Together they let you build a
+circuit that checks another circuit's proof — a proof of a proof — and deploy
+a Solidity verifier for it, which is the machinery a lot of real recursive-SNARK
+and zk-rollup style systems are built out of.
+
+Concretely, it ships two pieces:
+
+- **A cheaper in-circuit BN254 pairing check.** Verifying a Groth16 proof
+  inside a circuit means doing a pairing check in-circuit, and pairings are
+  where most of the constraint budget goes. grosh26's pairing checks the
+  𝔽p¹² arithmetic in 𝔽p[x]/(x¹² - 18x⁶ + 82) instead of gnark's product-by-product
+  reduction — about 10% fewer constraints for the same statement.
+- **A multi-commitment Solidity verifier generator.** gnark's own generator
+  can only emit a verifier contract for a proof with at most one BSB22
+  commitment. grosh26's circuits use three (that's what the cheaper pairing
+  check above costs in commitments), so this repo ships a generator that
+  handles proofs with more than one — the actual novel piece needed to get
+  a "proof of a proof" verified on a generic EVM.
 
 **v0.1.0 is unaudited.** It has not had an external cryptographic review.
-Two soundness questions are known and open — see [Review](#review) below —
+One soundness question is known and open — see [Review](#review) below —
 and there may be others no one has looked for yet. Do not use this in
 anything that handles real value without an audit first.
+
+## Example use cases
+
+- **Recursive proof verification / proof aggregation.** Verify a Groth16
+  proof of some inner statement inside an outer circuit, so the outer proof
+  attests "this inner proof is valid" without re-running the inner
+  computation. `std/recursion` is exactly this, demonstrated end to end —
+  see [Recursion](#recursion-a-groth16-proof-inside-a-groth16-proof) below.
+- **Off-chain computation, on-chain trust.** Run an expensive computation off
+  chain (in the inner circuit), prove it, wrap that proof in an outer
+  recursive proof, and verify only the outer proof on-chain — the contract
+  never sees or re-executes the inner computation, just trusts the recursive
+  proof of it.
+- **Cutting gas on any Groth16 verifier that needs multiple BSB22
+  commitments.** Even without recursion: any gnark circuit that ends up with
+  more than one commitment (large circuits with multiple `Commit` calls, or
+  circuits composed from several sub-gadgets that each commit) can't get a
+  verifier contract from gnark's own generator. `solidity/` alone — independent
+  of the ring pairing — solves that.
+- **A worked template to build your own recursive circuit from.** `std/recursion`'s
+  `Circuit` is a reusable outer circuit parameterized by an inner verifying
+  key; `circuits/poseidon` is the shipped example of an inner circuit. Swap in
+  your own inner circuit's verifying key and public inputs to recurse over a
+  different statement:
+
+  ```go
+  // vk is the inner circuit's native Groth16 verifying key.
+  vk, err := recursion.NewVerifyingKey(innerVK)
+
+  // Same vk for both the unassigned circuit (compile) and the witness (prove).
+  outerCcs, _ := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, recursion.NewCircuit(vk))
+  outerPK, outerVK, _ := groth16.Setup(outerCcs)
+
+  assignment := recursion.NewCircuit(vk)
+  assignment.Proof, _ = recursion.ValueOfProof(innerProof)
+  assignment.PublicWitness = recursion.ValueOfPublicWitness(innerPublicInputs)
+  witness, _ := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
+  outerProof, _ := groth16.Prove(outerCcs, outerPK, witness)
+  ```
+
+  See `cmd/grosh26/recursive.go` for the full, error-checked version of this
+  flow (it's what the CLI runs).
 
 Emulating a big field inside a small one is expensive because every product has
 to be reduced. The ring takes the other route: the prover claims a product and
