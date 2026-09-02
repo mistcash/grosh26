@@ -189,7 +189,7 @@ rejects a non-empty `proof.Commitments`). `AssertProof` itself has no
 `Commitments` field and performs no proof-of-knowledge check — the
 restriction lives only in the two constructors. Currently a mismatched
 proof/VK is caught as a byproduct of `AssertProof`'s public-input length
-check, not by a purpose-built guard. Tracked in #15.
+check, not by a purpose-built guard. Tracked in #17.
 
 ## 3. The multi-commitment Solidity verifier (`solidity/`)
 
@@ -234,7 +234,7 @@ a single `(numCommitments+1)`-pairing check via the `PRECOMPILE_VERIFY`
 | 2 | Quotient coefficients carry no range check | Deliberate, argued safe in §1.3 |
 | 3 | Verifying-key constants built via `Field.NewElement` rather than `emulated.ValueOf` | Deliberate (belt-and-suspenders); both are sound, §2.3 |
 | 4 | Public-input sum via incomplete `curve.Add` instead of `MultiScalarMul` | Fixed, #14 |
-| 5 | `AssertProof` has no structural BSB22-commitment guard | Open, #15 |
+| 5 | `AssertProof` has no structural BSB22-commitment guard | Open, #17 |
 
 ## Matches shipped code
 
