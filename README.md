@@ -4,6 +4,11 @@ Polynomial ring emulation for gnark circuits: a BN254 pairing whose 𝔽p¹²
 arithmetic is checked in 𝔽p[x]/(x¹² - 18x⁶ + 82) instead of being reduced
 product by product, and the Solidity verifier that goes with it.
 
+**v0.1.0 is unaudited.** It has not had an external cryptographic review.
+Two soundness questions are known and open — see [Review](#review) below —
+and there may be others no one has looked for yet. Do not use this in
+anything that handles real value without an audit first.
+
 Emulating a big field inside a small one is expensive because every product has
 to be reduced. The ring takes the other route: the prover claims a product and
 its quotient through a hint, and every claim in a circuit is batched into one

@@ -2,7 +2,10 @@
 
 ## v0.1.0
 
-First public release.
+First public release. **Unaudited** — see `docs/review-spec.md` for the
+soundness arguments and the open questions ([#14](https://github.com/mistcash/grosh26/issues/14),
+[#15](https://github.com/mistcash/grosh26/issues/15)) an external review has
+not yet resolved.
 
 - Polynomial ring checker (`field_polyring.go`): deferred `𝔽p[x]/(mod)`
   product checks, batched behind a single Schwartz-Zippel identity per
