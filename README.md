@@ -125,6 +125,13 @@ The 𝔽p¹² ring operations and the Miller loop follow
 [tiny-gnark's `ppp` branch](https://github.com/mistcash/tiny-gnark/tree/ppp/std/algebra/emulated),
 reduced to the parts that actually differ from gnark.
 
+## Review
+
+External cryptographers reviewing the novel surface (the deferred ring
+check, the ring pairing, the recursion, the multi-commitment verifier)
+should start at [`docs/review-spec.md`](docs/review-spec.md): the soundness
+arguments, and the deliberate deviations and open items, stated explicitly.
+
 ## License
 
 Apache-2.0, see [LICENSE](LICENSE). See [CHANGELOG](CHANGELOG.md) for release
