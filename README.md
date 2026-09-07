@@ -133,18 +133,34 @@ compile-time constant (baked in via `NewVerifyingKey`, not a witness), and its
 e(A, B) · e(α, β)⁻¹ · e(L, γ)⁻¹ · e(C, δ)⁻¹ = 1
 ```
 
-as a single four-term `PairingCheck` through [`ring_bn254`](std/ring_bn254),
-the same ring pairing the standalone demo above uses. `cmd/grosh26`'s `setup`
-and `prove` commands drive the whole thing end to end: compile and set up the
-inner circuit, prove a random preimage, verify it, then compile and set up the
-outer circuit around that verifying key, and prove *that* the inner proof
-verifies.
+as a single four-term `PairingCheckPairs` through
+[`ring_bn254`](std/ring_bn254), the same ring pairing the standalone demo
+above uses. `cmd/grosh26`'s `setup` and `prove` commands drive the whole thing
+end to end: compile and set up the inner circuit, prove a random preimage,
+verify it, then compile and set up the outer circuit around that verifying
+key, and prove *that* the inner proof verifies.
 
-The outer circuit compiles to 1,269,953 constraints (a few seconds to prove,
-under a minute and a half to set up) and carries three BSB22 commitments —
-two from the ring's deferred checks, one from the range checker — the same
-shape the standalone pairing demo has, verified on-chain by the same
-generator.
+Only one of the four terms is a full pairing. β, γ and δ come from the
+verifying key and never vary, so three of the four in-circuit `[6x₀+2]Q`
+ladders are avoidable:
+
+| term | what varies | cost in the circuit |
+| --- | --- | --- |
+| `e(A, B)` | both points | a full pairing: B's ladder and G2 subgroup check run in-circuit |
+| `e(L, γ)⁻¹`, `e(C, δ)⁻¹` | G1 only | fixed-Q pairs: γ's and δ's lines are precomputed off-circuit |
+| `e(α, β)⁻¹` | nothing | a constant: its Miller loop value is folded in as one factor |
+
+Two fixed-Q pairs and one full pairing, then, over a single Miller loop —
+which takes the outer circuit from 1,269,953 constraints to **640,138**, a
+49.6% cut, for the same statement. Skipping a ladder skips the G2 subgroup
+check with it, so `NewFixedQPair` and `NewFixedPair` run that check
+off-circuit instead and refuse to bake in a point off the twist, outside the
+prime-order subgroup, or at infinity.
+
+The outer circuit carries three BSB22 commitments — two from the ring's
+deferred checks, one from the range checker — the same shape the standalone
+pairing demo has, verified on-chain by the same generator. It takes a few
+seconds to prove and about a minute and a half to set up.
 
 ## Gas
 
@@ -154,10 +170,12 @@ further tuning:
 | circuit | constraints | commitments | deploy (bytecode / gas) | `verifyProof` gas |
 | --- | --- | --- | --- | --- |
 | `circuits/pairing` (standalone ring pairing) | 659,592 | 3 | 12,931 bytes / 2,843,413 | 542,975 |
-| `std/recursion` (Groth16-in-Groth16) | 1,269,953 | 3 | 10,395 bytes / 2,294,920 | 459,994 |
+| `std/recursion` (Groth16-in-Groth16) | 640,138 | 3 | 10,414 bytes / 2,298,785 | 461,338 |
 
 The recursive proof is cheaper to verify on-chain than the standalone pairing
-demo despite the much larger circuit behind it — both proofs are 512 bytes and
+demo, and the two circuits behind them are now within 3% of each other in
+size — an entire Groth16 verifier for about what one bare pairing check
+costs. On-chain, size does not enter into it: both proofs are 512 bytes and
 the same shape (Groth16 with three commitments), so `verifyProof`'s gas is a
 function of the public input count (16 vs. 4), not of what was proved.
 

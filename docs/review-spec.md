@@ -131,17 +131,52 @@ Groth16 verification is the pairing identity
 combination `Σᵢ wᵢ·Kᵢ + K₀`. `Verifier.AssertProof`
 (`std/recursion/verifier.go`) negates `α` (G1) and `γ`, `δ` (G2) once at
 verifying-key-construction time (`NewVerifyingKey`), so the whole thing
-becomes one four-term `PairingCheck` through `ring_bn254` (§1) — the same
-ring pairing `circuits/pairing` uses standalone.
+becomes one four-term `PairingCheckPairs` through `ring_bn254` (§1) — the
+same ring pairing `circuits/pairing` uses standalone.
+
+Only one of the four terms is a full pairing. `β`, `γ` and `δ` come from the
+verifying key and never vary, so three of the four in-circuit `[6x₀+2]Q`
+ladders are avoidable, and the check is assembled from three shapes of
+`ring_bn254.Pair`:
+
+| term | shape | what the circuit does |
+| --- | --- | --- |
+| `e(A,B)` | `NewPair` | full pairing: `B`'s ladder and G2 subgroup check run in-circuit |
+| `e(L,γ)⁻¹`, `e(C,δ)⁻¹` | `NewFixedQPair` | fixed Q: the lines are precomputed off-circuit, only the G1 side varies |
+| `e(α,β)⁻¹` | `NewFixedPair` | both points fixed: the Miller loop value is a constant factor |
+
+That is one Miller loop over three G1 points instead of four in-circuit
+ladders, and it is what takes the outer circuit from 1,269,953 constraints
+to 640,138 (−49.6%).
+
+The soundness cost of skipping a ladder is that the G2 subgroup check goes
+with it, so it has to happen somewhere else. `NewFixedQPair` and
+`NewFixedPair` run it off-circuit, on the native point, and refuse to build
+a pair from a point off the twist, outside the prime-order subgroup, or at
+infinity (`std/ring_bn254/pairing_fixed.go`). Since the point is a
+compile-time constant, an off-circuit check is a check on exactly the value
+the circuit will use — there is no witness for a prover to vary. It is,
+however, the only check: nothing downstream would catch a malformed `β`, `γ`
+or `δ`, which is what `TestOuterCircuitRejectsMalformedKey` pins.
+
+One convention matters here and is easy to get wrong. The constant folded in
+for `e(α,β)⁻¹` is a *raw* Miller loop value, compared against the residue
+witness without a final exponentiation, so it has to use the same line
+normalisation the in-circuit loop does: gnark-crypto's `MillerLoopFixedQ`
+(affine lines), not `MillerLoop` (projective, whose raw value carries the
+lines' `Z` factors). They differ by a factor the final exponentiation would
+kill and this check does not. `TestMillerLoopMatchesFixedQ` pins the
+in-circuit raw Miller loop against the former.
 
 ### 2.3 The verifying key is baked in as a compile-time constant
 
 The inner circuit's verifying key is not a witness: `NewVerifyingKey`
 converts gnark's native `bn254.G1Affine`/`G2Affine` points, and
 `NewVerifier` turns each into a real in-circuit constant via
-`Field.NewElement(bigInt)` called on a live field (`constG1`/`constG2`,
-`std/recursion/verifier.go`), rather than `emulated.ValueOf`. Both approaches
-are in fact sound — gnark's `enforceWidthConditional`
+`Field.NewElement(bigInt)` called on a live field (`Pairing.ConstG1`,
+`ConstG2`, and the line and `𝔽p¹²` constants they build on,
+`std/ring_bn254/pairing_fixed.go`), rather than `emulated.ValueOf`. Both
+approaches are in fact sound — gnark's `enforceWidthConditional`
 (`std/math/emulated/field.go`) calls `Initialize()` on a `ValueOf`-built
 constant the first time any arithmetic op touches it, which the pairing
 check always does — but this repo takes the belt-and-suspenders route,
@@ -235,8 +270,10 @@ a single `(numCommitments+1)`-pairing check via the `PRECOMPILE_VERIFY`
 | 3 | Verifying-key constants built via `Field.NewElement` rather than `emulated.ValueOf` | Deliberate (belt-and-suspenders); both are sound, §2.3 |
 | 4 | Public-input sum via incomplete `curve.Add` instead of `MultiScalarMul` | Fixed, #14 |
 | 5 | `AssertProof` has no structural BSB22-commitment guard | Open, #17 |
+| 6 | `β`, `γ`, `δ` subgroup-checked off-circuit rather than by an in-circuit ladder | Deliberate, argued safe in §2.2 |
 
 ## Matches shipped code
 
-This document describes v0.1.0 as shipped. If it and the source disagree,
-the source is authoritative and this document is stale — flag it.
+This document describes v0.1.0 as shipped, plus the fixed-argument pairing
+terms added since (§2.2). If it and the source disagree, the source is
+authoritative and this document is stale — flag it.

@@ -23,6 +23,14 @@ _Avoid_: Fp12 pairing
 The random ring element at which the deferred identity is evaluated; drawn only after the related operands are committed.
 _Avoid_: random point, challenge point
 
+**Fixed-Q pair**:
+A Miller loop factor whose G2 point is known when the circuit is built, so its line evaluations are precomputed off-circuit and its ladder and subgroup check never enter the circuit. Built with `ring_bn254.Pairing.NewFixedQPair`.
+_Avoid_: precomputed pairing, constant pairing
+
+**Fixed pair**:
+A factor with both points known when the circuit is built, so its whole Miller loop value is a constant folded into the product. Built with `ring_bn254.Pairing.NewFixedPair`.
+_Avoid_: fully precomputed pair
+
 **BSB22 commitment**:
 gnark's batched-Pedersen `Commit`. Grosh26 proofs carry three: the remainder commitment and the quotient commitment from the deferred ring checks, plus the range checker's own.
 _Avoid_: "the 3 commitments" without saying which
