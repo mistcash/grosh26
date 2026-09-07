@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend/groth16"
 	groth16backend "github.com/consensys/gnark/backend/groth16/bn254"
@@ -121,4 +122,75 @@ func TestOuterCircuitNonVacuous(t *testing.T) {
 
 	unassigned, assignment := fx1.circuit(t, fx2.proof, fx1.public)
 	assert.Error(test.IsSolved(unassigned, assignment, ecc.BN254.ScalarField()))
+}
+
+// TestOuterCircuitRejectsTamperedKrs swaps the proof's C point. C pairs
+// against δ, which is fixed by the verifying key, so this is the fixed-Q
+// path's non-vacuity check: precomputing δ's lines must not have turned that
+// term into a no-op.
+func TestOuterCircuitRejectsTamperedKrs(t *testing.T) {
+	fx := newInnerFixture(t)
+	assert := test.NewAssert(t)
+
+	tampered := *fx.proof
+	_, _, g1, _ := bn254.Generators()
+	tampered.Krs.ScalarMultiplication(&g1, big.NewInt(42))
+
+	unassigned, assignment := fx.circuit(t, &tampered, fx.public)
+	assert.Error(test.IsSolved(unassigned, assignment, ecc.BN254.ScalarField()))
+}
+
+// TestOuterCircuitRejectsTamperedBs swaps the proof's B point, the one G2
+// point still taken from the witness and the only one whose ladder and
+// subgroup check remain in the circuit.
+func TestOuterCircuitRejectsTamperedBs(t *testing.T) {
+	fx := newInnerFixture(t)
+	assert := test.NewAssert(t)
+
+	tampered := *fx.proof
+	_, _, _, g2 := bn254.Generators()
+	tampered.Bs.ScalarMultiplication(&g2, big.NewInt(42))
+
+	unassigned, assignment := fx.circuit(t, &tampered, fx.public)
+	assert.Error(test.IsSolved(unassigned, assignment, ecc.BN254.ScalarField()))
+}
+
+// TestOuterCircuitRejectsMalformedKey makes sure baking β, γ and δ in as
+// fixed pairing arguments did not lose the subgroup checks the in-circuit
+// ladders used to run on them. With no ladder left for those three, nothing
+// in the circuit would notice a key point off the twist, so NewVerifier has
+// to reject it when it builds the pairs.
+func TestOuterCircuitRejectsMalformedKey(t *testing.T) {
+	fx := newInnerFixture(t)
+
+	offTwist := func(p bn254.G2Affine) bn254.G2Affine {
+		p.X.A0.Add(&p.X.A0, new(fp.Element).SetOne())
+		return p
+	}
+
+	for name, tamper := range map[string]func(*groth16backend.VerifyingKey){
+		"beta":  func(vk *groth16backend.VerifyingKey) { vk.G2.Beta = offTwist(vk.G2.Beta) },
+		"gamma": func(vk *groth16backend.VerifyingKey) { vk.G2.Gamma = offTwist(vk.G2.Gamma) },
+		"delta": func(vk *groth16backend.VerifyingKey) { vk.G2.Delta = offTwist(vk.G2.Delta) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert := test.NewAssert(t)
+
+			broken := *fx.vk
+			tamper(&broken)
+			vk, err := recursion.NewVerifyingKey(&broken)
+			require.NoError(t, err)
+
+			circuitProof, err := recursion.ValueOfProof(fx.proof)
+			require.NoError(t, err)
+			assignment := &recursion.Circuit{
+				Proof:         circuitProof,
+				PublicWitness: recursion.ValueOfPublicWitness(fx.public),
+			}
+			err = test.IsSolved(recursion.NewCircuit(vk), assignment, ecc.BN254.ScalarField())
+			assert.Error(err)
+			assert.Contains(err.Error(), "not in the prime-order subgroup",
+				"a malformed key point has to be rejected as such, not caught incidentally")
+		})
+	}
 }

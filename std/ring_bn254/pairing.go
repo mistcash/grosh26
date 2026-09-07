@@ -105,26 +105,59 @@ func (pr *Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	return pr.g.FinalExponentiation(res), nil
 }
 
-// PairingCheck asserts ∏ᵢ e(Pᵢ, Qᵢ) == 1, following Section 4 of [On Proving
-// Pairings]: instead of a final exponentiation, the prover supplies a residue
-// witness and the check folds it into the Miller loop.
+// PairingCheck asserts ∏ᵢ e(Pᵢ, Qᵢ) == 1 with every point taken from the
+// witness. It is [Pairing.PairingCheckPairs] over [NewPair] pairs; when some
+// of the points are already known when the circuit is built, build the pairs
+// with [Pairing.NewFixedQPair] or [Pairing.NewFixedPair] and call that
+// directly.
 //
 // It checks that the Qᵢ are in the correct subgroup, but not the Pᵢ; see
 // [Pairing.AssertIsOnG1].
-//
-// [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
 func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
-	nP, nQ := len(P), len(Q)
-	if nP == 0 || nP != nQ {
+	if len(P) == 0 || len(P) != len(Q) {
 		return errors.New("invalid inputs sizes")
 	}
-
-	// hint the non-residue witness
-	inputs := make([]*baseEl, 0, 2*nP+4*nQ)
-	for _, p := range P {
-		inputs = append(inputs, &p.X, &p.Y)
+	pairs := make([]Pair, len(P))
+	for i := range P {
+		pairs[i] = NewPair(P[i], Q[i])
 	}
-	for _, q := range Q {
+	return pr.PairingCheckPairs(pairs...)
+}
+
+// PairingCheckPairs asserts ∏ᵢ e(Pᵢ, Qᵢ) == 1 over [Pair] values of any
+// mix of shapes, following Section 4 of [On Proving Pairings]: instead of a
+// final exponentiation, the prover supplies a residue witness and the check
+// folds it into the Miller loop.
+//
+// Pairs whose G2 point comes from the witness are subgroup-checked in the
+// circuit; the fixed ones were checked when they were built. The G1 points
+// are not checked either way, see [Pairing.AssertIsOnG1].
+//
+// At least one pair has to be one the Miller loop runs over: a product of
+// nothing but [Pairing.NewFixedPair] pairs is itself a constant, so the check
+// would constrain nothing.
+//
+// [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
+func (pr *Pairing) PairingCheckPairs(pairs ...Pair) error {
+	if len(pairs) == 0 {
+		return errors.New("invalid inputs sizes")
+	}
+	for i := range pairs {
+		if pairs[i].p == nil || pairs[i].q == nil {
+			return fmt.Errorf("pair %d is the zero Pair; build it with NewPair, NewFixedQPair or NewFixedPair", i)
+		}
+	}
+
+	// hint the non-residue witness. Every pair feeds it, the fixed ones
+	// included: the witness is the residue of the whole product, so a pair
+	// folded in as a constant Miller loop value still has to be part of what
+	// the hint is drawn from.
+	inputs := make([]*baseEl, 0, 6*len(pairs))
+	for i := range pairs {
+		inputs = append(inputs, &pairs[i].p.X, &pairs[i].p.Y)
+	}
+	for i := range pairs {
+		q := pairs[i].q
 		inputs = append(inputs, &q.P.X.A0, &q.P.X.A1, &q.P.Y.A0, &q.P.Y.A1)
 	}
 	hint, err := pr.fp.NewHint(pairingCheckHint, 18, inputs...)
@@ -159,13 +192,37 @@ func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 		A11: *zero,
 	}
 
-	lines, err := pr.linesFor(Q)
-	if err != nil {
-		return err
+	// Split the pairs: the ones the Miller loop runs over, and the ones whose
+	// whole Miller loop value is already a constant.
+	loopP := make([]*G1Affine, 0, len(pairs))
+	loopLines := make([]lineEvaluations, 0, len(pairs))
+	constants := make([]*basePoly, 0, len(pairs))
+	for i := range pairs {
+		if pairs[i].millerLoop != nil {
+			constants = append(constants, pairs[i].millerLoop)
+			continue
+		}
+		loopP = append(loopP, pairs[i].p)
+		if pairs[i].lines != nil {
+			loopLines = append(loopLines, *pairs[i].lines)
+		} else {
+			loopLines = append(loopLines, pr.computeLines(pairs[i].q))
+		}
 	}
-	res, err := pr.millerLoopLines(P, lines, residueWitnessInvPoly, pr.ToPoly(residueWitness))
+	if len(loopP) == 0 {
+		return errors.New("every pair is fully fixed: the product is a constant and the check constrains nothing")
+	}
+
+	res, err := pr.millerLoopLines(loopP, loopLines, residueWitnessInvPoly, pr.ToPoly(residueWitness))
 	if err != nil {
 		return fmt.Errorf("miller loop: %w", err)
+	}
+
+	// A fixed pair's Miller loop value is a plain factor on the product, so it
+	// goes in here rather than seeding the accumulator: the loop's squarings
+	// would otherwise raise it along with everything else.
+	for _, c := range constants {
+		res.Mul(c)
 	}
 
 	// Check that res · cubicNonResiduePower · residueWitnessInv^λ' == 1, where

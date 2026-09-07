@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- `std/ring_bn254`: pairing arguments that are fixed when the circuit is
+  built no longer pay for an in-circuit `[6x₀+2]Q` ladder. A pairing check
+  is now assembled from `Pair` values — `NewPair` (both points from the
+  witness), `NewFixedQPair` (G2 fixed, its line evaluations precomputed
+  off-circuit) and `NewFixedPair` (both fixed, so the pair's Miller loop
+  value is one constant factor) — passed to `PairingCheckPairs`.
+  `PairingCheck` is unchanged and now delegates to it. The G2 subgroup check
+  a skipped ladder would have run happens off-circuit instead, when the pair
+  is built.
+- `std/recursion`: the outer Groth16 verifier uses that shape — two fixed-Q
+  pairs (`e(L,γ)⁻¹`, `e(C,δ)⁻¹`), one full pairing (`e(A,B)`) and `e(α,β)⁻¹`
+  as a constant — taking the outer circuit from 1,269,953 constraints to
+  640,138, a 49.6% cut for the same statement. `NewVerifier` now rejects a
+  verifying key whose β, γ or δ is not a well-formed G2 element.
+
 ## v0.1.0
 
 First public release. **Unaudited** — see `docs/review-spec.md` for the
