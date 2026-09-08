@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Restructure: the polynomial ring checker moved from the repository root to
+  `std/polyring`; `circuits/` is replaced by `examples/` (`examples/poseidon`
+  for the inner preimage circuit, `examples/recursion` for the end-to-end
+  Groth16-in-Groth16 flow). The standalone pairing demo (`circuits/pairing`)
+  and the `cmd/grosh26` CLI are removed; testing is basic `test.IsSolved`
+  coverage in the style of gnark's `std/algebra/emulated/sw_bn254`.
+
 - `std/ring_bn254`: pairing arguments that are fixed when the circuit is
   built no longer pay for an in-circuit `[6x₀+2]Q` ladder. A pairing check
   is now assembled from `Pair` values — `NewPair` (both points from the
