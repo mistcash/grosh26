@@ -49,29 +49,34 @@ func BenchmarkPairingCheckFixedQ(b *testing.B) {
 	bench.Circuit(b, func() frontend.Circuit { return &pairingCheckFixedQCircuit{q2: q2} }, assignment)
 }
 
-// BenchmarkThreePairingFixedPrev is the three-pairing check with two fixed-Q
+// BenchmarkGroth16Sim is the three-pairing check with two fixed-Q
 // pairs sharing one G2 point in the loop and a fourth folded in as previous:
 // the count pins the combined saving of precomputed lines and the folded-in
 // Miller loop.
-func BenchmarkThreePairingFixedPrev(b *testing.B) {
+func BenchmarkGroth16Sim(b *testing.B) {
 	p, pqNeg, q, g2 := randomPairingTriple(b)
-	var p1, p2, p3 bn254.G1Affine
+	var p1, p3 bn254.G1Affine
 	p1.Double(&p)
-	p2.Set(&pqNeg)
 	p3.Double(&pqNeg)
 
+	bPt, sNative := scalarSplit(b, p, pqNeg)
+
 	assignment := &groth16Sim{
-		P1:   sw_bn254.NewG1Affine(p1),
-		Q1:   sw_bn254.NewG2Affine(q),
-		P2:   sw_bn254.NewG1Affine(p2),
+		P1: sw_bn254.NewG1Affine(p1),
+		Q1: sw_bn254.NewG2Affine(q),
+		A:  sw_bn254.NewG1Affine(p),
+		// A:    p,
+		S: sw_bn254.NewScalar(sNative),
+		B: sw_bn254.NewG1Affine(bPt),
+		// B:    bPt,
 		Q2:   sw_bn254.NewG2AffineFixed(g2),
 		P3:   sw_bn254.NewG1Affine(p3),
 		Q3:   sw_bn254.NewG2AffineFixed(g2),
 		Prev: sw_bn254.NewGTEl(previousMillerValue(b, p, q)),
 	}
 	newCircuit := func() frontend.Circuit {
-		fixed := sw_bn254.NewG2AffineFixed(g2)
-		return &groth16Sim{Q2: fixed, Q3: fixed}
+		fixed := sw_bn254.NewG2AffineFixedPlaceholder()
+		return &groth16Sim{Q2: fixed, Q3: fixed, A: sw_bn254.NewG1Affine(p), B: sw_bn254.NewG1Affine(bPt)}
 	}
 	bench.Circuit(b, newCircuit, assignment)
 }

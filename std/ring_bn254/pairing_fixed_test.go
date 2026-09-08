@@ -1,12 +1,16 @@
 package ring_bn254
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
 )
 
@@ -60,12 +64,30 @@ func TestThreePairingCheckTestSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
+// scalarSplit draws a random scalar s and returns b = f - s·a, so the
+// circuit can recombine f in-circuit as s·a + b.
+func scalarSplit(t testing.TB, a, f bn254.G1Affine) (b bn254.G1Affine, s fr.Element) {
+	t.Helper()
+	if _, err := s.SetRandom(); err != nil {
+		t.Fatal(err)
+	}
+	var sBig big.Int
+	s.BigInt(&sBig)
+	var sA bn254.G1Affine
+	sA.ScalarMultiplication(&a, &sBig)
+	b.Sub(&f, &sA)
+	return b, s
+}
+
 // groth16Sim checks a four-pairing product with three pairs
 // in the loop and the fourth folded in as a previous Miller loop value. Q2
 // and Q3 are the same G2 point carrying precomputed lines, so their ladders
-// and subgroup checks never enter the circuit.
+// and subgroup checks never enter the circuit. The second pair's G1 point is
+// recombined in-circuit as s·A + B from two witness points and a scalar.
 type groth16Sim struct {
-	P1, P2, P3 sw_bn254.G1Affine
+	P1, P3     sw_bn254.G1Affine
+	A, B       sw_bn254.G1Affine `gnark:"-"`
+	S          sw_bn254.Scalar
 	Q1, Q2, Q3 sw_bn254.G2Affine
 	Prev       sw_bn254.GTEl
 }
@@ -75,33 +97,44 @@ func (c *groth16Sim) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
+	curve, err := sw_emulated.New[emparams.BN254Fp, emparams.BN254Fr](api, sw_emulated.GetBN254Params())
+	if err != nil {
+		return err
+	}
 	pairing.AssertIsOnG1(&c.P1)
-	pairing.AssertIsOnG1(&c.P2)
 	pairing.AssertIsOnG1(&c.P3)
+	pairing.AssertIsOnG1(&c.A)
+	pairing.AssertIsOnG1(&c.B)
+	combined := curve.AddUnified(curve.ScalarMul(&c.A, &c.S), &c.B)
 	return pairing.PairingCheck(
-		[]*G1Affine{&c.P1, &c.P2, &c.P3},
+		[]*G1Affine{&c.P1, combined, &c.P3},
 		[]*G2Affine{&c.Q1, &c.Q2, &c.Q3},
 		&c.Prev,
 	)
 }
 
-func TestThreePairingFixedPrev(t *testing.T) {
+func TestGroth16Sim(t *testing.T) {
 	assert := test.NewAssert(t)
-	// e(2p, q) * e(-pq, g2) * e(-2pq, g2) * e(p, q) == 1: the middle two
-	// share one fixed G2 with precomputed lines, the last is folded in as
-	// the previous Miller loop value instead of a pass through the loop.
+	// e(2p, q) * e(s·A + B, g2) * e(-2pq, g2) * e(p, q) == 1 with s·A + B ==
+	// -pq recombined in-circuit: the middle two share one fixed G2 with
+	// precomputed lines, the last is folded in as the previous Miller loop
+	// value instead of a pass through the loop.
 	p, pqNeg, q, g2 := randomPairingTriple(t)
-	var p1, p2, p3 bn254.G1Affine
+	var p1, p3 bn254.G1Affine
 	p1.Double(&p)
-	p2.Set(&pqNeg)
 	p3.Double(&pqNeg)
 
+	bPt, sNative := scalarSplit(t, p, pqNeg)
+
 	fixed := sw_bn254.NewG2AffineFixed(g2)
-	unassigned := &groth16Sim{Q2: fixed, Q3: fixed}
+	unassigned := &groth16Sim{Q2: fixed, Q3: fixed, A: sw_bn254.NewG1Affine(p), B: sw_bn254.NewG1Affine(bPt)}
+
 	assignment := &groth16Sim{
 		P1:   sw_bn254.NewG1Affine(p1), // 2p
 		Q1:   sw_bn254.NewG2Affine(q),  // q
-		P2:   sw_bn254.NewG1Affine(p2), // -pq
+		A:    sw_bn254.NewG1Affine(p),  // A, s·A + B == -pq
+		S:    sw_bn254.NewScalar(sNative),
+		B:    sw_bn254.NewG1Affine(bPt),
 		Q2:   fixed,                    // g2, lines precomputed
 		P3:   sw_bn254.NewG1Affine(p3), // -2pq
 		Q3:   fixed,                    // g2, lines precomputed
