@@ -147,10 +147,9 @@ ladder, and it is what takes the outer circuit from 1,269,953 constraints
 to 660,886 (−48.0%).
 
 The soundness cost of skipping a ladder is that the G2 subgroup check goes
-with it, so it has to happen somewhere else. `NewVerifier` runs it
-off-circuit, on the native point, and refuses to build
-a fixed point from one off the twist, outside the prime-order subgroup, or at
-infinity. Since the point is a
+with it, so it has to happen somewhere else. `sw_bn254.NewG2AffineFixed`
+runs it off-circuit, on the native point, and panics on a point outside the
+subgroup. Since the point is a
 compile-time constant, an off-circuit check is a check on exactly the value
 the circuit will use — there is no witness for a prover to vary. It is,
 however, the only check: nothing downstream would catch a malformed `β`, `γ`

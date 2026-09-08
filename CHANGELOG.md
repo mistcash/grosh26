@@ -19,8 +19,7 @@
 - `std/recursion`: the outer Groth16 verifier uses that shape — one full
   pairing (`e(A,B)`) and three fixed-Q pairs (`e(α,β)⁻¹`, `e(L,γ)⁻¹`,
   `e(C,δ)⁻¹`) — taking the outer circuit from 1,269,953 constraints to
-  660,886, a 48.0% cut for the same statement. `NewVerifier` now rejects a
-  verifying key whose α, β, γ or δ is not well-formed.
+  660,886, a 48.0% cut for the same statement.
 
 ## v0.1.0
 

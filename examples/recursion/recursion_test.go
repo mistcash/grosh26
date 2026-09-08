@@ -124,8 +124,8 @@ func TestGroth16Verifier(t *testing.T) {
 	})
 
 	// β, γ and δ skip the in-circuit ladder, so nothing downstream would
-	// catch a malformed key point: NewVerifier has to reject it when the
-	// pairs are built.
+	// catch a malformed key point: NewG2AffineFixed panics when the pairs
+	// are built, like gnark (surfaced as an error by test.IsSolved).
 	t.Run("rejects malformed verifying key", func(t *testing.T) {
 		offTwist := func(p bn254.G2Affine) bn254.G2Affine {
 			p.X.A0.Add(&p.X.A0, new(fp.Element).SetOne())
@@ -151,7 +151,7 @@ func TestGroth16Verifier(t *testing.T) {
 				}
 				err = test.IsSolved(recursion.NewCircuit(outerVK), assignment, ecc.BN254.ScalarField())
 				assert.Error(err)
-				assert.Contains(err.Error(), "not in the prime-order subgroup")
+				assert.Contains(err.Error(), "not in the G2 subgroup")
 			})
 		}
 	})
