@@ -6,10 +6,10 @@
 //
 //	e(A, B) · e(α,β)⁻¹ · e(L,γ)⁻¹ · e(C,δ)⁻¹ = 1
 //
-// assembled from one full pairing (e(A,B), both points from the witness),
-// two fixed-Q pairs (e(L,γ)⁻¹ and e(C,δ)⁻¹, whose G2 points come from the
-// verifying key with their line evaluations precomputed off-circuit) and one
-// constant (e(α,β)⁻¹, both points fixed, folded in as a single 𝔽p¹² factor).
+// assembled from one full pairing (e(A,B), both points from the witness)
+// and three fixed-Q pairs (e(α,β)⁻¹, e(L,γ)⁻¹ and e(C,δ)⁻¹, whose G2 points
+// come from the verifying key with their line evaluations precomputed
+// off-circuit).
 package recursion_test
 
 import (

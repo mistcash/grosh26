@@ -74,7 +74,7 @@ compile-time constant (baked in via `NewVerifyingKey`, not a witness), and its
 e(A, B) · e(α, β)⁻¹ · e(L, γ)⁻¹ · e(C, δ)⁻¹ = 1
 ```
 
-as a single four-term `PairingCheckPairs` through
+as a single four-term `PairingCheck` through
 [`ring_bn254`](std/ring_bn254). Only one of the four terms is a full pairing.
 β, γ and δ come from the verifying key and never vary, so three of the four
 in-circuit `[6x₀+2]Q` ladders are avoidable:
@@ -82,15 +82,14 @@ in-circuit `[6x₀+2]Q` ladders are avoidable:
 | term | what varies | cost in the circuit |
 | --- | --- | --- |
 | `e(A, B)` | both points | a full pairing: B's ladder and G2 subgroup check run in-circuit |
-| `e(L, γ)⁻¹`, `e(C, δ)⁻¹` | G1 only | fixed-Q pairs: γ's and δ's lines are precomputed off-circuit |
-| `e(α, β)⁻¹` | nothing | a constant: its Miller loop value is folded in as one factor |
+| `e(α, β)⁻¹`, `e(L, γ)⁻¹`, `e(C, δ)⁻¹` | G1 only | fixed-Q pairs: the G2 lines are precomputed off-circuit |
 
-Two fixed-Q pairs and one full pairing, then, over a single Miller loop —
-which takes the outer circuit from 1,269,953 constraints to **640,138**, a
-49.6% cut, for the same statement. Skipping a ladder skips the G2 subgroup
-check with it, so `NewFixedQPair` and `NewFixedPair` run that check
-off-circuit instead and refuse to bake in a point off the twist, outside the
-prime-order subgroup, or at infinity.
+Three fixed-Q pairs and one full pairing, then, over a single Miller loop —
+which takes the outer circuit from 1,269,953 constraints to **660,886**, a
+48.0% cut, for the same statement. Skipping a ladder skips the G2 subgroup
+check with it, so `NewFixedG2` runs that check off-circuit instead and
+refuses to bake in a point off the twist, outside the prime-order subgroup,
+or at infinity.
 
 The outer circuit carries three BSB22 commitments — two from the ring's
 deferred checks, one from the range checker — verified on-chain by the

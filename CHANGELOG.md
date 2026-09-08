@@ -10,19 +10,16 @@
   coverage in the style of gnark's `std/algebra/emulated/sw_bn254`.
 
 - `std/ring_bn254`: pairing arguments that are fixed when the circuit is
-  built no longer pay for an in-circuit `[6x₀+2]Q` ladder. A pairing check
-  is now assembled from `Pair` values — `NewPair` (both points from the
-  witness), `NewFixedQPair` (G2 fixed, its line evaluations precomputed
-  off-circuit) and `NewFixedPair` (both fixed, so the pair's Miller loop
-  value is one constant factor) — passed to `PairingCheckPairs`.
-  `PairingCheck` is unchanged and now delegates to it. The G2 subgroup check
-  a skipped ladder would have run happens off-circuit instead, when the pair
-  is built.
-- `std/recursion`: the outer Groth16 verifier uses that shape — two fixed-Q
-  pairs (`e(L,γ)⁻¹`, `e(C,δ)⁻¹`), one full pairing (`e(A,B)`) and `e(α,β)⁻¹`
-  as a constant — taking the outer circuit from 1,269,953 constraints to
-  640,138, a 49.6% cut for the same statement. `NewVerifier` now rejects a
-  verifying key whose β, γ or δ is not a well-formed G2 element.
+  built no longer pay for an in-circuit `[6x₀+2]Q` ladder. `PairingCheck`,
+  `MillerLoop` and `Pair` take the points directly: a `Q` with precomputed
+  lines (built with `NewFixedG2`) skips the ladder and the subgroup check,
+  the rest run them in-circuit. The G2 subgroup check a skipped ladder
+  would have run happens off-circuit instead, when the fixed point is built.
+- `std/recursion`: the outer Groth16 verifier uses that shape — one full
+  pairing (`e(A,B)`) and three fixed-Q pairs (`e(α,β)⁻¹`, `e(L,γ)⁻¹`,
+  `e(C,δ)⁻¹`) — taking the outer circuit from 1,269,953 constraints to
+  660,886, a 48.0% cut for the same statement. `NewVerifier` now rejects a
+  verifying key whose α, β, γ or δ is not well-formed.
 
 ## v0.1.0
 
