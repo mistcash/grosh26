@@ -85,10 +85,15 @@ in-circuit `[6x₀+2]Q` ladders are avoidable:
 | `e(α, β)⁻¹`, `e(L, γ)⁻¹`, `e(C, δ)⁻¹` | G1 only | fixed-Q pairs: the G2 lines are precomputed off-circuit |
 
 Three fixed-Q pairs and one full pairing, then, over a single Miller loop —
-which takes the outer circuit from 1,269,953 constraints to **660,886**, a
-48.0% cut, for the same statement. Skipping a ladder skips the G2 subgroup
-check with it, so `sw_bn254.NewG2AffineFixed` runs that check off-circuit
-instead and panics on a point outside the subgroup.
+a single in-circuit `[6x₀+2]Q` ladder instead of four. Skipping a ladder
+skips the G2 subgroup check with it, so `sw_bn254.NewG2AffineFixed` runs that
+check off-circuit instead and panics on a point outside the subgroup. For the
+current constraint counts, run the benchmarks — they print them instead of
+this doc hardcoding them:
+
+```sh
+go test -bench=. -run=^$ -benchtime=1x ./std/ring_bn254/ ./examples/recursion/
+```
 
 The outer circuit carries three BSB22 commitments — two from the ring's
 deferred checks, one from the range checker — verified on-chain by the
@@ -133,8 +138,14 @@ stock prover and this verifier agree.
 ## Tests
 
 ```sh
-go test ./...        # full suite, including the outer circuit (~640k constraints)
+go test ./...        # full suite, including the outer circuit
 go test -short ./... # skips nothing at the moment; every remaining test is cheap
+```
+
+Constraint counts are reported by the benchmarks, not stated here:
+
+```sh
+go test -bench=. -run=^$ -benchtime=1x ./std/ring_bn254/ ./examples/recursion/
 ```
 
 The on-chain test in `solidity/` compiles the exported verifier with `solc`
