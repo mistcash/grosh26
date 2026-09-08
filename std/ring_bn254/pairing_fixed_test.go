@@ -85,11 +85,14 @@ func scalarSplit(t testing.TB, a, f bn254.G1Affine) (b bn254.G1Affine, s fr.Elem
 // and subgroup checks never enter the circuit. The second pair's G1 point is
 // recombined in-circuit as s·A + B from two witness points and a scalar.
 type groth16Sim struct {
-	P1, P3     sw_bn254.G1Affine
-	A, B       sw_bn254.G1Affine `gnark:"-"`
-	S          sw_bn254.Scalar
-	Q1, Q2, Q3 sw_bn254.G2Affine
-	Prev       sw_bn254.GTEl
+	// verifiying key
+	A, B   sw_bn254.G1Affine `gnark:"-"`
+	Q2, Q3 sw_bn254.G2Affine `gnark:"-"`
+	Prev   sw_bn254.GTEl     `gnark:"-"`
+	// proof
+	P1, P3 sw_bn254.G1Affine
+	S      sw_bn254.Scalar
+	Q1     sw_bn254.G2Affine
 }
 
 func (c *groth16Sim) Define(api frontend.API) error {
@@ -103,8 +106,6 @@ func (c *groth16Sim) Define(api frontend.API) error {
 	}
 	pairing.AssertIsOnG1(&c.P1)
 	pairing.AssertIsOnG1(&c.P3)
-	pairing.AssertIsOnG1(&c.A)
-	pairing.AssertIsOnG1(&c.B)
 	combined := curve.AddUnified(curve.ScalarMul(&c.A, &c.S), &c.B)
 	return pairing.PairingCheck(
 		[]*G1Affine{&c.P1, combined, &c.P3},
@@ -127,18 +128,19 @@ func TestGroth16Sim(t *testing.T) {
 	bPt, sNative := scalarSplit(t, p, pqNeg)
 
 	fixed := sw_bn254.NewG2AffineFixed(g2)
-	unassigned := &groth16Sim{Q2: fixed, Q3: fixed, A: sw_bn254.NewG1Affine(p), B: sw_bn254.NewG1Affine(bPt)}
-
-	assignment := &groth16Sim{
-		P1:   sw_bn254.NewG1Affine(p1), // 2p
-		Q1:   sw_bn254.NewG2Affine(q),  // q
-		A:    sw_bn254.NewG1Affine(p),  // A, s·A + B == -pq
-		S:    sw_bn254.NewScalar(sNative),
-		B:    sw_bn254.NewG1Affine(bPt),
-		Q2:   fixed,                    // g2, lines precomputed
-		P3:   sw_bn254.NewG1Affine(p3), // -2pq
-		Q3:   fixed,                    // g2, lines precomputed
+	unassigned := &groth16Sim{
+		Q2: fixed,
+		Q3: fixed,
+		A:  sw_bn254.NewG1Affine(p), B: sw_bn254.NewG1Affine(bPt),
 		Prev: sw_bn254.NewGTEl(previousMillerValue(t, p, q)),
+	}
+	assignment := &groth16Sim{
+		P1: sw_bn254.NewG1Affine(p1), // 2p
+		Q1: sw_bn254.NewG2Affine(q),  // q
+		A:  sw_bn254.NewG1Affine(p),  // A, s·A + B == -pq
+		S:  sw_bn254.NewScalar(sNative),
+		B:  sw_bn254.NewG1Affine(bPt),
+		P3: sw_bn254.NewG1Affine(p3), // -2pq
 	}
 	err := test.IsSolved(unassigned, assignment, ecc.BN254.ScalarField())
 	assert.NoError(err)
