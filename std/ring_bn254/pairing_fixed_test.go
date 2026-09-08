@@ -173,9 +173,9 @@ func TestGroth16Sim(t *testing.T) {
 		AlphaBeta: sw_bn254.NewGTEl(previousMillerValue(t, p, q)),
 	}
 	assignment := &groth16Sim{
-		Ar: sw_bn254.NewG1Affine(ar), // 2p
-		Bs: sw_bn254.NewG2Affine(q),  // q
-		K1: sw_bn254.NewG1Affine(p),  // K1, Public·K1 + K0 == -pq
+		Ar:     sw_bn254.NewG1Affine(ar), // 2p
+		Bs:     sw_bn254.NewG2Affine(q),  // q
+		K1:     sw_bn254.NewG1Affine(p),  // K1, Public·K1 + K0 == -pq
 		Public: sw_bn254.NewScalar(publicNative),
 		K0:     sw_bn254.NewG1Affine(k0Pt),
 		Krs:    sw_bn254.NewG1Affine(krs), // -2pq
