@@ -84,6 +84,42 @@ func scalarSplit(t testing.TB, a, f bn254.G1Affine) (b bn254.G1Affine, s fr.Elem
 // and Q3 are the same G2 point carrying precomputed lines, so their ladders
 // and subgroup checks never enter the circuit. The second pair's G1 point is
 // recombined in-circuit as s·A + B from two witness points and a scalar.
+type groth16SimGnark struct {
+	// verifiying key
+	A, B   sw_bn254.G1Affine `gnark:"-"`
+	Q2, Q3 sw_bn254.G2Affine `gnark:"-"`
+	Prev   sw_bn254.GTEl     `gnark:"-"`
+	// proof
+	P1, P3 sw_bn254.G1Affine
+	S      sw_bn254.Scalar
+	Q1     sw_bn254.G2Affine
+}
+
+func (c *groth16SimGnark) Define(api frontend.API) error {
+	pairing, err := sw_bn254.NewPairing(api)
+	if err != nil {
+		return err
+	}
+	curve, err := sw_emulated.New[emparams.BN254Fp, emparams.BN254Fr](api, sw_emulated.GetBN254Params())
+	if err != nil {
+		return err
+	}
+	pairing.AssertIsOnG1(&c.P1)
+	pairing.AssertIsOnG1(&c.P3)
+	combined := curve.AddUnified(curve.ScalarMul(&c.A, &c.S), &c.B)
+	pairing.AssertMultiMillerLoopAndFinalExpIsOne(
+		[]*G1Affine{&c.P1, combined, &c.P3},
+		[]*G2Affine{&c.Q1, &c.Q2, &c.Q3},
+		&c.Prev,
+	)
+	return nil
+}
+
+// groth16Sim checks a four-pairing product with three pairs
+// in the loop and the fourth folded in as a previous Miller loop value. Q2
+// and Q3 are the same G2 point carrying precomputed lines, so their ladders
+// and subgroup checks never enter the circuit. The second pair's G1 point is
+// recombined in-circuit as s·A + B from two witness points and a scalar.
 type groth16Sim struct {
 	// verifiying key
 	A, B   sw_bn254.G1Affine `gnark:"-"`
