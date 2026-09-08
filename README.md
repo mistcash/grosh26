@@ -89,7 +89,7 @@ a single in-circuit `[6x₀+2]Q` ladder instead of four. Skipping a ladder
 skips the G2 subgroup check with it, so `sw_bn254.NewG2AffineFixed` runs that
 check off-circuit instead and panics on a point outside the subgroup. For the
 current constraint counts, run the benchmarks — they print them instead of
-this doc hardcoding them:
+this doc hardcoding them (all three go through `internal/bench.Circuit`):
 
 ```sh
 go test -bench=. -run=^$ -benchtime=1x ./std/ring_bn254/ ./examples/recursion/
