@@ -13,7 +13,7 @@ on and the open questions this repo has not yet resolved. Where an argument
 depends on a specific line of code, the reference is given so it can be
 checked against the current source rather than taken on faith.
 
-## 1. The deferred ring check protocol (`field_polyring.go`)
+## 1. The deferred ring check protocol (`std/polyring/field_polyring.go`)
 
 ### 1.1 The idea
 
@@ -24,7 +24,7 @@ it is computed. `PolyRingChecker` takes the other route: a product is
 and every claim made anywhere in the circuit is verified together, as a
 single batched polynomial identity checked at a random point after `Define`
 returns (`api.Compiler().Defer`, `performDeferredRingChecks`,
-`field_polyring.go:39,447`).
+`std/polyring/field_polyring.go:39,447`).
 
 Concretely, for a ring `𝔽p[x]/(mod)`, each claimed product
 `∏ᵢ inputsᵢ = r + q·mod` is a polynomial identity. Batching many such claims
@@ -39,16 +39,16 @@ Section 5.2:
    `gnark-crypto`'s `fr.Hash` — RFC 9380 `hash_to_field` with
    `expand_message_xmd`/SHA-256, domain tag `G16-BSB22`; the commitment
    itself *is* the Fiat-Shamir challenge, so there is no separate in-circuit
-   hash). This is challenge `z` (`field_polyring.go:485`).
+   hash). This is challenge `z` (`std/polyring/field_polyring.go:485`).
 2. **Fold the quotients.** `qAcc = Σᵢ zⁱ·qᵢ`, computed by a hint outside the
-   circuit (`callQuotientsRLCHint`, `field_polyring.go:613`) — this is the
+   circuit (`callQuotientsRLCHint`, `std/polyring/field_polyring.go:613`) — this is the
    protocol's saving: without folding, every quotient would need its own
    in-circuit evaluation.
 3. **Commit the folded quotient**, giving challenge `x`
-   (`field_polyring.go:517`).
+   (`std/polyring/field_polyring.go:517`).
 4. **Assert the identity at `x`**:
    `Σᵢ zⁱ·(∏ⱼ inputsᵢⱼ(x) − rᵢ(x)) == qAcc(x)·mod(x)`
-   (`field_polyring.go:560-598`), by Schwartz-Zippel equivalent to every
+   (`std/polyring/field_polyring.go:560-598`), by Schwartz-Zippel equivalent to every
    individual claim holding as a polynomial identity, except with
    probability at most `deg/|challenge space|` over the prover's choice of a
    false claim.
@@ -66,7 +66,7 @@ already Fiat-Shamir randomness by construction (§1.1). To evaluate the
 polynomial identity in step 4, which lives in the emulated field `𝔽p`
 (BN254's base field, distinct from the circuit's native scalar field), each
 challenge has to be re-expressed as an emulated field element:
-`NativeToEmulated` (`field_polyring.go:773`) decomposes the native value into
+`NativeToEmulated` (`std/polyring/field_polyring.go:773`) decomposes the native value into
 `nbBits`-wide limbs via a hint, and asserts the decomposition reconstructs
 the original native value exactly (`AssertIsEqual(rebuildEl, v[i])`) before
 handing back the limbs as an `Element[T]`.
@@ -75,11 +75,11 @@ Before this ticket (#5), the function then discarded everything past the
 first two limbs (`elements[i].Limbs = elements[i].Limbs[:2]`), so only the
 low ~128 bits of an already-verified, fully-reconstructed native value were
 used as the emulated challenge. Now (`fullChallengeLimbs`,
-`field_polyring.go:773-778`) it keeps every limb the native field needs —
+`std/polyring/field_polyring.go:773-778`) it keeps every limb the native field needs —
 `FieldBitLen()/nbBits + 1` of them — matching the eprint's construction of
 using the verifier's (here: the commitment's) randomness directly, in full,
 rather than a further-truncated derivative of it. `callQuotientsRLCHint`'s
-native-side masking of `z` (`field_polyring.go:667-673`) uses the same width,
+native-side masking of `z` (`std/polyring/field_polyring.go:667-673`) uses the same width,
 so the off-circuit RLC computation and the in-circuit identity check agree
 on the same challenge value.
 
@@ -88,16 +88,15 @@ Schwartz-Zippel soundness error of at most `deg/2^128` — negligible for the
 degrees here (`accumulatorTargetDegree = 69` bounds every queued product,
 `std/ring_bn254/pairing.go:28`). The full-width change is not closing a
 practical attack; it is bringing the implementation in line with the letter
-of the referenced construction. Measured cost:
-`circuits/pairing.Circuit` grew from 654,095 to 659,592 constraints (+0.84%),
-recorded on #5.
+of the referenced construction. Measured cost at the time: the two-pair
+check grew from 654,095 to 659,592 constraints (+0.84%), recorded on #5.
 
 ### 1.3 The quotient coefficients carry no range check — deliberately
 
 `MulPolyRings` builds the returned quotient's limbs with
-`prc.f.UnsafeFromLimbs` (`field_polyring.go:227`), which skips the range
+`prc.f.UnsafeFromLimbs` (`std/polyring/field_polyring.go:227`), which skips the range
 check `prc.f.NewElement` would otherwise perform. The remainder `r`, by
-contrast, *is* built with `prc.f.NewElement` (`field_polyring.go:236`) and so
+contrast, *is* built with `prc.f.NewElement` (`std/polyring/field_polyring.go:236`) and so
 is range-checked.
 
 This asymmetry is intentional. The quotient is never used for anything
@@ -113,14 +112,14 @@ remainder, in contrast, is range-checked because it flows onward into
 coefficient-wise (non-ring) circuit operations, where an out-of-range
 representation would be a genuine soundness gap.
 
-## 2. Recursion composition (`std/recursion`, `circuits/poseidon`)
+## 2. Recursion composition (`std/recursion`, `examples/poseidon`)
 
 ### 2.1 What it demonstrates
 
 A Groth16 verifier, expressed as a circuit, so that one Groth16 proof (the
 *outer* proof) attests that another Groth16 proof (the *inner* proof, over
 an unrelated statement) verifies. The inner circuit
-(`circuits/poseidon.Circuit`) is deliberately small — knowledge of a
+(`examples/poseidon.Circuit`) is deliberately small — knowledge of a
 preimage to a Poseidon2 2-to-1 compression digest — to keep the interesting
 cost in the outer circuit alone.
 
@@ -131,8 +130,7 @@ Groth16 verification is the pairing identity
 combination `Σᵢ wᵢ·Kᵢ + K₀`. `Verifier.AssertProof`
 (`std/recursion/verifier.go`) negates `α` (G1) and `γ`, `δ` (G2) once at
 verifying-key-construction time (`NewVerifyingKey`), so the whole thing
-becomes one four-term `PairingCheckPairs` through `ring_bn254` (§1) — the
-same ring pairing `circuits/pairing` uses standalone.
+becomes one four-term `PairingCheckPairs` through the ring pairing of §1.
 
 Only one of the four terms is a full pairing. `β`, `γ` and `δ` come from the
 verifying key and never vary, so three of the four in-circuit `[6x₀+2]Q`
