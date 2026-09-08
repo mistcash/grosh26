@@ -72,6 +72,19 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	}, nil
 }
 
+// NewFixedG2 returns Q with its line evaluations precomputed off-circuit.
+// Pass the result as a Q to MillerLoop, Pair or PairingCheck: the ladder and
+// the subgroup check leave the circuit, the loop uses the constants.
+func NewFixedG2(Q bn254.G2Affine) (G2Affine, error) {
+	if Q.IsInfinity() {
+		return G2Affine{}, errors.New("fixed G2 point is the point at infinity")
+	}
+	if !Q.IsInSubGroup() {
+		return G2Affine{}, errors.New("fixed G2 point is not in the prime-order subgroup")
+	}
+	return sw_bn254.NewG2AffineFixed(Q), nil
+}
+
 // AssertIsOnG1 asserts P is on the curve and in the prime-order subgroup.
 func (pr *Pairing) AssertIsOnG1(P *G1Affine) { pr.g.AssertIsOnG1(P) }
 
@@ -82,14 +95,18 @@ func (pr *Pairing) AssertIsOnG2(Q *G2Affine) { pr.g.AssertIsOnG2(Q) }
 //
 //	∏ᵢ { fᵢ_{6x₀+2,Q}(P) · ℓᵢ_{[6x₀+2]Q,π(Q)}(P) · ℓᵢ_{[6x₀+2]Q+π(Q),-π²(Q)}(P) }
 //
-// It checks that the Qᵢ are in the correct subgroup, but not the Pᵢ; see
-// [Pairing.AssertIsOnG1].
+// A Q with precomputed lines (see NewFixedG2) skips the ladder and the
+// subgroup check; the rest run them in-circuit. It checks the witness Qᵢ
+// subgroup, but not the Pᵢ; see [Pairing.AssertIsOnG1].
 func (pr *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
-	lines, err := pr.linesFor(Q)
+	if len(P) == 0 || len(P) != len(Q) {
+		return nil, errors.New("invalid inputs sizes")
+	}
+	computed, err := pr.computedLines(Q)
 	if err != nil {
 		return nil, err
 	}
-	res, err := pr.millerLoopLines(P, lines, nil, nil)
+	res, err := pr.millerLoopLines(P, Q, computed, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -105,59 +122,31 @@ func (pr *Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	return pr.g.FinalExponentiation(res), nil
 }
 
-// PairingCheck asserts ∏ᵢ e(Pᵢ, Qᵢ) == 1 with every point taken from the
-// witness. It is [Pairing.PairingCheckPairs] over [NewPair] pairs; when some
-// of the points are already known when the circuit is built, build the pairs
-// with [Pairing.NewFixedQPair] or [Pairing.NewFixedPair] and call that
-// directly.
+// PairingCheck asserts ∏ᵢ e(Pᵢ, Qᵢ) == 1 following Section 4 of
+// [On Proving Pairings]: instead of a final exponentiation, the prover
+// supplies a residue witness and the check folds it into the Miller loop.
 //
-// It checks that the Qᵢ are in the correct subgroup, but not the Pᵢ; see
-// [Pairing.AssertIsOnG1].
+// A Q with precomputed lines (see NewFixedG2) skips the ladder and the
+// subgroup check; the rest run them in-circuit. The G1 points are not
+// checked either way, see [Pairing.AssertIsOnG1].
+//
+// [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
 func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	if len(P) == 0 || len(P) != len(Q) {
 		return errors.New("invalid inputs sizes")
 	}
-	pairs := make([]Pair, len(P))
 	for i := range P {
-		pairs[i] = NewPair(P[i], Q[i])
-	}
-	return pr.PairingCheckPairs(pairs...)
-}
-
-// PairingCheckPairs asserts ∏ᵢ e(Pᵢ, Qᵢ) == 1 over [Pair] values of any
-// mix of shapes, following Section 4 of [On Proving Pairings]: instead of a
-// final exponentiation, the prover supplies a residue witness and the check
-// folds it into the Miller loop.
-//
-// Pairs whose G2 point comes from the witness are subgroup-checked in the
-// circuit; the fixed ones were checked when they were built. The G1 points
-// are not checked either way, see [Pairing.AssertIsOnG1].
-//
-// At least one pair has to be one the Miller loop runs over: a product of
-// nothing but [Pairing.NewFixedPair] pairs is itself a constant, so the check
-// would constrain nothing.
-//
-// [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
-func (pr *Pairing) PairingCheckPairs(pairs ...Pair) error {
-	if len(pairs) == 0 {
-		return errors.New("invalid inputs sizes")
-	}
-	for i := range pairs {
-		if pairs[i].p == nil || pairs[i].q == nil {
-			return fmt.Errorf("pair %d is the zero Pair; build it with NewPair, NewFixedQPair or NewFixedPair", i)
+		if P[i] == nil || Q[i] == nil {
+			return fmt.Errorf("pair %d is nil", i)
 		}
 	}
 
-	// hint the non-residue witness. Every pair feeds it, the fixed ones
-	// included: the witness is the residue of the whole product, so a pair
-	// folded in as a constant Miller loop value still has to be part of what
-	// the hint is drawn from.
-	inputs := make([]*baseEl, 0, 6*len(pairs))
-	for i := range pairs {
-		inputs = append(inputs, &pairs[i].p.X, &pairs[i].p.Y)
+	inputs := make([]*baseEl, 0, 6*len(P))
+	for i := range P {
+		inputs = append(inputs, &P[i].X, &P[i].Y)
 	}
-	for i := range pairs {
-		q := pairs[i].q
+	for i := range Q {
+		q := Q[i]
 		inputs = append(inputs, &q.P.X.A0, &q.P.X.A1, &q.P.Y.A0, &q.P.Y.A1)
 	}
 	hint, err := pr.fp.NewHint(pairingCheckHint, 18, inputs...)
@@ -192,37 +181,13 @@ func (pr *Pairing) PairingCheckPairs(pairs ...Pair) error {
 		A11: *zero,
 	}
 
-	// Split the pairs: the ones the Miller loop runs over, and the ones whose
-	// whole Miller loop value is already a constant.
-	loopP := make([]*G1Affine, 0, len(pairs))
-	loopLines := make([]lineEvaluations, 0, len(pairs))
-	constants := make([]*basePoly, 0, len(pairs))
-	for i := range pairs {
-		if pairs[i].millerLoop != nil {
-			constants = append(constants, pairs[i].millerLoop)
-			continue
-		}
-		loopP = append(loopP, pairs[i].p)
-		if pairs[i].lines != nil {
-			loopLines = append(loopLines, *pairs[i].lines)
-		} else {
-			loopLines = append(loopLines, pr.computeLines(pairs[i].q))
-		}
+	computed, err := pr.computedLines(Q)
+	if err != nil {
+		return err
 	}
-	if len(loopP) == 0 {
-		return errors.New("every pair is fully fixed: the product is a constant and the check constrains nothing")
-	}
-
-	res, err := pr.millerLoopLines(loopP, loopLines, residueWitnessInvPoly, pr.ToPoly(residueWitness))
+	res, err := pr.millerLoopLines(P, Q, computed, residueWitnessInvPoly, pr.ToPoly(residueWitness))
 	if err != nil {
 		return fmt.Errorf("miller loop: %w", err)
-	}
-
-	// A fixed pair's Miller loop value is a plain factor on the product, so it
-	// goes in here rather than seeding the accumulator: the loop's squarings
-	// would otherwise raise it along with everything else.
-	for _, c := range constants {
-		res.Mul(c)
 	}
 
 	// Check that res · cubicNonResiduePower · residueWitnessInv^λ' == 1, where
@@ -240,25 +205,32 @@ func (pr *Pairing) PairingCheckPairs(pairs ...Pair) error {
 	return nil
 }
 
-// linesFor returns the line evaluations for each Q, computing them in-circuit
-// when the caller has not cached any.
-func (pr *Pairing) linesFor(Q []*G2Affine) ([]lineEvaluations, error) {
+// computedLines runs the ladder for every Q without precomputed lines.
+// Entries for fixed Q are nil; the loop reads those from Q.Lines.
+func (pr *Pairing) computedLines(Q []*G2Affine) ([]*lineEvaluations, error) {
 	if len(Q) == 0 {
 		return nil, errors.New("invalid inputs sizes")
 	}
-	lines := make([]lineEvaluations, len(Q))
+	computed := make([]*lineEvaluations, len(Q))
 	for i := range Q {
-		lines[i] = pr.computeLines(Q[i])
+		if Q[i] == nil {
+			return nil, fmt.Errorf("pair %d is nil", i)
+		}
+		if Q[i].Lines == nil {
+			lines := pr.computeLines(Q[i])
+			computed[i] = &lines
+		}
 	}
-	return lines, nil
+	return computed, nil
 }
 
-// millerLoopLines runs the loop over precomputed lines. init seeds the
-// accumulator and is multiplied back in on every positive bit, initInv on every
-// negative one; both are nil for a plain Miller loop.
-func (pr *Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init, initInv *basePoly) (*polyring.PolyRingAccumulator[emulated.BN254Fp], error) {
+// millerLoopLines runs the loop over Q, using precomputed lines where set and
+// computing them in-circuit otherwise. init seeds the accumulator and is
+// multiplied back in on every positive bit, initInv on every negative one;
+// both are nil for a plain Miller loop.
+func (pr *Pairing) millerLoopLines(P []*G1Affine, Q []*G2Affine, computed []*lineEvaluations, init, initInv *basePoly) (*polyring.PolyRingAccumulator[emulated.BN254Fp], error) {
 	n := len(P)
-	if n == 0 || n != len(lines) {
+	if n == 0 || n != len(Q) || len(computed) != n {
 		return nil, errors.New("invalid inputs sizes")
 	}
 
@@ -275,10 +247,17 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations, init,
 
 	// line k of iteration i, evaluated at P[k]
 	line := func(k, half, i int) *basePoly {
-		l := lines[k][half][i]
+		var r0, r1 *fields_bn254.E2
+		if computed[k] != nil {
+			l := (*computed[k])[half][i]
+			r0, r1 = &l.R0, &l.R1
+		} else {
+			l := (*Q[k].Lines)[half][i]
+			r0, r1 = &l.R0, &l.R1
+		}
 		return pr.ToPoly01379(
-			pr.ext2.MulByElement(&l.R0, xNegOverY[k]),
-			pr.ext2.MulByElement(&l.R1, yInv[k]),
+			pr.ext2.MulByElement(r0, xNegOverY[k]),
+			pr.ext2.MulByElement(r1, yInv[k]),
 		)
 	}
 

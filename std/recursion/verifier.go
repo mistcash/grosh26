@@ -30,15 +30,8 @@ type (
 //
 // It deliberately does not store gnark's in-circuit point types: those are
 // normally built by [sw_bn254.NewG1Affine] et al. via emulated.ValueOf.
-// gnark's own emulated-field arithmetic (emulated.Field.enforceWidthConditional,
-// called on every operand of every op) already calls Element.Initialize on
-// such elements before use regardless of whether they were ever walked as
-// part of a witness, so a ValueOf-built element stashed here would not
-// actually end up with uninitialized limbs. [NewVerifier] still builds the
-// real in-circuit constants explicitly, inside Define, with NewElement (via
-// [ring_bn254.Pairing.ConstG1] and friends) -- the same way [sw_emulated.New]
-// builds its own hardcoded curve generator -- as defense in depth matching
-// that convention, not as a workaround for a correctness bug.
+// [NewVerifier] builds the in-circuit constants inside Define the same way,
+// matching that convention.
 type VerifyingKey struct {
 	alphaNeg bn254.G1Affine
 	beta     bn254.G2Affine
@@ -113,18 +106,15 @@ type Verifier struct {
 	curve   *sw_emulated.Curve[emparams.BN254Fp, emparams.BN254Fr]
 	pairing *ring_bn254.Pairing
 
-	// alphaBeta is the e(α,β)⁻¹ term. Both of its points come from the
-	// verifying key, so its Miller loop value is a compile-time constant and
-	// it is built once, here.
-	alphaBeta ring_bn254.Pair
+	// alpha is e(α,β)'s G1 side, a compile-time constant. beta, gamma and
+	// delta carry precomputed lines, so their ladders and subgroup checks
+	// leave the circuit; see [ring_bn254.NewFixedG2].
+	alpha        G1Affine
+	beta         G2Affine
+	gamma        G2Affine
+	delta        G2Affine
 
-	// gammaNeg and deltaNeg stay in their native form: the pairs they belong
-	// to are built in [Verifier.AssertProof], where the G1 side is known.
-	gammaNeg bn254.G2Affine
-	deltaNeg bn254.G2Affine
-
-	// the K points, built once as real in-circuit constants here rather than
-	// stored ahead of time; see the note on [VerifyingKey].
+	// the K points as in-circuit constants.
 	k []G1Affine
 }
 
@@ -141,24 +131,38 @@ func NewVerifier(api frontend.API, vk *VerifyingKey) (*Verifier, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new curve: %w", err)
 	}
+	if vk.alphaNeg.IsInfinity() {
+		return nil, fmt.Errorf("alpha point is the point at infinity")
+	}
+	if !vk.alphaNeg.IsInSubGroup() {
+		return nil, fmt.Errorf("alpha point is not on the curve")
+	}
 	k := make([]G1Affine, len(vk.k))
 	for i := range k {
-		k[i] = pairing.ConstG1(vk.k[i])
+		k[i] = sw_bn254.NewG1Affine(vk.k[i])
 	}
-	// α and β are both fixed, so e(α,β)⁻¹ never reaches the Miller loop: it
-	// is one constant factor on the product. This is also where α and β are
-	// checked to be well-formed group elements, off-circuit.
-	alphaBeta, err := pairing.NewFixedPair(vk.alphaNeg, vk.beta)
+	// α, β, γ, δ are fixed, so they are checked off-circuit here rather
+	// than in-circuit.
+	beta, err := ring_bn254.NewFixedG2(vk.beta)
 	if err != nil {
-		return nil, fmt.Errorf("alpha-beta pair: %w", err)
+		return nil, fmt.Errorf("beta: %w", err)
+	}
+	gamma, err := ring_bn254.NewFixedG2(vk.gammaNeg)
+	if err != nil {
+		return nil, fmt.Errorf("gamma: %w", err)
+	}
+	delta, err := ring_bn254.NewFixedG2(vk.deltaNeg)
+	if err != nil {
+		return nil, fmt.Errorf("delta: %w", err)
 	}
 	return &Verifier{
-		curve:     curve,
-		pairing:   pairing,
-		alphaBeta: alphaBeta,
-		gammaNeg:  vk.gammaNeg,
-		deltaNeg:  vk.deltaNeg,
-		k:         k,
+		curve:   curve,
+		pairing: pairing,
+		alpha:   sw_bn254.NewG1Affine(vk.alphaNeg),
+		beta:    beta,
+		gamma:   gamma,
+		delta:   delta,
+		k:       k,
 	}, nil
 }
 
@@ -167,19 +171,13 @@ func NewVerifier(api frontend.API, vk *VerifyingKey) (*Verifier, error) {
 // verifying key.
 //
 // The Groth16 pairing identity e(A,B)·e(α,β)⁻¹·e(L,γ)⁻¹·e(C,δ)⁻¹ = 1 is
-// checked as a single 4-term [ring_bn254.Pairing.PairingCheckPairs] -- the
+// checked as a single 4-term [ring_bn254.Pairing.PairingCheck] -- the
 // verifying key's γ, δ (and the folded-in α) are already negated in
 // [NewVerifyingKey], so the identity becomes a plain product-equals-one.
 //
-// Only the first term is a full pairing: A, B are the proof's. Everything
-// else is fixed by the verifying key, so the identity costs one Miller loop
-// over three G1 points rather than four in-circuit [6x₀+2]Q ladders:
-//
-//   - e(L,γ)⁻¹ and e(C,δ)⁻¹ are fixed-Q pairs. γ and δ never vary, so their
-//     line evaluations are precomputed off-circuit and the ladder and the G2
-//     subgroup check for them leave the circuit entirely.
-//   - e(α,β)⁻¹ has both points fixed, so its Miller loop value is a
-//     compile-time constant, folded into the product as one factor.
+// Only the first term is fully witness: A, B are the proof's. The rest use
+// fixed verifying-key points, so β, γ and δ skip the ladder and the G2
+// subgroup check via precomputed lines; see [ring_bn254.NewFixedG2].
 //
 // AssertProof itself has no notion of BSB22 commitments -- there is no
 // Commitments field on [Proof] and no PoK check here. The "no commitments"
@@ -221,23 +219,12 @@ func (v *Verifier) AssertProof(proof Proof, publicWitness PublicWitness) error {
 	}
 	kSum = v.curve.AddUnified(kSum, &v.k[0])
 
-	gammaPair, err := v.pairing.NewFixedQPair(kSum, v.gammaNeg)
-	if err != nil {
-		return fmt.Errorf("gamma pair: %w", err)
-	}
-	deltaPair, err := v.pairing.NewFixedQPair(&proof.Krs, v.deltaNeg)
-	if err != nil {
-		return fmt.Errorf("delta pair: %w", err)
-	}
-
 	v.pairing.AssertIsOnG1(&proof.Ar)
 	v.pairing.AssertIsOnG1(&proof.Krs)
 	v.pairing.AssertIsOnG2(&proof.Bs)
 
-	return v.pairing.PairingCheckPairs(
-		ring_bn254.NewPair(&proof.Ar, &proof.Bs),
-		v.alphaBeta,
-		gammaPair,
-		deltaPair,
+	return v.pairing.PairingCheck(
+		[]*G1Affine{&proof.Ar, &v.alpha, kSum, &proof.Krs},
+		[]*G2Affine{&proof.Bs, &v.beta, &v.gamma, &v.delta},
 	)
 }
