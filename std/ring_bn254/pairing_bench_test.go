@@ -53,6 +53,37 @@ func BenchmarkPairingCheckFixedQ(b *testing.B) {
 // pairs sharing one G2 point in the loop and a fourth folded in as previous:
 // the count pins the combined saving of precomputed lines and the folded-in
 // Miller loop.
+func BenchmarkGroth16SimGnark(b *testing.B) {
+	p, pqNeg, q, g2 := randomPairingTriple(b)
+	var p1, p3 bn254.G1Affine
+	p1.Double(&p)
+	p3.Double(&pqNeg)
+
+	bPt, sNative := scalarSplit(b, p, pqNeg)
+
+	assignment := &groth16SimGnark{
+		P1: sw_bn254.NewG1Affine(p1),
+		Q1: sw_bn254.NewG2Affine(q),
+		S:  sw_bn254.NewScalar(sNative),
+		P3: sw_bn254.NewG1Affine(p3),
+	}
+	newCircuit := func() frontend.Circuit {
+		fixed := sw_bn254.NewG2AffineFixed(g2)
+		return &groth16SimGnark{
+			Q2:   fixed,
+			Q3:   fixed,
+			A:    sw_bn254.NewG1Affine(p),
+			B:    sw_bn254.NewG1Affine(bPt),
+			Prev: sw_bn254.NewGTEl(previousMillerValue(b, p, q)),
+		}
+	}
+	bench.Circuit(b, newCircuit, assignment)
+}
+
+// BenchmarkGroth16Sim is the three-pairing check with two fixed-Q
+// pairs sharing one G2 point in the loop and a fourth folded in as previous:
+// the count pins the combined saving of precomputed lines and the folded-in
+// Miller loop.
 func BenchmarkGroth16Sim(b *testing.B) {
 	p, pqNeg, q, g2 := randomPairingTriple(b)
 	var p1, p3 bn254.G1Affine
