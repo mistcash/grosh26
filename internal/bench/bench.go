@@ -21,7 +21,7 @@ import (
 // twice is unsound for circuits that cache api-bound state in Define (this
 // repo's pairing does, via Q.Lines, exactly like gnark's own), so the helper
 // asks for a fresh template every iteration.
-func Circuit(b *testing.B, newCircuit func() frontend.Circuit, assignment frontend.Circuit) {
+func Circuit(b *testing.B, newCircuit func() frontend.Circuit, assignment frontend.Circuit, circuitName string) {
 	b.Helper()
 	w, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
 	if err != nil {
@@ -40,7 +40,7 @@ func Circuit(b *testing.B, newCircuit func() frontend.Circuit, assignment fronte
 	if _, err = ccs.WriteTo(&buf); err != nil {
 		b.Fatal(err)
 	}
-	b.Logf("r1cs size: %d (bytes), nb constraints %d", buf.Len(), ccs.GetNbConstraints())
+	b.Logf("[%s] r1cs constraints %d,  size: %d (bytes)", circuitName, ccs.GetNbConstraints(), buf.Len())
 	b.Run("solve", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {

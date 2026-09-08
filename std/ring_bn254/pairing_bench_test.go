@@ -20,7 +20,7 @@ func BenchmarkPairingCheck(b *testing.B) {
 		Q1: sw_bn254.NewG2Affine(q1),
 		Q2: sw_bn254.NewG2Affine(q2),
 	}
-	bench.Circuit(b, func() frontend.Circuit { return &pairingCheckCircuit{} }, assignment)
+	bench.Circuit(b, func() frontend.Circuit { return &pairingCheckCircuit{} }, assignment, "pairingCheckCircuit")
 }
 
 // BenchmarkPairingCheckPrevious is BenchmarkPairingCheck with one pair's
@@ -33,7 +33,7 @@ func BenchmarkPairingCheckPrevious(b *testing.B) {
 		P1:   sw_bn254.NewG1Affine(p1),
 		Q1:   sw_bn254.NewG2Affine(q1),
 	}
-	bench.Circuit(b, func() frontend.Circuit { return &pairingCheckPreviousCircuit{} }, assignment)
+	bench.Circuit(b, func() frontend.Circuit { return &pairingCheckPreviousCircuit{} }, assignment, "pairingCheckPreviousCircuit")
 }
 
 // BenchmarkPairingCheckFixedQ is BenchmarkPairingCheck with the second pair's
@@ -46,7 +46,7 @@ func BenchmarkPairingCheckFixedQ(b *testing.B) {
 		P2: sw_bn254.NewG1Affine(p2),
 		Q1: sw_bn254.NewG2Affine(q1),
 	}
-	bench.Circuit(b, func() frontend.Circuit { return &pairingCheckFixedQCircuit{q2: q2} }, assignment)
+	bench.Circuit(b, func() frontend.Circuit { return &pairingCheckFixedQCircuit{q2: q2} }, assignment, "pairingCheckFixedQCircuit")
 }
 
 // BenchmarkGroth16SimGnark checks the Groth16 identity
@@ -79,7 +79,7 @@ func BenchmarkGroth16SimGnark(b *testing.B) {
 			AlphaBeta: sw_bn254.NewGTEl(previousMillerValue(b, p, q)),
 		}
 	}
-	bench.Circuit(b, newCircuit, assignment)
+	bench.Circuit(b, newCircuit, assignment, "groth16SimGnark")
 }
 
 // BenchmarkGroth16Sim checks the Groth16 identity
@@ -114,5 +114,5 @@ func BenchmarkGroth16Sim(b *testing.B) {
 			AlphaBeta: sw_bn254.NewGTEl(previousMillerValue(b, p, q)),
 		}
 	}
-	bench.Circuit(b, newCircuit, assignment)
+	bench.Circuit(b, newCircuit, assignment, "groth16Sim")
 }
