@@ -53,7 +53,7 @@ func (c *pairingCheckCircuit) Define(api frontend.API) error {
 	}
 	pr.AssertIsOnG1(&c.P1)
 	pr.AssertIsOnG1(&c.P2)
-	return pr.PairingCheck([]*G1Affine{&c.P1, &c.P2}, []*G2Affine{&c.Q1, &c.Q2})
+	return pr.PairingCheck([]*G1Affine{&c.P1, &c.P2}, []*G2Affine{&c.Q1, &c.Q2}, nil)
 }
 
 func TestPairingCheck(t *testing.T) {
@@ -148,6 +148,7 @@ func (c *pairingCheckFixedQCircuit) Define(api frontend.API) error {
 	return pr.PairingCheck(
 		[]*G1Affine{&c.P1, &c.P2},
 		[]*G2Affine{&c.Q1, &fixedQ2},
+		nil,
 	)
 }
 
@@ -226,6 +227,7 @@ func (c *pairingCheckFixedCircuit) Define(api frontend.API) error {
 	return pr.PairingCheck(
 		[]*G1Affine{&c.P1, &fixedP2},
 		[]*G2Affine{&c.Q1, &fixedQ2},
+		nil,
 	)
 }
 
@@ -304,4 +306,160 @@ func TestMillerLoopMatchesFixedQ(t *testing.T) {
 		R: sw_bn254.NewGTEl(res),
 	}
 	assert.NoError(test.IsSolved(&millerLoopCircuit{}, assignment, ecc.BN254.ScalarField()))
+}
+
+// pairingCheckPreviousCircuit checks e(P1,Q1)·e(P2,Q2) == 1 with the second
+// pair's Miller loop value passed directly as previous, like gnark's
+// MultiMillerLoopAndFinalExpCircuit: the value never reaches the loop.
+type pairingCheckPreviousCircuit struct {
+	Prev sw_bn254.GTEl
+	P1   sw_bn254.G1Affine
+	Q1   sw_bn254.G2Affine
+}
+
+func (c *pairingCheckPreviousCircuit) Define(api frontend.API) error {
+	pr, err := NewPairing(api)
+	if err != nil {
+		return err
+	}
+	pr.AssertIsOnG1(&c.P1)
+	return pr.PairingCheck(
+		[]*G1Affine{&c.P1},
+		[]*G2Affine{&c.Q1},
+		&c.Prev,
+	)
+}
+
+// previousMillerValue returns the raw Miller loop value e(p,q) off-circuit,
+// in the MillerLoopFixedQ form the check compares against the residue.
+func previousMillerValue(t testing.TB, p bn254.G1Affine, q bn254.G2Affine) bn254.GT {
+	t.Helper()
+	ml, err := millerValue(p, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ml
+}
+
+// millerValue is previousMillerValue without the testing dependency, for
+// use inside Define.
+func millerValue(p bn254.G1Affine, q bn254.G2Affine) (bn254.GT, error) {
+	return bn254.MillerLoopFixedQ(
+		[]bn254.G1Affine{p},
+		[][2][len(bn254.LoopCounter)]bn254.LineEvaluationAff{bn254.PrecomputeLines(q)},
+	)
+}
+
+// TestPairingCheckPrevious pins the previous-value path: the folded-in value
+// is a factor of the identity and the check still has to hold.
+func TestPairingCheckPrevious(t *testing.T) {
+	assert := test.NewAssert(t)
+	p1, p2, q1, q2 := randomPairingTriple(t)
+
+	assignment := &pairingCheckPreviousCircuit{
+		Prev: sw_bn254.NewGTEl(previousMillerValue(t, p2, q2)),
+		P1:   sw_bn254.NewG1Affine(p1),
+		Q1:   sw_bn254.NewG2Affine(q1),
+	}
+	assert.NoError(test.IsSolved(&pairingCheckPreviousCircuit{}, assignment, ecc.BN254.ScalarField()))
+}
+
+// TestPairingCheckPreviousRejectsNonPairing makes sure the folded-in value
+// is not merely dropped.
+func TestPairingCheckPreviousRejectsNonPairing(t *testing.T) {
+	assert := test.NewAssert(t)
+	p1, _, q1, q2 := randomPairingTriple(t)
+
+	var p2 bn254.G1Affine
+	_, _, g1, _ := bn254.Generators()
+	p2.ScalarMultiplication(&g1, big.NewInt(42))
+
+	assignment := &pairingCheckPreviousCircuit{
+		Prev: sw_bn254.NewGTEl(previousMillerValue(t, p2, q2)),
+		P1:   sw_bn254.NewG1Affine(p1),
+		Q1:   sw_bn254.NewG2Affine(q1),
+	}
+	assert.Error(test.IsSolved(&pairingCheckPreviousCircuit{}, assignment, ecc.BN254.ScalarField()))
+}
+
+// pairingCheckPreviousConstCircuit bakes the previous value from native
+// fixed points inside Define -- the verifier's shape -- so it travels as a
+// compile-time constant rather than a witness.
+type pairingCheckPreviousConstCircuit struct {
+	P1 sw_bn254.G1Affine
+	Q1 sw_bn254.G2Affine
+
+	p2 bn254.G1Affine
+	q2 bn254.G2Affine
+}
+
+func (c *pairingCheckPreviousConstCircuit) Define(api frontend.API) error {
+	pr, err := NewPairing(api)
+	if err != nil {
+		return err
+	}
+	pr.AssertIsOnG1(&c.P1)
+	ml, err := millerValue(c.p2, c.q2)
+	if err != nil {
+		return err
+	}
+	prev := sw_bn254.NewGTEl(ml)
+	return pr.PairingCheck(
+		[]*G1Affine{&c.P1},
+		[]*G2Affine{&c.Q1},
+		&prev,
+	)
+}
+
+// TestPairingCheckPreviousConst pins the verifier's shape: a previous value
+// built from fixed points inside Define, travelling as a constant.
+func TestPairingCheckPreviousConst(t *testing.T) {
+	assert := test.NewAssert(t)
+	p1, p2, q1, q2 := randomPairingTriple(t)
+
+	assignment := &pairingCheckPreviousConstCircuit{
+		P1: sw_bn254.NewG1Affine(p1),
+		Q1: sw_bn254.NewG2Affine(q1),
+	}
+	assert.NoError(test.IsSolved(&pairingCheckPreviousConstCircuit{p2: p2, q2: q2}, assignment, ecc.BN254.ScalarField()))
+}
+// refused rather than silently zeroing the product: the hint rejects it.
+func TestPairingCheckPreviousRejectsZero(t *testing.T) {
+	assert := test.NewAssert(t)
+	p1, _, q1, _ := randomPairingTriple(t)
+
+	assignment := &pairingCheckPreviousCircuit{
+		Prev: sw_bn254.NewGTEl(bn254.GT{}),
+		P1:   sw_bn254.NewG1Affine(p1),
+		Q1:   sw_bn254.NewG2Affine(q1),
+	}
+	err := test.IsSolved(&pairingCheckPreviousCircuit{}, assignment, ecc.BN254.ScalarField())
+	assert.Error(err)
+	assert.Contains(err.Error(), "zero")
+}
+
+// previousOnlyCircuit has nothing left for the Miller loop to run over.
+type previousOnlyCircuit struct {
+	Prev sw_bn254.GTEl
+}
+
+func (c *previousOnlyCircuit) Define(api frontend.API) error {
+	pr, err := NewPairing(api)
+	if err != nil {
+		return err
+	}
+	return pr.PairingCheck(nil, nil, &c.Prev)
+}
+
+// TestPairingCheckRejectsPreviousOnly makes sure a product of nothing but a
+// previous value is refused rather than silently accepted: it constrains no
+// witness, so a circuit asking for one is a mistake.
+func TestPairingCheckRejectsPreviousOnly(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, p2, _, q2 := randomPairingTriple(t)
+
+	assignment := &previousOnlyCircuit{
+		Prev: sw_bn254.NewGTEl(previousMillerValue(t, p2, q2)),
+	}
+	assert.Error(test.IsSolved(&previousOnlyCircuit{}, assignment, ecc.BN254.ScalarField()))
 }

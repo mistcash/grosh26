@@ -27,6 +27,7 @@ func (c *ThreePairingCheckCircuit) Define(api frontend.API) error {
 	return pairing.PairingCheck(
 		[]*G1Affine{&c.In1G1, &c.In2G1, &c.In3G1},
 		[]*G2Affine{&c.In1G2, &c.In2G2, &c.In3G2},
+		nil,
 	)
 }
 

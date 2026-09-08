@@ -21,6 +21,7 @@ import (
 type (
 	G1Affine = sw_bn254.G1Affine
 	G2Affine = sw_bn254.G2Affine
+	GTEl     = sw_bn254.GTEl
 	Scalar   = sw_bn254.Scalar
 )
 
@@ -106,11 +107,12 @@ type Verifier struct {
 	curve   *sw_emulated.Curve[emparams.BN254Fp, emparams.BN254Fr]
 	pairing *ring_bn254.Pairing
 
-	// alpha is e(α,β)'s G1 side, a compile-time constant. beta, gamma and
-	// delta carry precomputed lines, so their ladders and subgroup checks
-	// leave the circuit; see sw_bn254.NewG2AffineFixed.
-	alpha        G1Affine
-	beta         G2Affine
+	// alphaBeta is the e(α,β)⁻¹ Miller loop value. Both of its points come
+	// from the verifying key, so it is computed once, here, and folded into
+	// the product as the previous value rather than a pass through the loop.
+	// gamma and delta carry precomputed lines, so their ladders and subgroup
+	// checks leave the circuit; see sw_bn254.NewG2AffineFixed.
+	alphaBeta    GTEl
 	gamma        G2Affine
 	delta        G2Affine
 
@@ -135,19 +137,43 @@ func NewVerifier(api frontend.API, vk *VerifyingKey) (*Verifier, error) {
 	for i := range k {
 		k[i] = sw_bn254.NewG1Affine(vk.k[i])
 	}
-	// β, γ, δ carry precomputed lines. NewG2AffineFixed panics on a point
+	// α and β are both fixed, so e(α,β)⁻¹ never reaches the Miller loop: its
+	// Miller loop value is computed here and folded into the product as the
+	// previous value. Both points are checked here, off-circuit -- neither
+	// reaches a ladder or a subgroup check in-circuit.
+	//
+	// MillerLoopFixedQ, not MillerLoop: the projective loop's raw value
+	// carries the lines' Z factors, which this check never removes.
+	if vk.alphaNeg.IsInfinity() {
+		return nil, fmt.Errorf("alpha point is the point at infinity")
+	}
+	if !vk.alphaNeg.IsInSubGroup() {
+		return nil, fmt.Errorf("alpha point is not on the curve")
+	}
+	if vk.beta.IsInfinity() {
+		return nil, fmt.Errorf("beta point is the point at infinity")
+	}
+	if !vk.beta.IsInSubGroup() {
+		return nil, fmt.Errorf("beta point is not in the G2 subgroup")
+	}
+	ml, err := bn254.MillerLoopFixedQ(
+		[]bn254.G1Affine{vk.alphaNeg},
+		[][2][len(bn254.LoopCounter)]bn254.LineEvaluationAff{bn254.PrecomputeLines(vk.beta)},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("alpha-beta miller loop: %w", err)
+	}
+	// γ and δ carry precomputed lines. NewG2AffineFixed panics on a point
 	// outside the subgroup, like gnark.
-	beta := sw_bn254.NewG2AffineFixed(vk.beta)
 	gamma := sw_bn254.NewG2AffineFixed(vk.gammaNeg)
 	delta := sw_bn254.NewG2AffineFixed(vk.deltaNeg)
 	return &Verifier{
-		curve:   curve,
-		pairing: pairing,
-		alpha:   sw_bn254.NewG1Affine(vk.alphaNeg),
-		beta:    beta,
-		gamma:   gamma,
-		delta:   delta,
-		k:       k,
+		curve:     curve,
+		pairing:   pairing,
+		alphaBeta: sw_bn254.NewGTEl(ml),
+		gamma:     gamma,
+		delta:     delta,
+		k:         k,
 	}, nil
 }
 
@@ -160,9 +186,15 @@ func NewVerifier(api frontend.API, vk *VerifyingKey) (*Verifier, error) {
 // verifying key's γ, δ (and the folded-in α) are already negated in
 // [NewVerifyingKey], so the identity becomes a plain product-equals-one.
 //
-// Only the first term is fully witness: A, B are the proof's. The rest use
-// fixed verifying-key points, so β, γ and δ skip the ladder and the G2
-// subgroup check via precomputed lines; see sw_bn254.NewG2AffineFixed.
+// Only the first term is a full pairing: A, B are the proof's. Everything
+// else is fixed by the verifying key, so the identity costs one Miller loop
+// over three G1 points rather than four in-circuit [6x₀+2]Q ladders:
+//
+//   - e(L,γ)⁻¹ and e(C,δ)⁻¹ are fixed-Q pairs. γ and δ never vary, so their
+//     line evaluations are precomputed off-circuit and the ladder and the G2
+//     subgroup check for them leave the circuit entirely.
+//   - e(α,β)⁻¹ has both points fixed, so its Miller loop value is a
+//     compile-time constant, folded into the product as the previous value.
 //
 // AssertProof itself has no notion of BSB22 commitments -- there is no
 // Commitments field on [Proof] and no PoK check here. The "no commitments"
@@ -209,7 +241,8 @@ func (v *Verifier) AssertProof(proof Proof, publicWitness PublicWitness) error {
 	v.pairing.AssertIsOnG2(&proof.Bs)
 
 	return v.pairing.PairingCheck(
-		[]*G1Affine{&proof.Ar, &v.alpha, kSum, &proof.Krs},
-		[]*G2Affine{&proof.Bs, &v.beta, &v.gamma, &v.delta},
+		[]*G1Affine{&proof.Ar, kSum, &proof.Krs},
+		[]*G2Affine{&proof.Bs, &v.gamma, &v.delta},
+		&v.alphaBeta,
 	)
 }
