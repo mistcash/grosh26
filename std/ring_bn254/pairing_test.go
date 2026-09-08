@@ -144,11 +144,14 @@ func (c *pairingCheckFixedQCircuit) Define(api frontend.API) error {
 	}
 	pr.AssertIsOnG1(&c.P1)
 	pr.AssertIsOnG1(&c.P2)
-	fixedQ, err := pr.NewFixedQPair(&c.P2, c.q2)
+	fixedQ2, err := NewFixedG2(c.q2)
 	if err != nil {
 		return err
 	}
-	return pr.PairingCheckPairs(NewPair(&c.P1, &c.Q1), fixedQ)
+	return pr.PairingCheck(
+		[]*G1Affine{&c.P1, &c.P2},
+		[]*G2Affine{&c.Q1, &fixedQ2},
+	)
 }
 
 // TestPairingCheckFixedQ checks the same e(P1,Q1)·e(P2,Q2) == 1 statement as
@@ -187,7 +190,7 @@ func TestPairingCheckFixedQRejectsNonPairing(t *testing.T) {
 // TestFixedQPairRejectsBadPoint makes sure baking a G2 point in does not lose
 // the subgroup check that computing its lines in-circuit would have run: with
 // no ladder left in the circuit, nothing downstream would catch a point off
-// the twist or at infinity, so NewFixedQPair has to.
+// the twist or at infinity, so NewFixedG2 has to.
 func TestFixedQPairRejectsBadPoint(t *testing.T) {
 	p1, p2, q1, q2 := randomPairingTriple(t)
 	assignment := &pairingCheckFixedQCircuit{
@@ -216,8 +219,8 @@ func TestFixedQPairRejectsBadPoint(t *testing.T) {
 	}
 }
 
-// pairingCheckFixedCircuit fixes the whole second pair, so its Miller loop
-// value is a compile-time constant and only P1, Q1 reach the loop.
+// pairingCheckFixedCircuit fixes the second pair's points, so only P1, Q1
+// run the ladder in-circuit.
 type pairingCheckFixedCircuit struct {
 	P1 sw_bn254.G1Affine
 	Q1 sw_bn254.G2Affine
@@ -232,16 +235,19 @@ func (c *pairingCheckFixedCircuit) Define(api frontend.API) error {
 		return err
 	}
 	pr.AssertIsOnG1(&c.P1)
-	fixed, err := pr.NewFixedPair(c.p2, c.q2)
+	fixedP2 := sw_bn254.NewG1Affine(c.p2)
+	fixedQ2, err := NewFixedG2(c.q2)
 	if err != nil {
 		return err
 	}
-	return pr.PairingCheckPairs(NewPair(&c.P1, &c.Q1), fixed)
+	return pr.PairingCheck(
+		[]*G1Affine{&c.P1, &fixedP2},
+		[]*G2Affine{&c.Q1, &fixedQ2},
+	)
 }
 
-// TestPairingCheckFixedPair pins the constant-factor path: e(P2,Q2) never
-// reaches the Miller loop, it is folded in as one precomputed 𝔽p¹² factor,
-// and the identity still has to hold.
+// TestPairingCheckFixedPair checks the same identity with the second pair's
+// points baked in.
 func TestPairingCheckFixedPair(t *testing.T) {
 	assert := test.NewAssert(t)
 	p1, p2, q1, q2 := randomPairingTriple(t)
@@ -253,8 +259,8 @@ func TestPairingCheckFixedPair(t *testing.T) {
 	assert.NoError(test.IsSolved(&pairingCheckFixedCircuit{p2: p2, q2: q2}, assignment, ecc.BN254.ScalarField()))
 }
 
-// TestPairingCheckFixedPairRejectsNonPairing makes sure the folded-in
-// constant is a factor of the identity and not merely dropped.
+// TestPairingCheckFixedPairRejectsNonPairing makes sure the baked-in pair
+// is a factor of the identity and not merely dropped.
 func TestPairingCheckFixedPairRejectsNonPairing(t *testing.T) {
 	assert := test.NewAssert(t)
 	p1, _, q1, q2 := randomPairingTriple(t)
@@ -268,42 +274,6 @@ func TestPairingCheckFixedPairRejectsNonPairing(t *testing.T) {
 		Q1: sw_bn254.NewG2Affine(q1),
 	}
 	assert.Error(test.IsSolved(&pairingCheckFixedCircuit{p2: p2, q2: q2}, assignment, ecc.BN254.ScalarField()))
-}
-
-// allFixedCircuit has nothing left in the witness for the Miller loop to run
-// over.
-type allFixedCircuit struct {
-	Unused sw_bn254.G1Affine
-
-	p, p2 bn254.G1Affine
-	q, q2 bn254.G2Affine
-}
-
-func (c *allFixedCircuit) Define(api frontend.API) error {
-	pr, err := NewPairing(api)
-	if err != nil {
-		return err
-	}
-	first, err := pr.NewFixedPair(c.p, c.q)
-	if err != nil {
-		return err
-	}
-	second, err := pr.NewFixedPair(c.p2, c.q2)
-	if err != nil {
-		return err
-	}
-	return pr.PairingCheckPairs(first, second)
-}
-
-// TestPairingCheckPairsRejectsAllFixed makes sure a product of nothing but
-// constants is refused rather than silently accepted: it constrains no
-// witness, so a circuit asking for one is a mistake.
-func TestPairingCheckPairsRejectsAllFixed(t *testing.T) {
-	assert := test.NewAssert(t)
-	p1, p2, q1, q2 := randomPairingTriple(t)
-
-	circuit := &allFixedCircuit{p: p1, q: q1, p2: p2, q2: q2}
-	assert.Error(test.IsSolved(circuit, &allFixedCircuit{}, ecc.BN254.ScalarField()))
 }
 
 type millerLoopCircuit struct {
@@ -333,8 +303,8 @@ func (c *millerLoopCircuit) Define(api frontend.API) error {
 // bn254.MillerLoop runs the ladder in projective coordinates and its raw
 // value carries the lines' Z factors; they die in the final exponentiation,
 // but this package never runs one. The affine line form MillerLoopFixedQ
-// evaluates is the one the loop here uses, the one gnark's residue witness
-// hint draws from, and the one [Pairing.NewFixedPair] bakes in as a constant.
+// evaluates is the one the loop here uses and the one gnark's residue witness
+// hint draws from.
 func TestMillerLoopMatchesFixedQ(t *testing.T) {
 	assert := test.NewAssert(t)
 	p, _, q, _ := randomPairingTriple(t)
