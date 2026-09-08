@@ -12,9 +12,10 @@
 - `std/ring_bn254`: pairing arguments that are fixed when the circuit is
   built no longer pay for an in-circuit `[6x₀+2]Q` ladder. `PairingCheck`,
   `MillerLoop` and `Pair` take the points directly: a `Q` with precomputed
-  lines (built with `NewFixedG2`) skips the ladder and the subgroup check,
-  the rest run them in-circuit. The G2 subgroup check a skipped ladder
-  would have run happens off-circuit instead, when the fixed point is built.
+  lines (built with `sw_bn254.NewG2AffineFixed`) skips the ladder and the
+  subgroup check, the rest run them in-circuit and cache the lines in
+  `Q.Lines`. The G2 subgroup check a skipped ladder would have run happens
+  off-circuit instead, when the fixed point is built.
 - `std/recursion`: the outer Groth16 verifier uses that shape — one full
   pairing (`e(A,B)`) and three fixed-Q pairs (`e(α,β)⁻¹`, `e(L,γ)⁻¹`,
   `e(C,δ)⁻¹`) — taking the outer circuit from 1,269,953 constraints to

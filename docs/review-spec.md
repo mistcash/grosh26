@@ -140,17 +140,17 @@ three fixed-Q pairs:
 | term | shape | what the circuit does |
 | --- | --- | --- |
 | `e(A,B)` | witness `Q` | full pairing: `B`'s ladder and G2 subgroup check run in-circuit |
-| `e(α,β)⁻¹`, `e(L,γ)⁻¹`, `e(C,δ)⁻¹` | `NewFixedG2` | fixed Q: the lines are precomputed off-circuit, only the G1 side varies |
+| `e(α,β)⁻¹`, `e(L,γ)⁻¹`, `e(C,δ)⁻¹` | `sw_bn254.NewG2AffineFixed` | fixed Q: the lines are precomputed off-circuit, only the G1 side varies |
 
 That is one Miller loop over four G1 points with a single in-circuit
 ladder, and it is what takes the outer circuit from 1,269,953 constraints
 to 660,886 (−48.0%).
 
 The soundness cost of skipping a ladder is that the G2 subgroup check goes
-with it, so it has to happen somewhere else. `NewFixedG2` runs it
+with it, so it has to happen somewhere else. `NewVerifier` runs it
 off-circuit, on the native point, and refuses to build
 a fixed point from one off the twist, outside the prime-order subgroup, or at
-infinity (`std/ring_bn254/pairing.go`). Since the point is a
+infinity. Since the point is a
 compile-time constant, an off-circuit check is a check on exactly the value
 the circuit will use — there is no witness for a prover to vary. It is,
 however, the only check: nothing downstream would catch a malformed `β`, `γ`
@@ -169,8 +169,8 @@ Miller loop against the former.
 The inner circuit's verifying key is not a witness: `NewVerifyingKey`
 converts gnark's native `bn254.G1Affine`/`G2Affine` points, and
 `NewVerifier` turns each into an in-circuit constant the same way gnark
-does -- `sw_bn254.NewG1Affine` for G1 and `ring_bn254.NewFixedG2` (which
-wraps `sw_bn254.NewG2AffineFixed`) for G2, both built on `emulated.ValueOf`.
+does -- `sw_bn254.NewG1Affine` for G1 and `sw_bn254.NewG2AffineFixed` for G2,
+both built on `emulated.ValueOf`.
 That is sound here: gnark's `enforceWidthConditional`
 (`std/math/emulated/field.go`) calls `Initialize()` on a `ValueOf`-built
 constant the first time any arithmetic op touches it, which the pairing
