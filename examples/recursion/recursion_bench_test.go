@@ -19,5 +19,5 @@ func BenchmarkOuterCircuit(b *testing.B) {
 		b.Fatal(err)
 	}
 	_, assignment := fx.circuit(b, fx.vk, fx.proof, fx.public)
-	bench.Circuit(b, func() frontend.Circuit { return recursion.NewCircuit(outerVK) }, assignment)
+	bench.Circuit(b, func() frontend.Circuit { return recursion.NewCircuit(outerVK) }, assignment, "OuterCircuit")
 }
