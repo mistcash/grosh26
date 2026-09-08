@@ -3,6 +3,7 @@ package ring_bn254
 import (
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 
@@ -46,4 +47,31 @@ func BenchmarkPairingCheckFixedQ(b *testing.B) {
 		Q1: sw_bn254.NewG2Affine(q1),
 	}
 	bench.Circuit(b, func() frontend.Circuit { return &pairingCheckFixedQCircuit{q2: q2} }, assignment)
+}
+
+// BenchmarkThreePairingFixedPrev is the three-pairing check with two fixed-Q
+// pairs sharing one G2 point in the loop and a fourth folded in as previous:
+// the count pins the combined saving of precomputed lines and the folded-in
+// Miller loop.
+func BenchmarkThreePairingFixedPrev(b *testing.B) {
+	p, pqNeg, q, g2 := randomPairingTriple(b)
+	var p1, p2, p3 bn254.G1Affine
+	p1.Double(&p)
+	p2.Set(&pqNeg)
+	p3.Double(&pqNeg)
+
+	assignment := &groth16Sim{
+		P1:   sw_bn254.NewG1Affine(p1),
+		Q1:   sw_bn254.NewG2Affine(q),
+		P2:   sw_bn254.NewG1Affine(p2),
+		Q2:   sw_bn254.NewG2AffineFixed(g2),
+		P3:   sw_bn254.NewG1Affine(p3),
+		Q3:   sw_bn254.NewG2AffineFixed(g2),
+		Prev: sw_bn254.NewGTEl(previousMillerValue(b, p, q)),
+	}
+	newCircuit := func() frontend.Circuit {
+		fixed := sw_bn254.NewG2AffineFixed(g2)
+		return &groth16Sim{Q2: fixed, Q3: fixed}
+	}
+	bench.Circuit(b, newCircuit, assignment)
 }
