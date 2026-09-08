@@ -72,10 +72,10 @@ func BenchmarkGroth16SimGnark(b *testing.B) {
 	newCircuit := func() frontend.Circuit {
 		fixed := sw_bn254.NewG2AffineFixed(g2)
 		return &groth16SimGnark{
-			GammaNeg: fixed,
-			DeltaNeg: fixed,
-			K1:       sw_bn254.NewG1Affine(p),
-			K0:       sw_bn254.NewG1Affine(k0Pt),
+			GammaNeg:  fixed,
+			DeltaNeg:  fixed,
+			K1:        sw_bn254.NewG1Affine(p),
+			K0:        sw_bn254.NewG1Affine(k0Pt),
 			AlphaBeta: sw_bn254.NewGTEl(previousMillerValue(b, p, q)),
 		}
 	}
@@ -107,10 +107,10 @@ func BenchmarkGroth16Sim(b *testing.B) {
 	newCircuit := func() frontend.Circuit {
 		fixed := sw_bn254.NewG2AffineFixed(g2)
 		return &groth16Sim{
-			GammaNeg: fixed,
-			DeltaNeg: fixed,
-			K1:       sw_bn254.NewG1Affine(p),
-			K0:       sw_bn254.NewG1Affine(k0Pt),
+			GammaNeg:  fixed,
+			DeltaNeg:  fixed,
+			K1:        sw_bn254.NewG1Affine(p),
+			K0:        sw_bn254.NewG1Affine(k0Pt),
 			AlphaBeta: sw_bn254.NewGTEl(previousMillerValue(b, p, q)),
 		}
 	}
