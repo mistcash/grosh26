@@ -1,3 +1,6 @@
+// Package limbs comes from gnark.
+// Source: github.com/Consensys/gnark/blob/master/std/internal/limbcomposition/composition.go
+// Tests: http://github.com/Consensys/gnark/blob/master/std/internal/limbcomposition/composition_test.go
 package limbs
 
 import (
