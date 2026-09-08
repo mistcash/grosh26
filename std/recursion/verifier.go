@@ -131,39 +131,15 @@ func NewVerifier(api frontend.API, vk *VerifyingKey) (*Verifier, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new curve: %w", err)
 	}
-	if vk.alphaNeg.IsInfinity() {
-		return nil, fmt.Errorf("alpha point is the point at infinity")
-	}
-	if !vk.alphaNeg.IsInSubGroup() {
-		return nil, fmt.Errorf("alpha point is not on the curve")
-	}
 	k := make([]G1Affine, len(vk.k))
 	for i := range k {
 		k[i] = sw_bn254.NewG1Affine(vk.k[i])
 	}
-	// α, β, γ, δ are fixed, so they are checked off-circuit here rather
-	// than in-circuit.
-	fixedG2 := func(name string, q bn254.G2Affine) (G2Affine, error) {
-		if q.IsInfinity() {
-			return G2Affine{}, fmt.Errorf("%s: fixed G2 point is the point at infinity", name)
-		}
-		if !q.IsInSubGroup() {
-			return G2Affine{}, fmt.Errorf("%s: fixed G2 point is not in the prime-order subgroup", name)
-		}
-		return sw_bn254.NewG2AffineFixed(q), nil
-	}
-	beta, err := fixedG2("beta", vk.beta)
-	if err != nil {
-		return nil, err
-	}
-	gamma, err := fixedG2("gamma", vk.gammaNeg)
-	if err != nil {
-		return nil, err
-	}
-	delta, err := fixedG2("delta", vk.deltaNeg)
-	if err != nil {
-		return nil, err
-	}
+	// β, γ, δ carry precomputed lines. NewG2AffineFixed panics on a point
+	// outside the subgroup, like gnark.
+	beta := sw_bn254.NewG2AffineFixed(vk.beta)
+	gamma := sw_bn254.NewG2AffineFixed(vk.gammaNeg)
+	delta := sw_bn254.NewG2AffineFixed(vk.deltaNeg)
 	return &Verifier{
 		curve:   curve,
 		pairing: pairing,

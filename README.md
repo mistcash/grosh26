@@ -87,9 +87,8 @@ in-circuit `[6x₀+2]Q` ladders are avoidable:
 Three fixed-Q pairs and one full pairing, then, over a single Miller loop —
 which takes the outer circuit from 1,269,953 constraints to **660,886**, a
 48.0% cut, for the same statement. Skipping a ladder skips the G2 subgroup
-check with it, so the fixed points are checked off-circuit instead and a
-point off the twist, outside the prime-order subgroup, or at infinity is
-refused.
+check with it, so `sw_bn254.NewG2AffineFixed` runs that check off-circuit
+instead and panics on a point outside the subgroup.
 
 The outer circuit carries three BSB22 commitments — two from the ring's
 deferred checks, one from the range checker — verified on-chain by the
