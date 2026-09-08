@@ -39,7 +39,7 @@ type innerFixture struct {
 	public fr.Vector
 }
 
-func newInnerFixture(t *testing.T) *innerFixture {
+func newInnerFixture(t testing.TB) *innerFixture {
 	t.Helper()
 	innerCcs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &poseidon.Circuit{})
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func newInnerFixture(t *testing.T) *innerFixture {
 
 // circuit builds the outer circuit and its witness from native values, so
 // subtests can tamper with the proof or public inputs first.
-func (fx *innerFixture) circuit(t *testing.T, vk *groth16backend.VerifyingKey, proof *groth16backend.Proof, public fr.Vector) (*recursion.Circuit, *recursion.Circuit) {
+func (fx *innerFixture) circuit(t testing.TB, vk *groth16backend.VerifyingKey, proof *groth16backend.Proof, public fr.Vector) (*recursion.Circuit, *recursion.Circuit) {
 	t.Helper()
 	outerVK, err := recursion.NewVerifyingKey(vk)
 	require.NoError(t, err)
