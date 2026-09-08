@@ -49,65 +49,69 @@ func BenchmarkPairingCheckFixedQ(b *testing.B) {
 	bench.Circuit(b, func() frontend.Circuit { return &pairingCheckFixedQCircuit{q2: q2} }, assignment)
 }
 
-// BenchmarkGroth16Sim is the three-pairing check with two fixed-Q
-// pairs sharing one G2 point in the loop and a fourth folded in as previous:
-// the count pins the combined saving of precomputed lines and the folded-in
-// Miller loop.
+// BenchmarkGroth16SimGnark checks the Groth16 identity
+// e(Ar,Bs) · e(αₙₑg,β) · e(kSum,γₙₑg) · e(Krs,δₙₑg) == 1 with gnark's pairing:
+// γₙₑg and δₙₑg share one fixed G2 with precomputed lines, e(αₙₑg,β) is folded
+// in as the previous Miller loop value, and kSum is recombined in-circuit as
+// Public·K1 + K0. The count pins the combined saving of precomputed lines and
+// the folded-in Miller loop.
 func BenchmarkGroth16SimGnark(b *testing.B) {
 	p, pqNeg, q, g2 := randomPairingTriple(b)
-	var p1, p3 bn254.G1Affine
-	p1.Double(&p)
-	p3.Double(&pqNeg)
+	var ar, krs bn254.G1Affine
+	ar.Double(&p)
+	krs.Double(&pqNeg)
 
-	bPt, sNative := scalarSplit(b, p, pqNeg)
+	k0Pt, publicNative := scalarSplit(b, p, pqNeg)
 
 	assignment := &groth16SimGnark{
-		P1: sw_bn254.NewG1Affine(p1),
-		Q1: sw_bn254.NewG2Affine(q),
-		S:  sw_bn254.NewScalar(sNative),
-		P3: sw_bn254.NewG1Affine(p3),
+		Ar:     sw_bn254.NewG1Affine(ar),
+		Bs:     sw_bn254.NewG2Affine(q),
+		Public: sw_bn254.NewScalar(publicNative),
+		Krs:    sw_bn254.NewG1Affine(krs),
 	}
 	newCircuit := func() frontend.Circuit {
 		fixed := sw_bn254.NewG2AffineFixed(g2)
 		return &groth16SimGnark{
-			Q2:   fixed,
-			Q3:   fixed,
-			A:    sw_bn254.NewG1Affine(p),
-			B:    sw_bn254.NewG1Affine(bPt),
-			Prev: sw_bn254.NewGTEl(previousMillerValue(b, p, q)),
+			GammaNeg: fixed,
+			DeltaNeg: fixed,
+			K1:       sw_bn254.NewG1Affine(p),
+			K0:       sw_bn254.NewG1Affine(k0Pt),
+			AlphaBeta: sw_bn254.NewGTEl(previousMillerValue(b, p, q)),
 		}
 	}
 	bench.Circuit(b, newCircuit, assignment)
 }
 
-// BenchmarkGroth16Sim is the three-pairing check with two fixed-Q
-// pairs sharing one G2 point in the loop and a fourth folded in as previous:
-// the count pins the combined saving of precomputed lines and the folded-in
-// Miller loop.
+// BenchmarkGroth16Sim checks the Groth16 identity
+// e(Ar,Bs) · e(αₙₑg,β) · e(kSum,γₙₑg) · e(Krs,δₙₑg) == 1 with the ring pairing:
+// γₙₑg and δₙₑg share one fixed G2 with precomputed lines, e(αₙₑg,β) is folded
+// in as the previous Miller loop value, and kSum is recombined in-circuit as
+// Public·K1 + K0. The count pins the combined saving of precomputed lines and
+// the folded-in Miller loop.
 func BenchmarkGroth16Sim(b *testing.B) {
 	p, pqNeg, q, g2 := randomPairingTriple(b)
-	var p1, p3 bn254.G1Affine
-	p1.Double(&p)
-	p3.Double(&pqNeg)
+	var ar, krs bn254.G1Affine
+	ar.Double(&p)
+	krs.Double(&pqNeg)
 
-	bPt, sNative := scalarSplit(b, p, pqNeg)
+	k0Pt, publicNative := scalarSplit(b, p, pqNeg)
 
 	assignment := &groth16Sim{
-		P1: sw_bn254.NewG1Affine(p1), // 2p
-		Q1: sw_bn254.NewG2Affine(q),  // q
-		A:  sw_bn254.NewG1Affine(p),  // A, s·A + B == -pq
-		S:  sw_bn254.NewScalar(sNative),
-		B:  sw_bn254.NewG1Affine(bPt),
-		P3: sw_bn254.NewG1Affine(p3), // -2pq
+		Ar:     sw_bn254.NewG1Affine(ar), // 2p
+		Bs:     sw_bn254.NewG2Affine(q),  // q
+		K1:     sw_bn254.NewG1Affine(p),  // K1, Public·K1 + K0 == -pq
+		Public: sw_bn254.NewScalar(publicNative),
+		K0:     sw_bn254.NewG1Affine(k0Pt),
+		Krs:    sw_bn254.NewG1Affine(krs), // -2pq
 	}
 	newCircuit := func() frontend.Circuit {
 		fixed := sw_bn254.NewG2AffineFixed(g2)
 		return &groth16Sim{
-			Q2:   fixed,
-			Q3:   fixed,
-			A:    sw_bn254.NewG1Affine(p),
-			B:    sw_bn254.NewG1Affine(bPt),
-			Prev: sw_bn254.NewGTEl(previousMillerValue(b, p, q)),
+			GammaNeg: fixed,
+			DeltaNeg: fixed,
+			K1:       sw_bn254.NewG1Affine(p),
+			K0:       sw_bn254.NewG1Affine(k0Pt),
+			AlphaBeta: sw_bn254.NewGTEl(previousMillerValue(b, p, q)),
 		}
 	}
 	bench.Circuit(b, newCircuit, assignment)
