@@ -59,3 +59,54 @@ func TestThreePairingCheckTestSolve(t *testing.T) {
 	err := test.IsSolved(&ThreePairingCheckCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
+
+// groth16Sim checks a four-pairing product with three pairs
+// in the loop and the fourth folded in as a previous Miller loop value. Q2
+// and Q3 are the same G2 point carrying precomputed lines, so their ladders
+// and subgroup checks never enter the circuit.
+type groth16Sim struct {
+	P1, P2, P3 sw_bn254.G1Affine
+	Q1, Q2, Q3 sw_bn254.G2Affine
+	Prev       sw_bn254.GTEl
+}
+
+func (c *groth16Sim) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return err
+	}
+	pairing.AssertIsOnG1(&c.P1)
+	pairing.AssertIsOnG1(&c.P2)
+	pairing.AssertIsOnG1(&c.P3)
+	return pairing.PairingCheck(
+		[]*G1Affine{&c.P1, &c.P2, &c.P3},
+		[]*G2Affine{&c.Q1, &c.Q2, &c.Q3},
+		&c.Prev,
+	)
+}
+
+func TestThreePairingFixedPrev(t *testing.T) {
+	assert := test.NewAssert(t)
+	// e(2p, q) * e(-pq, g2) * e(-2pq, g2) * e(p, q) == 1: the middle two
+	// share one fixed G2 with precomputed lines, the last is folded in as
+	// the previous Miller loop value instead of a pass through the loop.
+	p, pqNeg, q, g2 := randomPairingTriple(t)
+	var p1, p2, p3 bn254.G1Affine
+	p1.Double(&p)
+	p2.Set(&pqNeg)
+	p3.Double(&pqNeg)
+
+	fixed := sw_bn254.NewG2AffineFixed(g2)
+	unassigned := &groth16Sim{Q2: fixed, Q3: fixed}
+	assignment := &groth16Sim{
+		P1:   sw_bn254.NewG1Affine(p1), // 2p
+		Q1:   sw_bn254.NewG2Affine(q),  // q
+		P2:   sw_bn254.NewG1Affine(p2), // -pq
+		Q2:   fixed,                    // g2, lines precomputed
+		P3:   sw_bn254.NewG1Affine(p3), // -2pq
+		Q3:   fixed,                    // g2, lines precomputed
+		Prev: sw_bn254.NewGTEl(previousMillerValue(t, p, q)),
+	}
+	err := test.IsSolved(unassigned, assignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
