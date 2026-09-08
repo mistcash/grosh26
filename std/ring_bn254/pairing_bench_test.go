@@ -62,21 +62,22 @@ func BenchmarkGroth16Sim(b *testing.B) {
 	bPt, sNative := scalarSplit(b, p, pqNeg)
 
 	assignment := &groth16Sim{
-		P1: sw_bn254.NewG1Affine(p1),
-		Q1: sw_bn254.NewG2Affine(q),
-		A:  sw_bn254.NewG1Affine(p),
-		// A:    p,
-		S: sw_bn254.NewScalar(sNative),
-		B: sw_bn254.NewG1Affine(bPt),
-		// B:    bPt,
-		Q2:   sw_bn254.NewG2AffineFixed(g2),
-		P3:   sw_bn254.NewG1Affine(p3),
-		Q3:   sw_bn254.NewG2AffineFixed(g2),
-		Prev: sw_bn254.NewGTEl(previousMillerValue(b, p, q)),
+		P1: sw_bn254.NewG1Affine(p1), // 2p
+		Q1: sw_bn254.NewG2Affine(q),  // q
+		A:  sw_bn254.NewG1Affine(p),  // A, s·A + B == -pq
+		S:  sw_bn254.NewScalar(sNative),
+		B:  sw_bn254.NewG1Affine(bPt),
+		P3: sw_bn254.NewG1Affine(p3), // -2pq
 	}
 	newCircuit := func() frontend.Circuit {
-		fixed := sw_bn254.NewG2AffineFixedPlaceholder()
-		return &groth16Sim{Q2: fixed, Q3: fixed, A: sw_bn254.NewG1Affine(p), B: sw_bn254.NewG1Affine(bPt)}
+		fixed := sw_bn254.NewG2AffineFixed(g2)
+		return &groth16Sim{
+			Q2:   fixed,
+			Q3:   fixed,
+			A:    sw_bn254.NewG1Affine(p),
+			B:    sw_bn254.NewG1Affine(bPt),
+			Prev: sw_bn254.NewGTEl(previousMillerValue(b, p, q)),
+		}
 	}
 	bench.Circuit(b, newCircuit, assignment)
 }
