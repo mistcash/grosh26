@@ -24,7 +24,7 @@ The random ring element at which the deferred identity is evaluated; drawn only 
 _Avoid_: random point, challenge point
 
 **Fixed-Q pair**:
-A Miller loop factor whose G2 point is known when the circuit is built, so its line evaluations are precomputed off-circuit and its ladder and subgroup check never enter the circuit. Built with `ring_bn254.NewFixedG2`.
+A Miller loop factor whose G2 point is known when the circuit is built, so its line evaluations are precomputed off-circuit and its ladder and subgroup check never enter the circuit. Built with `sw_bn254.NewG2AffineFixed`.
 _Avoid_: precomputed pairing, constant pairing
 
 **BSB22 commitment**:
