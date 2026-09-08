@@ -15,7 +15,7 @@ import (
 
 // randomPairingTriple returns [a]G1, [b]G2 and [-ab]G1, so that
 // e([a]G1, [b]G2) · e([-ab]G1, G2) == 1.
-func randomPairingTriple(t *testing.T) (p1, p2 bn254.G1Affine, q1, q2 bn254.G2Affine) {
+func randomPairingTriple(t testing.TB) (p1, p2 bn254.G1Affine, q1, q2 bn254.G2Affine) {
 	t.Helper()
 	_, _, g1, g2 := bn254.Generators()
 
