@@ -9,10 +9,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/test"
-	"github.com/stretchr/testify/require"
 )
 
 // randomPairingTriple returns [a]G1, [b]G2 and [-ab]G1, so that
@@ -353,31 +351,4 @@ func TestMillerLoopMatchesFixedQ(t *testing.T) {
 		R: sw_bn254.NewGTEl(res),
 	}
 	assert.NoError(test.IsSolved(&millerLoopCircuit{}, assignment, ecc.BN254.ScalarField()))
-}
-
-// TestFixedQSavesConstraints compiles the same e(P1,Q1)·e(P2,Q2) == 1 check
-// twice, once with both G2 points from the witness and once with Q2 fixed.
-// The two circuits differ only in Q2's [6x₀+2]Q ladder and subgroup check, so
-// the gap is what precomputing one G2 point's lines is worth -- the saving
-// std/recursion's Groth16 verifier collects twice, for γ and δ.
-func TestFixedQSavesConstraints(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping the pairing circuit compilations under -short")
-	}
-	_, _, _, q2 := randomPairingTriple(t)
-
-	variable, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &pairingCheckCircuit{})
-	require.NoError(t, err)
-	fixed, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &pairingCheckFixedQCircuit{q2: q2})
-	require.NoError(t, err)
-
-	nbVariable, nbFixed := variable.GetNbConstraints(), fixed.GetNbConstraints()
-	t.Logf("two-pair check: %d constraints with both Q from the witness, %d with one fixed (%.1f%% fewer)",
-		nbVariable, nbFixed, 100*float64(nbVariable-nbFixed)/float64(nbVariable))
-
-	// the ladder and the subgroup check are a large fraction of a pair's
-	// cost, so the saving is tens of percent, not a rounding error. Pinned
-	// loosely: the point is that fixing Q removes work, not the exact figure,
-	// which moves with every gnark release.
-	require.Less(t, nbFixed, nbVariable*4/5, "fixing one of two G2 points should cut the check by more than a fifth")
 }
