@@ -134,46 +134,54 @@ becomes one four-term `PairingCheck` through the ring pairing of §1.
 
 Only one of the four terms is a full pairing. `β`, `γ` and `δ` come from the
 verifying key and never vary, so three of the four in-circuit `[6x₀+2]Q`
-ladders are avoidable, and the check is assembled from one full pair plus
-three fixed-Q pairs:
+ladders are avoidable, and the check is assembled from one full pair, two
+fixed-Q pairs and one previous Miller loop value:
 
 | term | shape | what the circuit does |
 | --- | --- | --- |
 | `e(A,B)` | witness `Q` | full pairing: `B`'s ladder and G2 subgroup check run in-circuit |
-| `e(α,β)⁻¹`, `e(L,γ)⁻¹`, `e(C,δ)⁻¹` | `sw_bn254.NewG2AffineFixed` | fixed Q: the lines are precomputed off-circuit, only the G1 side varies |
+| `e(L,γ)⁻¹`, `e(C,δ)⁻¹` | `sw_bn254.NewG2AffineFixed` | fixed Q: the lines are precomputed off-circuit, only the G1 side varies |
+| `e(α,β)⁻¹` | previous `GTEl` | both points fixed: the off-circuit Miller loop value is folded in as one factor |
 
-That is one Miller loop over four G1 points with a single in-circuit
+That is one Miller loop over three G1 points with a single in-circuit
 ladder, and it is what takes the outer circuit from 1,269,953 constraints
-to 660,886 (−48.0%).
+to 641,744 (−49.5%).
 
 The soundness cost of skipping a ladder is that the G2 subgroup check goes
 with it, so it has to happen somewhere else. `sw_bn254.NewG2AffineFixed`
 runs it off-circuit, on the native point, and panics on a point outside the
-subgroup. Since the point is a
+subgroup. The fully-fixed `e(α,β)⁻¹` skips the ladder too, so `NewVerifier`
+checks `α` and `β` off-circuit the same way and refuses them with an error.
+Since the points are
 compile-time constant, an off-circuit check is a check on exactly the value
 the circuit will use — there is no witness for a prover to vary. It is,
 however, the only check: nothing downstream would catch a malformed `β`, `γ`
 or `δ`, which is what `TestOuterCircuitRejectsMalformedKey` pins.
 
 Which of gnark-crypto's two Miller loops the raw value matches matters here
-and is easy to get wrong: it has to use the same line normalisation the
-in-circuit loop does, i.e. gnark-crypto's `MillerLoopFixedQ` (affine lines),
-not `MillerLoop` (projective, whose raw value carries the lines' `Z`
-factors). They differ by a factor the final exponentiation would kill and
-this check does not. `TestMillerLoopMatchesFixedQ` pins the in-circuit raw
-Miller loop against the former.
+and is easy to get wrong: the previous value has to use the same line
+normalisation the in-circuit loop does, i.e. gnark-crypto's
+`MillerLoopFixedQ` (affine lines), not `MillerLoop` (projective, whose raw
+value carries the lines' `Z` factors). They differ by a factor the final
+exponentiation would kill and this check does not. `TestMillerLoopMatchesFixedQ`
+pins the in-circuit raw Miller loop against the former, and
+`TestPairingCheckPreviousConst` pins the previous-value path end to end.
 
 ### 2.3 The verifying key is baked in as a compile-time constant
 
 The inner circuit's verifying key is not a witness: `NewVerifyingKey`
 converts gnark's native `bn254.G1Affine`/`G2Affine` points, and
 `NewVerifier` turns each into an in-circuit constant the same way gnark
-does -- `sw_bn254.NewG1Affine` for G1 and `sw_bn254.NewG2AffineFixed` for G2,
-both built on `emulated.ValueOf`.
+does -- `sw_bn254.NewG1Affine` for G1, `sw_bn254.NewG2AffineFixed` for G2 and
+`sw_bn254.NewGTEl` for the `e(α,β)⁻¹` previous value, all built on
+`emulated.ValueOf`.
 That is sound here: gnark's `enforceWidthConditional`
 (`std/math/emulated/field.go`) calls `Initialize()` on a `ValueOf`-built
 constant the first time any arithmetic op touches it, which the pairing
-check always does.
+check always does. The previous value in particular is multiplied with
+gnark's own `E12` arithmetic rather than the ring -- the ring reads
+coefficient limbs directly, which `ValueOf` constants only gain on that
+first genuine field op.
 
 ### 2.4 Field-registration ordering
 

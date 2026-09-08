@@ -111,11 +111,14 @@ func (pr *Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 // supplies a residue witness and the check folds it into the Miller loop.
 //
 // A Q with precomputed lines (sw_bn254.NewG2AffineFixed) skips the ladder and
-// the subgroup check; the rest run them in-circuit. The G1 points are not
-// checked either way, see [Pairing.AssertIsOnG1].
+// the subgroup check; the rest run them in-circuit. An optional previous
+// Miller loop value is folded in as one factor instead of a pass through the
+// loop (cf. gnark's MillerLoopAndMul); it must be raw MillerLoopFixedQ
+// output, not a reduced pairing. The G1 points are not checked either way,
+// see [Pairing.AssertIsOnG1].
 //
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
-func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
+func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine, previous *GTEl) error {
 	if len(P) == 0 || len(P) != len(Q) {
 		return errors.New("invalid inputs sizes")
 	}
@@ -133,18 +136,33 @@ func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 		q := Q[i]
 		inputs = append(inputs, &q.P.X.A0, &q.P.X.A1, &q.P.Y.A0, &q.P.Y.A1)
 	}
-	hint, err := pr.fp.NewHint(pairingCheckHint, 18, inputs...)
+	checkHint := pairingCheckHint
+	if previous != nil {
+		// the residue covers the whole product, so previous travels with
+		// the points as its tower limbs.
+		tower := pr.ToTower(previous)
+		inputs = append(inputs, tower[:]...)
+		checkHint = millerLoopAndCheckFinalExpHint
+	}
+	hint, err := pr.fp.NewHint(checkHint, 18, inputs...)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	residueWitnessInv := pr.FromTower([12]*baseEl{hint[0], hint[1], hint[2], hint[3], hint[4], hint[5], hint[6], hint[7], hint[8], hint[9], hint[10], hint[11]})
-	residueWitnessInvPoly := pr.ToPoly(residueWitnessInv)
-
-	// InversePoly constrains the hint to be invertible, so the all-zero witness
-	// -- which would satisfy the homogeneous check below for any input -- is
-	// ruled out. The inverse is needed below anyway, for the q² Frobenius.
-	residueWitness := pr.PolyToE12(pr.InversePoly(residueWitnessInvPoly))
+	// InversePoly constrains the hint to be invertible, ruling out the
+	// all-zero witness that would satisfy the check below for any input.
+	// The two hints return different first outputs: pairingCheckHint gives
+	// the inverse witness, millerLoopAndCheckFinalExpHint the witness itself.
+	var residueWitness *E12
+	var residueWitnessInvPoly *basePoly
+	if previous != nil {
+		residueWitness = pr.FromTower([12]*baseEl{hint[0], hint[1], hint[2], hint[3], hint[4], hint[5], hint[6], hint[7], hint[8], hint[9], hint[10], hint[11]})
+		residueWitnessInvPoly = pr.InversePoly(pr.ToPoly(residueWitness))
+	} else {
+		residueWitnessInvPoly = pr.ToPoly(pr.FromTower([12]*baseEl{hint[0], hint[1], hint[2], hint[3], hint[4], hint[5], hint[6], hint[7], hint[8], hint[9], hint[10], hint[11]}))
+		residueWitness = pr.PolyToE12(pr.InversePoly(residueWitnessInvPoly))
+	}
+	residueWitnessInv := pr.PolyToE12(residueWitnessInvPoly)
 
 	// constrain cubicNonResiduePower to be in 𝔽p⁶, that is
 	// a100 = a101 = a110 = a111 = a120 = a121 = 0
@@ -175,8 +193,8 @@ func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 		return fmt.Errorf("miller loop: %w", err)
 	}
 
-	// Check that res · cubicNonResiduePower · residueWitnessInv^λ' == 1, where
-	// λ' = q³ - q² + q. res is already MillerLoop(P,Q) · residueWitnessInv^{6x₀+2}
+	// Check that res · previous · cubicNonResiduePower · residueWitnessInv^λ' == 1,
+	// where λ' = q³ - q² + q. res is already MillerLoop(P,Q) · residueWitnessInv^{6x₀+2}
 	// because the loop was seeded with residueWitnessInv. Every factor goes into
 	// the accumulator, so the whole tail is one more ring check.
 	res.Mul(pr.ToPoly(&cubicNonResiduePower))
@@ -185,7 +203,16 @@ func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	res.Mul(pr.ToPoly(pr.FrobeniusSquare(residueWitness)))
 	res.Mul(pr.ToPoly(pr.Frobenius(residueWitnessInv)))
 
-	pr.AssertIsEqual(pr.PolyToE12(res.Eval()), pr.One())
+	prod := pr.PolyToE12(res.Eval())
+	if previous != nil {
+		// A previous value is a plain factor: the loop's squarings would
+		// otherwise raise it along with everything else. This uses gnark's
+		// E12 arithmetic, not the ring: the ring reads raw limbs, which
+		// ValueOf constants only gain on their first genuine field op.
+		prod = pr.Ext12.Ext12.Mul(prod, previous)
+	}
+
+	pr.AssertIsEqual(prod, pr.One())
 
 	return nil
 }

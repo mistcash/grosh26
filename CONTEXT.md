@@ -27,6 +27,10 @@ _Avoid_: random point, challenge point
 A Miller loop factor whose G2 point is known when the circuit is built, so its line evaluations are precomputed off-circuit and its ladder and subgroup check never enter the circuit. Built with `sw_bn254.NewG2AffineFixed`.
 _Avoid_: precomputed pairing, constant pairing
 
+**Previous Miller loop value**:
+A fully-fixed pairing factor passed to the check directly as an 𝔽p¹² element, folded into the Miller product as one factor instead of a pass through the loop. See `ring_bn254.Pairing.PairingCheck`, following gnark's `MillerLoopAndMul` pattern.
+_Avoid_: constant pairing
+
 **BSB22 commitment**:
 gnark's batched-Pedersen `Commit`. Grosh26 proofs carry three: the remainder commitment and the quotient commitment from the deferred ring checks, plus the range checker's own.
 _Avoid_: "the 3 commitments" without saying which

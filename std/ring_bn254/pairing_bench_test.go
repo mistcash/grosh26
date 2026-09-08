@@ -22,6 +22,19 @@ func BenchmarkPairingCheck(b *testing.B) {
 	bench.Circuit(b, func() frontend.Circuit { return &pairingCheckCircuit{} }, assignment)
 }
 
+// BenchmarkPairingCheckPrevious is BenchmarkPairingCheck with one pair's
+// Miller loop value passed directly as previous: the gap to the plain check
+// is what folding the constant saves over running it through the loop.
+func BenchmarkPairingCheckPrevious(b *testing.B) {
+	p1, p2, q1, q2 := randomPairingTriple(b)
+	assignment := &pairingCheckPreviousCircuit{
+		Prev: sw_bn254.NewGTEl(previousMillerValue(b, p2, q2)),
+		P1:   sw_bn254.NewG1Affine(p1),
+		Q1:   sw_bn254.NewG2Affine(q1),
+	}
+	bench.Circuit(b, func() frontend.Circuit { return &pairingCheckPreviousCircuit{} }, assignment)
+}
+
 // BenchmarkPairingCheckFixedQ is BenchmarkPairingCheck with the second pair's
 // G2 point baked in via NewG2AffineFixed: the gap between the two counts is
 // what the precomputed lines save.
