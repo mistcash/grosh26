@@ -112,9 +112,9 @@ type Verifier struct {
 	// the product as the previous value rather than a pass through the loop.
 	// gamma and delta carry precomputed lines, so their ladders and subgroup
 	// checks leave the circuit; see sw_bn254.NewG2AffineFixed.
-	alphaBeta    GTEl
-	gamma        G2Affine
-	delta        G2Affine
+	alphaBeta GTEl
+	gamma     G2Affine
+	delta     G2Affine
 
 	// the K points as in-circuit constants.
 	k []G1Affine

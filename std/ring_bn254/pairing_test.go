@@ -423,6 +423,7 @@ func TestPairingCheckPreviousConst(t *testing.T) {
 	}
 	assert.NoError(test.IsSolved(&pairingCheckPreviousConstCircuit{p2: p2, q2: q2}, assignment, ecc.BN254.ScalarField()))
 }
+
 // refused rather than silently zeroing the product: the hint rejects it.
 func TestPairingCheckPreviousRejectsZero(t *testing.T) {
 	assert := test.NewAssert(t)

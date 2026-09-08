@@ -16,8 +16,8 @@ import (
 // name instead. All are registered with the solver by gnark's own package
 // init.
 var (
-	inverseE12Hint                = gnarkHint(fields_bn254.GetHints(), "inverseE12Hint")
-	pairingCheckHint              = gnarkHint(sw_bn254.GetHints(), "pairingCheckHint")
+	inverseE12Hint                 = gnarkHint(fields_bn254.GetHints(), "inverseE12Hint")
+	pairingCheckHint               = gnarkHint(sw_bn254.GetHints(), "pairingCheckHint")
 	millerLoopAndCheckFinalExpHint = gnarkHint(sw_bn254.GetHints(), "millerLoopAndCheckFinalExpHint")
 )
 
