@@ -1,6 +1,7 @@
 package ring_bn254
 
 import (
+	"errors"
 	"math/big"
 	"testing"
 
@@ -144,10 +145,13 @@ func (c *pairingCheckFixedQCircuit) Define(api frontend.API) error {
 	}
 	pr.AssertIsOnG1(&c.P1)
 	pr.AssertIsOnG1(&c.P2)
-	fixedQ2, err := NewFixedG2(c.q2)
-	if err != nil {
-		return err
+	if c.q2.IsInfinity() {
+		return errors.New("fixed G2 point is the point at infinity")
 	}
+	if !c.q2.IsInSubGroup() {
+		return errors.New("fixed G2 point is not in the prime-order subgroup")
+	}
+	fixedQ2 := sw_bn254.NewG2AffineFixed(c.q2)
 	return pr.PairingCheck(
 		[]*G1Affine{&c.P1, &c.P2},
 		[]*G2Affine{&c.Q1, &fixedQ2},
@@ -190,7 +194,7 @@ func TestPairingCheckFixedQRejectsNonPairing(t *testing.T) {
 // TestFixedQPairRejectsBadPoint makes sure baking a G2 point in does not lose
 // the subgroup check that computing its lines in-circuit would have run: with
 // no ladder left in the circuit, nothing downstream would catch a point off
-// the twist or at infinity, so NewFixedG2 has to.
+// the twist or at infinity, so the fixed point has to be checked off-circuit.
 func TestFixedQPairRejectsBadPoint(t *testing.T) {
 	p1, p2, q1, q2 := randomPairingTriple(t)
 	assignment := &pairingCheckFixedQCircuit{
@@ -236,10 +240,13 @@ func (c *pairingCheckFixedCircuit) Define(api frontend.API) error {
 	}
 	pr.AssertIsOnG1(&c.P1)
 	fixedP2 := sw_bn254.NewG1Affine(c.p2)
-	fixedQ2, err := NewFixedG2(c.q2)
-	if err != nil {
-		return err
+	if c.q2.IsInfinity() {
+		return errors.New("fixed G2 point is the point at infinity")
 	}
+	if !c.q2.IsInSubGroup() {
+		return errors.New("fixed G2 point is not in the prime-order subgroup")
+	}
+	fixedQ2 := sw_bn254.NewG2AffineFixed(c.q2)
 	return pr.PairingCheck(
 		[]*G1Affine{&c.P1, &fixedP2},
 		[]*G2Affine{&c.Q1, &fixedQ2},

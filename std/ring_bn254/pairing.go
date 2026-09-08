@@ -15,6 +15,8 @@ import (
 )
 
 // Points, the 𝔽p¹² target group and the witness constructors are gnark's.
+// Build witness points with sw_bn254.NewG1Affine / NewG2Affine and fixed
+// points with sw_bn254.NewG2AffineFixed: a Q carrying Lines skips the ladder.
 type (
 	G1Affine = sw_bn254.G1Affine
 	G2Affine = sw_bn254.G2Affine
@@ -33,15 +35,6 @@ const accumulatorTargetDegree = 69
 type g2Point struct {
 	X, Y fields_bn254.E2
 }
-
-// lineEvaluation is a sparse 𝔽p¹² element: the line 1 + R0(x/y) + R1(1/y).
-type lineEvaluation struct {
-	R0, R1 fields_bn254.E2
-}
-
-// lineEvaluations holds, per Miller loop iteration, the one or two lines that
-// iteration evaluates.
-type lineEvaluations [2][len(bn254.LoopCounter)]*lineEvaluation
 
 // Pairing computes the BN254 pairing with the 𝔽p¹² products evaluated in the
 // polynomial ring. Point arithmetic, subgroup checks, the Frobenius maps and
@@ -72,19 +65,6 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	}, nil
 }
 
-// NewFixedG2 returns Q with its line evaluations precomputed off-circuit.
-// Pass the result as a Q to MillerLoop, Pair or PairingCheck: the ladder and
-// the subgroup check leave the circuit, the loop uses the constants.
-func NewFixedG2(Q bn254.G2Affine) (G2Affine, error) {
-	if Q.IsInfinity() {
-		return G2Affine{}, errors.New("fixed G2 point is the point at infinity")
-	}
-	if !Q.IsInSubGroup() {
-		return G2Affine{}, errors.New("fixed G2 point is not in the prime-order subgroup")
-	}
-	return sw_bn254.NewG2AffineFixed(Q), nil
-}
-
 // AssertIsOnG1 asserts P is on the curve and in the prime-order subgroup.
 func (pr *Pairing) AssertIsOnG1(P *G1Affine) { pr.g.AssertIsOnG1(P) }
 
@@ -95,18 +75,22 @@ func (pr *Pairing) AssertIsOnG2(Q *G2Affine) { pr.g.AssertIsOnG2(Q) }
 //
 //	∏ᵢ { fᵢ_{6x₀+2,Q}(P) · ℓᵢ_{[6x₀+2]Q,π(Q)}(P) · ℓᵢ_{[6x₀+2]Q+π(Q),-π²(Q)}(P) }
 //
-// A Q with precomputed lines (see NewFixedG2) skips the ladder and the
-// subgroup check; the rest run them in-circuit. It checks the witness Qᵢ
+// A Q with precomputed lines (sw_bn254.NewG2AffineFixed) skips the ladder and
+// the subgroup check; the rest run them in-circuit. It checks the witness Qᵢ
 // subgroup, but not the Pᵢ; see [Pairing.AssertIsOnG1].
 func (pr *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	if len(P) == 0 || len(P) != len(Q) {
 		return nil, errors.New("invalid inputs sizes")
 	}
-	computed, err := pr.computedLines(Q)
-	if err != nil {
-		return nil, err
+	for i := range Q {
+		if P[i] == nil || Q[i] == nil {
+			return nil, fmt.Errorf("pair %d is nil", i)
+		}
+		if Q[i].Lines == nil {
+			pr.computeLines(Q[i])
+		}
 	}
-	res, err := pr.millerLoopLines(P, Q, computed, nil, nil)
+	res, err := pr.millerLoopLines(P, Q, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -126,8 +110,8 @@ func (pr *Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 // [On Proving Pairings]: instead of a final exponentiation, the prover
 // supplies a residue witness and the check folds it into the Miller loop.
 //
-// A Q with precomputed lines (see NewFixedG2) skips the ladder and the
-// subgroup check; the rest run them in-circuit. The G1 points are not
+// A Q with precomputed lines (sw_bn254.NewG2AffineFixed) skips the ladder and
+// the subgroup check; the rest run them in-circuit. The G1 points are not
 // checked either way, see [Pairing.AssertIsOnG1].
 //
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
@@ -181,11 +165,12 @@ func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 		A11: *zero,
 	}
 
-	computed, err := pr.computedLines(Q)
-	if err != nil {
-		return err
+	for i := range Q {
+		if Q[i].Lines == nil {
+			pr.computeLines(Q[i])
+		}
 	}
-	res, err := pr.millerLoopLines(P, Q, computed, residueWitnessInvPoly, pr.ToPoly(residueWitness))
+	res, err := pr.millerLoopLines(P, Q, residueWitnessInvPoly, pr.ToPoly(residueWitness))
 	if err != nil {
 		return fmt.Errorf("miller loop: %w", err)
 	}
@@ -205,32 +190,13 @@ func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	return nil
 }
 
-// computedLines runs the ladder for every Q without precomputed lines.
-// Entries for fixed Q are nil; the loop reads those from Q.Lines.
-func (pr *Pairing) computedLines(Q []*G2Affine) ([]*lineEvaluations, error) {
-	if len(Q) == 0 {
-		return nil, errors.New("invalid inputs sizes")
-	}
-	computed := make([]*lineEvaluations, len(Q))
-	for i := range Q {
-		if Q[i] == nil {
-			return nil, fmt.Errorf("pair %d is nil", i)
-		}
-		if Q[i].Lines == nil {
-			lines := pr.computeLines(Q[i])
-			computed[i] = &lines
-		}
-	}
-	return computed, nil
-}
-
-// millerLoopLines runs the loop over Q, using precomputed lines where set and
-// computing them in-circuit otherwise. init seeds the accumulator and is
-// multiplied back in on every positive bit, initInv on every negative one;
-// both are nil for a plain Miller loop.
-func (pr *Pairing) millerLoopLines(P []*G1Affine, Q []*G2Affine, computed []*lineEvaluations, init, initInv *basePoly) (*polyring.PolyRingAccumulator[emulated.BN254Fp], error) {
+// millerLoopLines runs the loop over Q's lines -- precomputed off-circuit
+// where set, computed in-circuit above otherwise. init seeds the accumulator
+// and is multiplied back in on every positive bit, initInv on every negative
+// one; both are nil for a plain Miller loop.
+func (pr *Pairing) millerLoopLines(P []*G1Affine, Q []*G2Affine, init, initInv *basePoly) (*polyring.PolyRingAccumulator[emulated.BN254Fp], error) {
 	n := len(P)
-	if n == 0 || n != len(Q) || len(computed) != n {
+	if n == 0 || n != len(Q) {
 		return nil, errors.New("invalid inputs sizes")
 	}
 
@@ -247,17 +213,10 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, Q []*G2Affine, computed []*lin
 
 	// line k of iteration i, evaluated at P[k]
 	line := func(k, half, i int) *basePoly {
-		var r0, r1 *fields_bn254.E2
-		if computed[k] != nil {
-			l := (*computed[k])[half][i]
-			r0, r1 = &l.R0, &l.R1
-		} else {
-			l := (*Q[k].Lines)[half][i]
-			r0, r1 = &l.R0, &l.R1
-		}
+		l := (*Q[k].Lines)[half][i]
 		return pr.ToPoly01379(
-			pr.ext2.MulByElement(r0, xNegOverY[k]),
-			pr.ext2.MulByElement(r1, yInv[k]),
+			pr.ext2.MulByElement(&l.R0, xNegOverY[k]),
+			pr.ext2.MulByElement(&l.R1, yInv[k]),
 		)
 	}
 
@@ -310,29 +269,41 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, Q []*G2Affine, computed []*lin
 	return res, nil
 }
 
-// computeLines runs the [6x₀+2]Q ladder and collects the line evaluations. Q is
-// asserted to be on the twist and in the prime-order subgroup first, with
-// gnark's check.
-func (pr *Pairing) computeLines(Q *G2Affine) lineEvaluations {
+// computeLines runs the [6x₀+2]Q ladder and stores the line evaluations in
+// Q.Lines. Q is asserted to be on the twist and in the prime-order subgroup
+// first, with gnark's check.
+func (pr *Pairing) computeLines(Q *G2Affine) {
 	pr.g.AssertIsOnG2(Q)
+
+	Q.Lines = sw_bn254.NewG2AffineFixedPlaceholder().Lines
 
 	q := &g2Point{X: Q.P.X, Y: Q.P.Y}
 	loopCounter := bn254.LoopCounter
 	n := len(loopCounter)
 
-	var cLines lineEvaluations
+	setLine := func(half, i int, r0, r1 fields_bn254.E2) {
+		(*Q.Lines)[half][i].R0 = r0
+		(*Q.Lines)[half][i].R1 = r1
+	}
+
 	acc := q
-	acc, cLines[0][n-2] = pr.doubleStep(acc)
-	cLines[1][n-3] = pr.lineCompute(acc, q)
-	acc, cLines[0][n-3] = pr.addStep(acc, q)
+	var a0, a1 fields_bn254.E2
+	acc, a0, a1 = pr.doubleStep(acc)
+	setLine(0, n-2, a0, a1)
+	a0, a1 = pr.lineCompute(acc, q)
+	setLine(1, n-3, a0, a1)
+	acc, a0, a1 = pr.addStep(acc, q)
+	setLine(0, n-3, a0, a1)
 	for i := n - 4; i >= 0; i-- {
 		switch loopCounter[i] {
 		case 0:
-			acc, cLines[0][i] = pr.doubleStep(acc)
-		case 1:
-			acc, cLines[0][i], cLines[1][i] = pr.doubleAndAddStep(acc, q, false)
-		case -1:
-			acc, cLines[0][i], cLines[1][i] = pr.doubleAndAddStep(acc, q, true)
+			acc, a0, a1 = pr.doubleStep(acc)
+			setLine(0, i, a0, a1)
+		case 1, -1:
+			var b0, b1 fields_bn254.E2
+			acc, a0, a1, b0, b1 = pr.doubleAndAddStep(acc, q, loopCounter[i] == -1)
+			setLine(0, i, a0, a1)
+			setLine(1, i, b0, b1)
 		default:
 			panic(fmt.Sprintf("invalid loop counter value %d", loopCounter[i]))
 		}
@@ -348,16 +319,16 @@ func (pr *Pairing) computeLines(Q *G2Affine) lineEvaluations {
 		Y: *pr.ext2.MulByNonResidue2Power3(&q.Y),
 	}
 
-	acc, cLines[0][n-1] = pr.addStep(acc, q1)
-	cLines[1][n-1] = pr.lineCompute(acc, q2)
-
-	return cLines
+	acc, a0, a1 = pr.addStep(acc, q1)
+	setLine(0, n-1, a0, a1)
+	a0, a1 = pr.lineCompute(acc, q2)
+	setLine(1, n-1, a0, a1)
 }
 
 // doubleAndAddStep doubles p1 and adds (or subtracts, when isSub) p2, and
 // evaluates the lines through p1 and ±p2 and through p1 and p1±p2.
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr *Pairing) doubleAndAddStep(p1, p2 *g2Point, isSub bool) (*g2Point, *lineEvaluation, *lineEvaluation) {
+func (pr *Pairing) doubleAndAddStep(p1, p2 *g2Point, isSub bool) (*g2Point, fields_bn254.E2, fields_bn254.E2, fields_bn254.E2, fields_bn254.E2) {
 	// λ1 = (y1∓y2)/(x1-x2)
 	var num *fields_bn254.E2
 	if isSub {
@@ -386,13 +357,14 @@ func (pr *Pairing) doubleAndAddStep(p1, p2 *g2Point, isSub bool) (*g2Point, *lin
 	y40 := pr.fp.Eval([][]*baseEl{{&λ2.A0, &d.A0}, {&λ2.A1, &d.A1}, {&p1.Y.A0}}, []int{1, -1, -1})
 	y41 := pr.fp.Eval([][]*baseEl{{&λ2.A0, &d.A1}, {&λ2.A1, &d.A0}, {&p1.Y.A1}}, []int{1, 1, -1})
 
-	return &g2Point{X: *x4, Y: fields_bn254.E2{A0: *y40, A1: *y41}},
-		pr.lineThrough(λ1, p1), pr.lineThrough(λ2, p1)
+	r0a, r1a := pr.lineThrough(λ1, p1)
+	r0b, r1b := pr.lineThrough(λ2, p1)
+	return &g2Point{X: *x4, Y: fields_bn254.E2{A0: *y40, A1: *y41}}, r0a, r1a, r0b, r1b
 }
 
 // doubleStep doubles p1 and evaluates the tangent line at p1.
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr *Pairing) doubleStep(p1 *g2Point) (*g2Point, *lineEvaluation) {
+func (pr *Pairing) doubleStep(p1 *g2Point) (*g2Point, fields_bn254.E2, fields_bn254.E2) {
 	// λ = 3x²/2y
 	λ := pr.divE2WithZeroGuard(
 		pr.ext2.MulByConstElement(pr.ext2.Square(&p1.X), big.NewInt(3)),
@@ -409,12 +381,13 @@ func (pr *Pairing) doubleStep(p1 *g2Point) (*g2Point, *lineEvaluation) {
 	yr0 := pr.fp.Eval([][]*baseEl{{&λ.A0, &d.A0}, {&λ.A1, &d.A1}, {&p1.Y.A0}}, []int{1, -1, -1})
 	yr1 := pr.fp.Eval([][]*baseEl{{&λ.A0, &d.A1}, {&λ.A1, &d.A0}, {&p1.Y.A1}}, []int{1, 1, -1})
 
-	return &g2Point{X: *xr, Y: fields_bn254.E2{A0: *yr0, A1: *yr1}}, pr.lineThrough(λ, p1)
+	r0, r1 := pr.lineThrough(λ, p1)
+	return &g2Point{X: *xr, Y: fields_bn254.E2{A0: *yr0, A1: *yr1}}, r0, r1
 }
 
 // addStep adds p1 and p2 and evaluates the line through them.
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr *Pairing) addStep(p1, p2 *g2Point) (*g2Point, *lineEvaluation) {
+func (pr *Pairing) addStep(p1, p2 *g2Point) (*g2Point, fields_bn254.E2, fields_bn254.E2) {
 	// λ = (y2-y1)/(x2-x1)
 	λ := pr.divE2WithZeroGuard(pr.ext2.Sub(&p2.Y, &p1.Y), pr.ext2.Sub(&p2.X, &p1.X))
 
@@ -428,24 +401,22 @@ func (pr *Pairing) addStep(p1, p2 *g2Point) (*g2Point, *lineEvaluation) {
 	yr0 := pr.fp.Eval([][]*baseEl{{&λ.A0, &d.A0}, {&λ.A1, &d.A1}, {&p1.Y.A0}}, []int{1, -1, -1})
 	yr1 := pr.fp.Eval([][]*baseEl{{&λ.A0, &d.A1}, {&λ.A1, &d.A0}, {&p1.Y.A1}}, []int{1, 1, -1})
 
-	return &g2Point{X: *xr, Y: fields_bn254.E2{A0: *yr0, A1: *yr1}}, pr.lineThrough(λ, p1)
+	r0, r1 := pr.lineThrough(λ, p1)
+	return &g2Point{X: *xr, Y: fields_bn254.E2{A0: *yr0, A1: *yr1}}, r0, r1
 }
 
 // lineCompute evaluates the line through p1 and p2 without computing p1+p2.
-func (pr *Pairing) lineCompute(p1, p2 *g2Point) *lineEvaluation {
+func (pr *Pairing) lineCompute(p1, p2 *g2Point) (fields_bn254.E2, fields_bn254.E2) {
 	// λ = (y2+y1)/(x1-x2)
 	λ := pr.divE2WithZeroGuard(pr.ext2.Add(&p1.Y, &p2.Y), pr.ext2.Sub(&p1.X, &p2.X))
 	return pr.lineThrough(λ, p1)
 }
 
 // lineThrough returns the line of slope λ through p: R0 = λ, R1 = λ·x - y.
-func (pr *Pairing) lineThrough(λ *fields_bn254.E2, p *g2Point) *lineEvaluation {
-	return &lineEvaluation{
-		R0: *λ,
-		R1: fields_bn254.E2{
-			A0: *pr.fp.Eval([][]*baseEl{{&λ.A0, &p.X.A0}, {&λ.A1, &p.X.A1}, {&p.Y.A0}}, []int{1, -1, -1}),
-			A1: *pr.fp.Eval([][]*baseEl{{&λ.A0, &p.X.A1}, {&λ.A1, &p.X.A0}, {&p.Y.A1}}, []int{1, 1, -1}),
-		},
+func (pr *Pairing) lineThrough(λ *fields_bn254.E2, p *g2Point) (fields_bn254.E2, fields_bn254.E2) {
+	return *λ, fields_bn254.E2{
+		A0: *pr.fp.Eval([][]*baseEl{{&λ.A0, &p.X.A0}, {&λ.A1, &p.X.A1}, {&p.Y.A0}}, []int{1, -1, -1}),
+		A1: *pr.fp.Eval([][]*baseEl{{&λ.A0, &p.X.A1}, {&λ.A1, &p.X.A0}, {&p.Y.A1}}, []int{1, 1, -1}),
 	}
 }
 

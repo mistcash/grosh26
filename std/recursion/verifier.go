@@ -108,7 +108,7 @@ type Verifier struct {
 
 	// alpha is e(α,β)'s G1 side, a compile-time constant. beta, gamma and
 	// delta carry precomputed lines, so their ladders and subgroup checks
-	// leave the circuit; see [ring_bn254.NewFixedG2].
+	// leave the circuit; see sw_bn254.NewG2AffineFixed.
 	alpha        G1Affine
 	beta         G2Affine
 	gamma        G2Affine
@@ -143,17 +143,26 @@ func NewVerifier(api frontend.API, vk *VerifyingKey) (*Verifier, error) {
 	}
 	// α, β, γ, δ are fixed, so they are checked off-circuit here rather
 	// than in-circuit.
-	beta, err := ring_bn254.NewFixedG2(vk.beta)
-	if err != nil {
-		return nil, fmt.Errorf("beta: %w", err)
+	fixedG2 := func(name string, q bn254.G2Affine) (G2Affine, error) {
+		if q.IsInfinity() {
+			return G2Affine{}, fmt.Errorf("%s: fixed G2 point is the point at infinity", name)
+		}
+		if !q.IsInSubGroup() {
+			return G2Affine{}, fmt.Errorf("%s: fixed G2 point is not in the prime-order subgroup", name)
+		}
+		return sw_bn254.NewG2AffineFixed(q), nil
 	}
-	gamma, err := ring_bn254.NewFixedG2(vk.gammaNeg)
+	beta, err := fixedG2("beta", vk.beta)
 	if err != nil {
-		return nil, fmt.Errorf("gamma: %w", err)
+		return nil, err
 	}
-	delta, err := ring_bn254.NewFixedG2(vk.deltaNeg)
+	gamma, err := fixedG2("gamma", vk.gammaNeg)
 	if err != nil {
-		return nil, fmt.Errorf("delta: %w", err)
+		return nil, err
+	}
+	delta, err := fixedG2("delta", vk.deltaNeg)
+	if err != nil {
+		return nil, err
 	}
 	return &Verifier{
 		curve:   curve,
@@ -177,7 +186,7 @@ func NewVerifier(api frontend.API, vk *VerifyingKey) (*Verifier, error) {
 //
 // Only the first term is fully witness: A, B are the proof's. The rest use
 // fixed verifying-key points, so β, γ and δ skip the ladder and the G2
-// subgroup check via precomputed lines; see [ring_bn254.NewFixedG2].
+// subgroup check via precomputed lines; see sw_bn254.NewG2AffineFixed.
 //
 // AssertProof itself has no notion of BSB22 commitments -- there is no
 // Commitments field on [Proof] and no PoK check here. The "no commitments"
