@@ -82,14 +82,17 @@ in-circuit `[6x₀+2]Q` ladders are avoidable:
 | term | what varies | cost in the circuit |
 | --- | --- | --- |
 | `e(A, B)` | both points | a full pairing: B's ladder and G2 subgroup check run in-circuit |
-| `e(α, β)⁻¹`, `e(L, γ)⁻¹`, `e(C, δ)⁻¹` | G1 only | fixed-Q pairs: the G2 lines are precomputed off-circuit |
+| `e(L, γ)⁻¹`, `e(C, δ)⁻¹` | G1 only | fixed-Q pairs: the G2 lines are precomputed off-circuit |
+| `e(α, β)⁻¹` | nothing | a previous value: its Miller loop value is computed off-circuit and folded in as one factor |
 
-Three fixed-Q pairs and one full pairing, then, over a single Miller loop —
-a single in-circuit `[6x₀+2]Q` ladder instead of four. Skipping a ladder
+Two fixed-Q pairs, one full pairing and one previous value, then, over a
+single Miller loop — a single in-circuit `[6x₀+2]Q` ladder instead of four. Skipping a ladder
 skips the G2 subgroup check with it, so `sw_bn254.NewG2AffineFixed` runs that
-check off-circuit instead and panics on a point outside the subgroup. For the
-current constraint counts, run the benchmarks — they print them instead of
-this doc hardcoding them (all three go through `internal/bench.Circuit`):
+check off-circuit instead and panics on a point outside the subgroup. The
+fully-fixed `e(α,β)⁻¹` never reaches the loop: its Miller loop value is
+folded in as the previous value (see `ring_bn254.Pairing.PairingCheck`). For
+the current constraint counts, run the benchmarks — they print them instead
+of this doc hardcoding them (all three go through `internal/bench.Circuit`):
 
 ```sh
 go test -bench=. -run=^$ -benchtime=1x ./std/ring_bn254/ ./examples/recursion/

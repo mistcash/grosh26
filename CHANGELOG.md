@@ -14,12 +14,14 @@
   `MillerLoop` and `Pair` take the points directly: a `Q` with precomputed
   lines (built with `sw_bn254.NewG2AffineFixed`) skips the ladder and the
   subgroup check, the rest run them in-circuit and cache the lines in
-  `Q.Lines`. The G2 subgroup check a skipped ladder would have run happens
-  off-circuit instead, when the fixed point is built.
+  `Q.Lines`. `PairingCheck` also takes an optional previous Miller loop
+  value, folded into the product as one factor for fully-fixed pairs. The
+  G2 subgroup check a skipped ladder would have run happens off-circuit
+  instead, when the fixed point is built.
 - `std/recursion`: the outer Groth16 verifier uses that shape — one full
-  pairing (`e(A,B)`) and three fixed-Q pairs (`e(α,β)⁻¹`, `e(L,γ)⁻¹`,
-  `e(C,δ)⁻¹`) — taking the outer circuit from 1,269,953 constraints to
-  660,886, a 48.0% cut for the same statement.
+  pairing (`e(A,B)`), two fixed-Q pairs (`e(L,γ)⁻¹`, `e(C,δ)⁻¹`) and
+  `e(α,β)⁻¹` as a previous value — taking the outer circuit from 1,269,953
+  constraints to 641,744, a 49.5% cut for the same statement.
 
 ## v0.1.0
 
