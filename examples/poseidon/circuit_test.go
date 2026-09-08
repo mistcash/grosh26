@@ -8,7 +8,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/test"
 
-	"github.com/mistcash/grosh26/circuits/poseidon"
+	"github.com/mistcash/grosh26/examples/poseidon"
 )
 
 func TestCircuitSolved(t *testing.T) {

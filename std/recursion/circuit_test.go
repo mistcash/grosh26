@@ -15,7 +15,7 @@ import (
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 
-	"github.com/mistcash/grosh26/circuits/poseidon"
+	"github.com/mistcash/grosh26/examples/poseidon"
 	"github.com/mistcash/grosh26/std/recursion"
 )
 
