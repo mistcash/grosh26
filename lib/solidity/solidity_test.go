@@ -17,10 +17,10 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/mistcash/grosh26/lib/soltest"
 	"github.com/stretchr/testify/require"
 
-	"github.com/mistcash/grosh26/lib/soltest"
-	"github.com/mistcash/grosh26/solidity"
+	"github.com/mistcash/grosh26/lib/solidity"
 )
 
 // threeCommitCircuit makes three chained api.Commit calls, the same shape the
