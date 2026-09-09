@@ -7,7 +7,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 	. "github.com/consensys/gnark/std/math/emulated" //go-lint:ignore
-	limbs "github.com/mistcash/grosh26/internal/limbcomposition"
+	limbs "github.com/mistcash/grosh26/lib/limbcomposition"
 )
 
 // staticFieldParams is a wrapper to avoid calling the dynamic methods in DynamicFieldParams
