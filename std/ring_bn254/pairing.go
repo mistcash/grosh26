@@ -297,10 +297,13 @@ func (pr *Pairing) millerLoopLines(P []*G1Affine, Q []*G2Affine, init, initInv *
 }
 
 // computeLines runs the [6x₀+2]Q ladder and stores the line evaluations in
-// Q.Lines. Q is asserted to be on the twist and in the prime-order subgroup
-// first, with gnark's check.
+// Q.Lines. Q is asserted to be on the twist first, with gnark's check; the
+// prime-order subgroup check then reuses the ladder endpoint instead of a
+// separate scalar multiplication, exactly like gnark's own computeLines:
+// [6x₀+2]Q + ψ(Q) + ψ³(Q) == ψ²(Q), see Sec. 3.1.2 (Remark 2) of
+// https://eprint.iacr.org/2022/348.
 func (pr *Pairing) computeLines(Q *G2Affine) {
-	pr.g.AssertIsOnG2(Q)
+	pr.g.AssertIsOnTwist(Q)
 
 	Q.Lines = sw_bn254.NewG2AffineFixedPlaceholder().Lines
 
@@ -336,6 +339,17 @@ func (pr *Pairing) computeLines(Q *G2Affine) {
 		}
 	}
 
+	// Subgroup check on the ladder endpoint acc == [6x₀+2]Q. A full
+	// AssertIsOnG2 here would redo an [x₀]Q scalar multiplication on top of
+	// the ladder; the short-vector relation gets the same assurance from
+	// the endpoint the ladder already computed.
+	psiQ := pr.psi(q)
+	psi2Q := pr.phi(q)
+	psi3Q := pr.psi(psi2Q)
+	lhs := pr.addTwist(pr.addTwist(acc, psiQ), psi3Q)
+	pr.ext2.AssertIsEqual(&lhs.X, &psi2Q.X)
+	pr.ext2.AssertIsEqual(&lhs.Y, &psi2Q.Y)
+
 	// the two extra lines through π(Q) and -π²(Q)
 	q1 := &g2Point{
 		X: *pr.ext2.MulByNonResidue1Power2(pr.ext2.Conjugate(&q.X)),
@@ -350,6 +364,53 @@ func (pr *Pairing) computeLines(Q *G2Affine) {
 	setLine(0, n-1, a0, a1)
 	a0, a1 = pr.lineCompute(acc, q2)
 	setLine(1, n-1, a0, a1)
+}
+
+// Endomorphism constants for the subgroup check, same values as gnark's G2
+// (sw_bn254/g2.go NewG2): w is the cubic root of unity scaling φ, u and v
+// scale the two coordinates of ψ.
+var (
+	twistW   = "21888242871839275220042445260109153167277707414472061641714758635765020556616"
+	twistUA0 = "21575463638280843010398324269430826099269044274347216827212613867836435027261"
+	twistUA1 = "10307601595873709700152284273816112264069230130616436755625194854815875713954"
+	twistVA0 = "2821565182194536844548159561693502659359617185244120367078079554186484126554"
+	twistVA1 = "3505843767911556378687030309984248845540243509899259641013678093033130930403"
+)
+
+// phi maps q through φ (so φ(q) == ψ²(q)): x ↦ w·x, y ↦ -y.
+// Mirrors gnark's G2.phi.
+func (pr *Pairing) phi(q *g2Point) *g2Point {
+	x := pr.ext2.MulByElement(&q.X, pr.fp.NewElement(twistW))
+	return &g2Point{X: *x, Y: *pr.ext2.Neg(&q.Y)}
+}
+
+// psi maps q through ψ: x ↦ u·x̄, y ↦ v·ȳ.
+// Mirrors gnark's G2.psi.
+func (pr *Pairing) psi(q *g2Point) *g2Point {
+	u := &fields_bn254.E2{A0: *pr.fp.NewElement(twistUA0), A1: *pr.fp.NewElement(twistUA1)}
+	v := &fields_bn254.E2{A0: *pr.fp.NewElement(twistVA0), A1: *pr.fp.NewElement(twistVA1)}
+	x := pr.ext2.Mul(pr.ext2.Conjugate(&q.X), u)
+	y := pr.ext2.Mul(pr.ext2.Conjugate(&q.Y), v)
+	return &g2Point{X: *x, Y: *y}
+}
+
+// addTwist adds p1 and p2 on the twist. Mirrors gnark's G2.add: incomplete
+// affine addition, like the ladder's addStep without the line evaluation.
+func (pr *Pairing) addTwist(p1, p2 *g2Point) *g2Point {
+	// λ = (y2-y1)/(x2-x1)
+	λ := pr.ext2.DivUnchecked(pr.ext2.Sub(&p2.Y, &p1.Y), pr.ext2.Sub(&p2.X, &p1.X))
+
+	// xr = λ²-x1-x2
+	xr0 := pr.fp.Eval([][]*baseEl{{&λ.A0, &λ.A0}, {&λ.A1, &λ.A1}, {&p1.X.A0}, {&p2.X.A0}}, []int{1, -1, -1, -1})
+	xr1 := pr.fp.Eval([][]*baseEl{{&λ.A0, &λ.A1}, {&p1.X.A1}, {&p2.X.A1}}, []int{2, -1, -1})
+	xr := &fields_bn254.E2{A0: *xr0, A1: *xr1}
+
+	// yr = λ(x1-xr)-y1
+	d := pr.ext2.Sub(&p1.X, xr)
+	yr0 := pr.fp.Eval([][]*baseEl{{&λ.A0, &d.A0}, {&λ.A1, &d.A1}, {&p1.Y.A0}}, []int{1, -1, -1})
+	yr1 := pr.fp.Eval([][]*baseEl{{&λ.A0, &d.A1}, {&λ.A1, &d.A0}, {&p1.Y.A1}}, []int{1, 1, -1})
+
+	return &g2Point{X: *xr, Y: fields_bn254.E2{A0: *yr0, A1: *yr1}}
 }
 
 // doubleAndAddStep doubles p1 and adds (or subtracts, when isSub) p2, and
