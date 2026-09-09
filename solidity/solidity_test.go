@@ -19,7 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/stretchr/testify/require"
 
-	"github.com/mistcash/grosh26/internal/soltest"
+	"github.com/mistcash/grosh26/lib/soltest"
 	"github.com/mistcash/grosh26/solidity"
 )
 
