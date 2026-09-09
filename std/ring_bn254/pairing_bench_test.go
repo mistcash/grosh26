@@ -7,7 +7,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 
-	"github.com/mistcash/grosh26/internal/bench"
+	"github.com/mistcash/grosh26/lib/bench"
 )
 
 // BenchmarkPairingCheck compiles the two-pair check and reports the

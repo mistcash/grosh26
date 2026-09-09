@@ -5,7 +5,7 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 
-	"github.com/mistcash/grosh26/internal/bench"
+	"github.com/mistcash/grosh26/lib/bench"
 	"github.com/mistcash/grosh26/std/recursion"
 )
 
