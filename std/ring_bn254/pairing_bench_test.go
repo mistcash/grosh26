@@ -49,6 +49,75 @@ func BenchmarkPairingCheckFixedQ(b *testing.B) {
 	bench.Circuit(b, func() frontend.Circuit { return &pairingCheckFixedQCircuit{q2: q2} }, assignment, "pairingCheckFixedQCircuit")
 }
 
+// BenchmarkThreePairingCheckGnark checks e(2p,q)·e(p,2q)·e(-pq,4G2) == 1
+// with gnark's pairing: three plain pairs through the loop, no fixed points,
+// no folded-in Miller loop value.
+func BenchmarkThreePairingCheckGnark(b *testing.B) {
+	p, pqNeg, q, g2 := randomPairingTriple(b)
+	var p1, p2, p3 bn254.G1Affine
+	var q1, q2, q3 bn254.G2Affine
+
+	p1.Set(&p)
+	q1.Set(&q)
+
+	p2.Double(&p)
+	q2.Double(&q)
+
+	p3.Set(&pqNeg)
+	q3.Set(&g2)
+	q3.Double(&q3).Double(&q3)
+
+	assignment := &ThreePairingCheckCircuitGnark{
+		In1G1: sw_bn254.NewG1Affine(p2),      // 2p
+		In1G2: sw_bn254.NewG2Affine(q),       // q
+		In2G1: sw_bn254.NewG1Affine(p1),      // p
+		In2G2: sw_bn254.NewG2AffineFixed(q2), // 2q
+		In3G1: sw_bn254.NewG1Affine(p3),      // -pq
+		In3G2: sw_bn254.NewG2AffineFixed(q3), // 4G2
+	}
+	bench.Circuit(b, func() frontend.Circuit {
+		return &ThreePairingCheckCircuitGnark{
+			In2G2: sw_bn254.NewG2AffineFixedPlaceholder(),
+			In3G2: sw_bn254.NewG2AffineFixedPlaceholder(),
+		}
+	}, assignment, "threePairingCheckGnark")
+}
+
+// BenchmarkThreePairingCheck checks e(2p,q)·e(p,2q)·e(-pq,4G2) == 1 with the
+// ring pairing: three plain pairs through the loop, no fixed points, no
+// folded-in Miller loop value. The gap to BenchmarkThreePairingCheckGnark is
+// what the ring Miller loop saves over gnark's on the same statement.
+func BenchmarkThreePairingCheck(b *testing.B) {
+	p, pqNeg, q, g2 := randomPairingTriple(b)
+	var p1, p2, p3 bn254.G1Affine
+	var q1, q2, q3 bn254.G2Affine
+
+	p1.Set(&p)
+	q1.Set(&q)
+
+	p2.Double(&p)
+	q2.Double(&q)
+
+	p3.Set(&pqNeg)
+	q3.Set(&g2)
+	q3.Double(&q3).Double(&q3)
+
+	assignment := &ThreePairingCheckCircuit{
+		In1G1: sw_bn254.NewG1Affine(p2),      // 2p
+		In1G2: sw_bn254.NewG2Affine(q),       // q
+		In2G1: sw_bn254.NewG1Affine(p1),      // p
+		In2G2: sw_bn254.NewG2AffineFixed(q2), // 2q
+		In3G1: sw_bn254.NewG1Affine(p3),      // -pq
+		In3G2: sw_bn254.NewG2AffineFixed(q3), // 4G2
+	}
+	bench.Circuit(b, func() frontend.Circuit {
+		return &ThreePairingCheckCircuit{
+			In2G2: sw_bn254.NewG2AffineFixedPlaceholder(),
+			In3G2: sw_bn254.NewG2AffineFixedPlaceholder(),
+		}
+	}, assignment, "threePairingCheck")
+}
+
 // BenchmarkGroth16SimGnark checks the Groth16 identity
 // e(Ar,Bs) · e(αₙₑg,β) · e(kSum,γₙₑg) · e(Krs,δₙₑg) == 1 with gnark's pairing:
 // γₙₑg and δₙₑg share one fixed G2 with precomputed lines, e(αₙₑg,β) is folded

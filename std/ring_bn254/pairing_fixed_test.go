@@ -35,6 +35,29 @@ func (c *ThreePairingCheckCircuit) Define(api frontend.API) error {
 	)
 }
 
+// ThreePairingCheckCircuitGnark is ThreePairingCheckCircuit with gnark's
+// pairing: the same e(2p,q)·e(p,2q)·e(-pq,4G2) == 1 statement, so the gap
+// between the two counts is what the ring Miller loop saves over gnark's.
+type ThreePairingCheckCircuitGnark struct {
+	In1G1 G1Affine
+	In2G1 G1Affine
+	In3G1 G1Affine
+	In1G2 G2Affine
+	In2G2 G2Affine
+	In3G2 G2Affine
+}
+
+func (c *ThreePairingCheckCircuitGnark) Define(api frontend.API) error {
+	pairing, err := sw_bn254.NewPairing(api)
+	if err != nil {
+		return err
+	}
+	return pairing.PairingCheck(
+		[]*G1Affine{&c.In1G1, &c.In2G1, &c.In3G1},
+		[]*G2Affine{&c.In1G2, &c.In2G2, &c.In3G2},
+	)
+}
+
 func TestThreePairingCheckTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
 	// e(2a, 2b) * e(-2a, b) * e(a, -2b) == 1
