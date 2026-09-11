@@ -6,6 +6,11 @@ Go library for [gnark](https://github.com/Consensys/gnark) (BN254) that does two
 - Outer verifier circuit (`std/recursion`) checks the Groth16 identity `e(A,B)·e(α,β)⁻¹·e(L,γ)⁻¹·e(C,δ)⁻¹ = 1` as one `PairingCheck`: one full pairing, two fixed-Q pairs, one previous Miller value.
 - Solidity generator (`lib/solidity`) handles any number of commitments. gnark's own generator does not. Setup, proving, and off-chain verification stay gnark's.
 
+> Active development lives in `lib/profile`: its `groth16Sim` (ring) /
+> `groth16SimGnark` (gnark) circuits are the most optimised Groth16
+> verification shape in either toolkit, and the functional frontier moves
+> there first.
+
 **Unaudited.** Do not use with real value without an audit. See `docs/review-spec.md` for the soundness arguments and open items.
 
 ## Requirements
@@ -73,6 +78,7 @@ err = solidity.ExportSolidity(vk.(*groth16bn254.VerifyingKey), out /* io.Writer 
 | `std/recursion` | outer Groth16 verifier circuit |
 | `lib/solidity` | multi-commitment Solidity exporter + calldata packing |
 | `lib/bench`, `lib/soltest` | compile-and-solve bench helper; simulated-EVM deploy helper |
+| `lib/profile` | ring-vs-gnark comparison bench + `pprof-groth16sim.sh` profiling run |
 | `examples/poseidon` | inner circuit (demo statement) |
 | `examples/recursion` | end-to-end recursion flow (copy this) |
 | `docs/review-spec.md` | protocol + soundness notes for reviewers |
@@ -83,6 +89,32 @@ err = solidity.ExportSolidity(vk.(*groth16bn254.VerifyingKey), out /* io.Writer 
 go test ./...
 go test -bench=. -run=^$ -benchtime=1x ./std/ring_bn254/ ./examples/recursion/  # constraint counts
 ```
+
+### Profiling the pairing (ring vs gnark)
+
+`lib/profile` runs the same Groth16-identity statement through both pairings
+for a like-for-like constraint comparison — and that statement is the most
+optimised Groth16 verification shape each toolkit can express: single public
+input (`kSum = Public·K1 + K0`), γ and δ sharing one fixed G2, `e(α,β)` folded
+in as a previous Miller value (`groth16Sim` for the ring, `groth16SimGnark`
+for gnark). Treat its counts as the lower bound; the real outer circuit in
+`std/recursion` costs more. `pprof-groth16sim.sh` runs that
+bench with Go CPU/mem profiles plus gnark constraint/operation profiles, then
+sweeps the other benches for counts. Requires graphviz `dot` for the PDF steps.
+
+```sh
+./lib/profile/pprof-groth16sim.sh
+# BENCHTIME=10x  per-benchmark time (default: 10x)
+# OUTDIR=lib/profile/profiles/groth16sim  output dir (default as shown)
+```
+
+Per circuit (`groth16sim-ring`, `groth16sim-gnark`) it writes Go profiles
+(`*.cpu.{out,pdf}`, `*.mem.{out,pdf}`), gnark profiles (`*.pprof`,
+`*.constraints.pdf`, `*.operations.pdf`) and the bench log (`*.bench.log`),
+plus a `bench/` summary sweep of the other benches. Profile artifacts under
+`lib/profile/profiles/` are gitignored; the committed snapshot is
+[`bench/groth16-delta.txt`](bench/groth16-delta.txt) — regenerate it with the
+script rather than hand-editing.
 
 ## License
 
