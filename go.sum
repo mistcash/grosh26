@@ -186,6 +186,8 @@ github.com/minio/minlz v1.0.1-0.20250507153514-87eb42fe8882 h1:0lgqHvJWHLGW5TuOb
 github.com/minio/minlz v1.0.1-0.20250507153514-87eb42fe8882/go.mod h1:qT0aEB35q79LLornSzeDH75LBf3aH1MV+jB5w9Wasec=
 github.com/minio/sha256-simd v1.0.0 h1:v1ta+49hkWZyvaKwrQB8elexRqm6Y0aMLjCNsrYxo6g=
 github.com/minio/sha256-simd v1.0.0/go.mod h1:OuYzVNI5vcoYIAmbIvHPl3N3jUzVedXbKy5RFepssQM=
+github.com/mistcash/polynomial-ring-toolkit v0.0.0-20260911075432-0b76fc0406b7 h1:db+x/49+YIDRMu/yQL1Rdxy4SeXfbsv5J2iWNTD7uQQ=
+github.com/mistcash/polynomial-ring-toolkit v0.0.0-20260911075432-0b76fc0406b7/go.mod h1:paMjicxeSX6vpEnXi68f3Cw1paRa2xdo3BfzznrLzqs=
 github.com/mistcash/tiny-gnark v0.0.0-20260823021757-e5aa518e2e6e h1:pOLg9+TfnklPFJ59yanGT7I5viNgjuB5OF1ClZ1pEEY=
 github.com/mistcash/tiny-gnark v0.0.0-20260823021757-e5aa518e2e6e/go.mod h1:ChMGCGi8KztMtuQXgxprorLVJY29FPnKkjN19RXB/KU=
 github.com/mitchellh/mapstructure v1.4.1 h1:CpVNEelQCZBooIPDn+AR3NpivK/TIKU8bDxdASFVQag=

@@ -6,7 +6,7 @@ require (
 	github.com/consensys/gnark v0.16.0
 	github.com/consensys/gnark-crypto v0.21.0
 	github.com/ethereum/go-ethereum v1.17.5
-	github.com/mistcash/polynomial-ring-toolkit v0.0.0-00010101000000-000000000000
+	github.com/mistcash/polynomial-ring-toolkit v0.0.0-20260911075432-0b76fc0406b7
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.55.0
 )
@@ -116,9 +116,3 @@ require (
 )
 
 replace github.com/consensys/gnark v0.16.0 => github.com/mistcash/tiny-gnark v0.0.0-20260823021757-e5aa518e2e6e
-
-// The polynomial ring checker lives in this repository, as a module of its own
-// that carries no dependency on grosh26. It is published separately at
-// github.com/mistcash/polynomial-ring-toolkit; until a tagged version is cut,
-// build against the copy in the tree.
-replace github.com/mistcash/polynomial-ring-toolkit => ./polynomial-ring-toolkit

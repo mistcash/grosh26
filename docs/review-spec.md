@@ -18,11 +18,10 @@ checked against the current source rather than taken on faith.
 
 ## 1. The deferred ring check protocol
 
-Moved. The checker is now a module of its own,
-[`polynomial-ring-toolkit/`](../polynomial-ring-toolkit), published
-separately as `github.com/mistcash/polynomial-ring-toolkit`, and the
-soundness argument for it lives with the code:
-[`polynomial-ring-toolkit/docs/review-spec.md`](../polynomial-ring-toolkit/docs/review-spec.md).
+Moved. The checker is no longer in this repository. It lives in
+[`mistcash/polynomial-ring-toolkit`](https://github.com/mistcash/polynomial-ring-toolkit),
+and the soundness argument for it lives with the code:
+[its `docs/review-spec.md`](https://github.com/mistcash/polynomial-ring-toolkit/blob/main/docs/review-spec.md).
 
 Read that first — everything below rests on it. In outline: for a ring
 `𝔽p[x]/(mod)`, each claimed product `∏ᵢ inputsᵢ = r + q·mod` is a polynomial

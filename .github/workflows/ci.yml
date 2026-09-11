@@ -35,11 +35,3 @@ jobs:
 
       - name: go test
         run: go test ./...
-
-      # polynomial-ring-toolkit is a module of its own, so ./... above does not
-      # reach it.
-      - name: go test (polynomial-ring-toolkit)
-        working-directory: polynomial-ring-toolkit
-        run: |
-          go vet ./...
-          go test ./...

@@ -2,16 +2,25 @@
 
 ## Unreleased
 
-- The polynomial ring checker is now a module of its own,
-  `polynomial-ring-toolkit/`, published separately as
-  `github.com/mistcash/polynomial-ring-toolkit`. Nothing in the protocol is
-  specific to pairings, BN254 or Groth16, so it carries no dependency on this
-  repository and has its own tests, review spec and release notes. A `replace`
-  directive in `go.mod` builds against the copy in the tree until a version is
-  tagged. §1 of `docs/review-spec.md`, which covered the checker, now points
-  at the module's own spec; `internal/limbcomposition` moved with it. The one
-  API rename is `GetPolyRingHints`, now `GetHints`, the dot-import of gnark's
-  `emulated` that forced the old name having gone with the split.
+- The polynomial ring checker is no longer in this repository. It lives in
+  [`mistcash/polynomial-ring-toolkit`](https://github.com/mistcash/polynomial-ring-toolkit),
+  extracted with its git history intact, and grosh26 depends on it like any
+  other module. Nothing in the protocol is specific to pairings, BN254 or
+  Groth16 — it sees a modulus and a coefficient field — so it does not need
+  to live in a repository that is about all three.
+
+  `std/polyring` and `internal/limbcomposition` are gone; `std/ring_bn254`
+  imports `github.com/mistcash/polynomial-ring-toolkit/polyring` instead.
+  §1 of `docs/review-spec.md`, which covered the checker, moved with it and
+  is now a pointer. The one API rename is `GetPolyRingHints`, now `GetHints`,
+  which nothing here called.
+
+  The toolkit pins the same gnark fork this repository does. Go ignores
+  `replace` in dependencies, so grosh26's own `replace` is what makes both
+  agree on one gnark — a consumer of the toolkit has to do the same.
+
+  The outer circuit is unaffected: the pairing check still compiles to
+  659,592 constraints, as it did when the checker was in-tree.
 
 - Restructure: the polynomial ring checker moved from the repository root to
   `std/polyring`; `circuits/` is replaced by `examples/` (`examples/poseidon`
