@@ -1,2 +1,7 @@
 # build artifacts
-/build/
+build/
+lib/profile/profiles/**/*.log
+lib/profile/profiles/**/*.pdf
+lib/profile/profiles/**/*.pprof
+lib/profile/profiles/**/*.out
+lib/profile/profiles/**/*.test
