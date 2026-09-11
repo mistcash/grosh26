@@ -58,5 +58,16 @@ func LogCircuitConstraints(b testing.TB, newCircuit frontend.Circuit, assignment
 	if _, err = ccs.WriteTo(&buf); err != nil {
 		b.Fatal(err)
 	}
-	b.Logf("%-22s r1cs constraints %10d size: %10d (bytes)", circuitName, ccs.GetNbConstraints(), buf.Len())
+
+	comms := ccs.GetCommitments().(constraint.Groth16Commitments)
+	nbCommittedVars := 0
+	for _, cm := range comms {
+		nbPriv := len(cm.PrivateCommitted)
+		nbPub := cm.NbPublicCommitted
+		nbNested := len(cm.PublicAndCommitmentCommitted) - cm.NbPublicCommitted
+		// unique new vars in this commit = nbPriv; total refs = nbPriv+nbPub+nbNested
+		nbCommittedVars += nbPriv + nbPub + nbNested
+	}
+
+	b.Logf("\n[BENCH]     %-22s %10d r1cs constraints  %10d vars over %d commitments ", circuitName, ccs.GetNbConstraints(), nbCommittedVars, len(comms))
 }
