@@ -7,12 +7,14 @@ BenchmarkGroth16Sim
     groth16sim_test.go:268: Bs ladder+subgroup         107888     108642       -754
     groth16sim_test.go:268: loop+tail+previous         513695     213507     300188
 BenchmarkGroth16Sim/compile_groth16SimGnark
-BenchmarkGroth16Sim/compile_groth16SimGnark-12         	       1	1114152042 ns/op
+BenchmarkGroth16Sim/compile_groth16SimGnark-12                 1        1100955958 ns/op        2851314136 B/op 27539520 allocs/op
 BenchmarkGroth16Sim/solve_groth16SimGnark
-BenchmarkGroth16Sim/solve_groth16SimGnark-12           	       1	 243528917 ns/op
-    groth16sim_test.go:287: groth16SimGnark        r1cs constraints     791462 size:   51640977 (bytes)
+BenchmarkGroth16Sim/solve_groth16SimGnark-12                   5         240673192 ns/op        286486427 B/op   1484017 allocs/op
+    groth16sim_test.go:287:
+        [BENCH]     groth16SimGnark            791462 r1cs constraints      589289 vars over 1 commitments
 BenchmarkGroth16Sim/compile_groth16Sim
-BenchmarkGroth16Sim/compile_groth16Sim-12              	       1	 665606375 ns/op
+BenchmarkGroth16Sim/compile_groth16Sim-12                      2         626863666 ns/op        1687700444 B/op 16300787 allocs/op
 BenchmarkGroth16Sim/solve_groth16Sim
-BenchmarkGroth16Sim/solve_groth16Sim-12                	       1	 153299083 ns/op
-    groth16sim_test.go:306: groth16Sim             r1cs constraints     492028 size:   30383729 (bytes)
+BenchmarkGroth16Sim/solve_groth16Sim-12                        7         153646268 ns/op        144990430 B/op    332655 allocs/op
+    groth16sim_test.go:306:
+        [BENCH]     groth16Sim                 492028 r1cs constraints      399398 vars over 3 commitments
