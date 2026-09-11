@@ -28,7 +28,7 @@ func Circuit(b *testing.B, newCircuit func() frontend.Circuit, assignment fronte
 		b.Fatal(err)
 	}
 	var ccs constraint.ConstraintSystem
-	b.Run("compile", func(b *testing.B) {
+	b.Run("compile_"+circuitName, func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, newCircuit()); err != nil {
@@ -36,12 +36,7 @@ func Circuit(b *testing.B, newCircuit func() frontend.Circuit, assignment fronte
 			}
 		}
 	})
-	var buf bytes.Buffer
-	if _, err = ccs.WriteTo(&buf); err != nil {
-		b.Fatal(err)
-	}
-	b.Logf("[%s] r1cs constraints %d,  size: %d (bytes)", circuitName, ccs.GetNbConstraints(), buf.Len())
-	b.Run("solve", func(b *testing.B) {
+	b.Run("solve_"+circuitName, func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			if _, err := ccs.Solve(w); err != nil {
@@ -49,4 +44,19 @@ func Circuit(b *testing.B, newCircuit func() frontend.Circuit, assignment fronte
 			}
 		}
 	})
+	LogCircuitConstraints(b, newCircuit(), assignment, circuitName)
+}
+
+// LogCircuitConstraints prints the number of constraints and the size of the compiled circuit.
+func LogCircuitConstraints(b testing.TB, newCircuit frontend.Circuit, assignment frontend.Circuit, circuitName string) {
+	b.Helper()
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, newCircuit)
+	if err != nil {
+		b.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if _, err = ccs.WriteTo(&buf); err != nil {
+		b.Fatal(err)
+	}
+	b.Logf("%-22s r1cs constraints %10d size: %10d (bytes)", circuitName, ccs.GetNbConstraints(), buf.Len())
 }
