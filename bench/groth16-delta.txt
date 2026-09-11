@@ -1,0 +1,18 @@
+BenchmarkGroth16Sim
+    groth16sim_test.go:268: constraint profile (r1cs, BN254):
+    groth16sim_test.go:268: phase                       gnark       ring      delta
+    groth16sim_test.go:268: total                      791462     492028     299434
+    groth16sim_test.go:268: kSum recomb (shared)       168603     168603          0
+    groth16sim_test.go:268: G1 checks x2 (shared)        1276       1276          0
+    groth16sim_test.go:268: Bs ladder+subgroup         107888     108642       -754
+    groth16sim_test.go:268: loop+tail+previous         513695     213507     300188
+BenchmarkGroth16Sim/compile_groth16SimGnark
+BenchmarkGroth16Sim/compile_groth16SimGnark-12         	       1	1114152042 ns/op
+BenchmarkGroth16Sim/solve_groth16SimGnark
+BenchmarkGroth16Sim/solve_groth16SimGnark-12           	       1	 243528917 ns/op
+    groth16sim_test.go:287: groth16SimGnark        r1cs constraints     791462 size:   51640977 (bytes)
+BenchmarkGroth16Sim/compile_groth16Sim
+BenchmarkGroth16Sim/compile_groth16Sim-12              	       1	 665606375 ns/op
+BenchmarkGroth16Sim/solve_groth16Sim
+BenchmarkGroth16Sim/solve_groth16Sim-12                	       1	 153299083 ns/op
+    groth16sim_test.go:306: groth16Sim             r1cs constraints     492028 size:   30383729 (bytes)
