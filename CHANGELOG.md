@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- The polynomial ring checker is now a module of its own,
+  `polynomial-ring-toolkit/`, published separately as
+  `github.com/mistcash/polynomial-ring-toolkit`. Nothing in the protocol is
+  specific to pairings, BN254 or Groth16, so it carries no dependency on this
+  repository and has its own tests, review spec and release notes. A `replace`
+  directive in `go.mod` builds against the copy in the tree until a version is
+  tagged. §1 of `docs/review-spec.md`, which covered the checker, now points
+  at the module's own spec; `internal/limbcomposition` moved with it. The one
+  API rename is `GetPolyRingHints`, now `GetHints`, the dot-import of gnark's
+  `emulated` that forced the old name having gone with the split.
+
 - Restructure: the polynomial ring checker moved from the repository root to
   `std/polyring`; `circuits/` is replaced by `examples/` (`examples/poseidon`
   for the inner preimage circuit, `examples/recursion` for the end-to-end

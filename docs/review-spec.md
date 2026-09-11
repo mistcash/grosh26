@@ -1,8 +1,11 @@
 # Review specification
 
 Entry point for a cryptographer reviewing this repo's novel surface: the
-deferred polynomial ring check, the BN254 ring pairing built on it, the
-Groth16-in-Groth16 recursion, and the multi-commitment Solidity verifier.
+BN254 ring pairing, the Groth16-in-Groth16 recursion, and the
+multi-commitment Solidity verifier. The deferred polynomial ring check they
+are built on has moved to a module of its own and is specified there; §1
+below says where.
+
 Everything else — point arithmetic, subgroup checks, the Frobenius maps and
 tower conversions, Groth16 setup/prove/verify — is gnark's, used unmodified,
 and out of scope here.
@@ -13,104 +16,31 @@ on and the open questions this repo has not yet resolved. Where an argument
 depends on a specific line of code, the reference is given so it can be
 checked against the current source rather than taken on faith.
 
-## 1. The deferred ring check protocol (`std/polyring/field_polyring.go`)
+## 1. The deferred ring check protocol
 
-### 1.1 The idea
+Moved. The checker is now a module of its own,
+[`polynomial-ring-toolkit/`](../polynomial-ring-toolkit), published
+separately as `github.com/mistcash/polynomial-ring-toolkit`, and the
+soundness argument for it lives with the code:
+[`polynomial-ring-toolkit/docs/review-spec.md`](../polynomial-ring-toolkit/docs/review-spec.md).
 
-Emulating a large field inside a small one is expensive because every
-product has to be reduced against the field's modulus polynomial as soon as
-it is computed. `PolyRingChecker` takes the other route: a product is
-*claimed* — the prover supplies its quotient and remainder through a hint —
-and every claim made anywhere in the circuit is verified together, as a
-single batched polynomial identity checked at a random point after `Define`
-returns (`api.Compiler().Defer`, `performDeferredRingChecks`,
-`std/polyring/field_polyring.go:39,447`).
-
-Concretely, for a ring `𝔽p[x]/(mod)`, each claimed product
-`∏ᵢ inputsᵢ = r + q·mod` is a polynomial identity. Batching many such claims
-(possibly against different input polynomials but the same modulus) uses two
-rounds of Fiat-Shamir, mirroring the "Extension Field Arithmetic IOP" of
+Read that first — everything below rests on it. In outline: for a ring
+`𝔽p[x]/(mod)`, each claimed product `∏ᵢ inputsᵢ = r + q·mod` is a polynomial
+identity, and every claim a circuit makes is batched behind two rounds of
+Fiat-Shamir and asserted at a single random point after `Define` returns,
+following the Extension Field Arithmetic IOP of
 [On Proving Pairings, eprint 2024/640](https://eprint.iacr.org/2024/640.pdf),
-Section 5.2:
+Section 5.2.
 
-1. **Commit the remainders.** The prover has already committed to every
-   product's remainder `r` (via gnark's BSB22 `Commit`, which folds all
-   committed wires into one Pedersen commitment and derives its opening via
-   `gnark-crypto`'s `fr.Hash` — RFC 9380 `hash_to_field` with
-   `expand_message_xmd`/SHA-256, domain tag `G16-BSB22`; the commitment
-   itself *is* the Fiat-Shamir challenge, so there is no separate in-circuit
-   hash). This is challenge `z` (`std/polyring/field_polyring.go:485`).
-2. **Fold the quotients.** `qAcc = Σᵢ zⁱ·qᵢ`, computed by a hint outside the
-   circuit (`callQuotientsRLCHint`, `std/polyring/field_polyring.go:613`) — this is the
-   protocol's saving: without folding, every quotient would need its own
-   in-circuit evaluation.
-3. **Commit the folded quotient**, giving challenge `x`
-   (`std/polyring/field_polyring.go:517`).
-4. **Assert the identity at `x`**:
-   `Σᵢ zⁱ·(∏ⱼ inputsᵢⱼ(x) − rᵢ(x)) == qAcc(x)·mod(x)`
-   (`std/polyring/field_polyring.go:560-598`), by Schwartz-Zippel equivalent to every
-   individual claim holding as a polynomial identity, except with
-   probability at most `deg/|challenge space|` over the prover's choice of a
-   false claim.
-
-`std/ring_bn254` instantiates this once, for `mod = x¹² − 18x⁶ + 82` (BN254's
-𝔽p¹² modulus), registering the ring group in `NewExt12`
+What is in scope *here* is this repository's use of it: `std/ring_bn254`
+instantiates the ring once, for `mod = x¹² − 18x⁶ + 82` (BN254's 𝔽p¹²
+modulus), registering the ring group in `NewExt12`
 (`std/ring_bn254/ring.go:48`). Every 𝔽p¹² product in the Miller loop and the
 residue-witness tail (`std/ring_bn254/pairing.go`) is queued through this
-ring rather than reduced coefficient-wise.
-
-### 1.2 Full-width challenge derivation
-
-Both `z` and `x` are native field elements — outputs of gnark's `Commit`,
-already Fiat-Shamir randomness by construction (§1.1). To evaluate the
-polynomial identity in step 4, which lives in the emulated field `𝔽p`
-(BN254's base field, distinct from the circuit's native scalar field), each
-challenge has to be re-expressed as an emulated field element:
-`NativeToEmulated` (`std/polyring/field_polyring.go:773`) decomposes the native value into
-`nbBits`-wide limbs via a hint, and asserts the decomposition reconstructs
-the original native value exactly (`AssertIsEqual(rebuildEl, v[i])`) before
-handing back the limbs as an `Element[T]`.
-
-Before this ticket (#5), the function then discarded everything past the
-first two limbs (`elements[i].Limbs = elements[i].Limbs[:2]`), so only the
-low ~128 bits of an already-verified, fully-reconstructed native value were
-used as the emulated challenge. Now (`fullChallengeLimbs`,
-`std/polyring/field_polyring.go:773-778`) it keeps every limb the native field needs —
-`FieldBitLen()/nbBits + 1` of them — matching the eprint's construction of
-using the verifier's (here: the commitment's) randomness directly, in full,
-rather than a further-truncated derivative of it. `callQuotientsRLCHint`'s
-native-side masking of `z` (`std/polyring/field_polyring.go:667-673`) uses the same width,
-so the off-circuit RLC computation and the in-circuit identity check agree
-on the same challenge value.
-
-**Soundness note, for context:** even the pre-#5 truncation already gave a
-Schwartz-Zippel soundness error of at most `deg/2^128` — negligible for the
-degrees here (`accumulatorTargetDegree = 69` bounds every queued product,
-`std/ring_bn254/pairing.go:28`). The full-width change is not closing a
-practical attack; it is bringing the implementation in line with the letter
-of the referenced construction. Measured cost at the time: the two-pair
-check grew from 654,095 to 659,592 constraints (+0.84%), recorded on #5.
-
-### 1.3 The quotient coefficients carry no range check — deliberately
-
-`MulPolyRings` builds the returned quotient's limbs with
-`prc.f.UnsafeFromLimbs` (`std/polyring/field_polyring.go:227`), which skips the range
-check `prc.f.NewElement` would otherwise perform. The remainder `r`, by
-contrast, *is* built with `prc.f.NewElement` (`std/polyring/field_polyring.go:236`) and so
-is range-checked.
-
-This asymmetry is intentional. The quotient is never used for anything
-except the one deferred identity it exists to satisfy
-(`qAcc(x)·mod(x)`, §1.1 step 4); nothing else in the circuit reads it. An
-out-of-range quotient limb representation can only change whether that one
-`AssertIsEqual` — a genuine equality of reduced field elements, since
-`Field.AssertIsEqual` reduces both operands — holds; Schwartz-Zippel already
-governs exactly that outcome, independent of how the quotient's limbs happen
-to be arranged below the modulus. There is no second constraint an
-out-of-range quotient could exploit to smuggle in extra freedom. The
-remainder, in contrast, is range-checked because it flows onward into
-coefficient-wise (non-ring) circuit operations, where an out-of-range
-representation would be a genuine soundness gap.
+ring rather than reduced coefficient-wise, and the module's two caller
+obligations — commit every prover-chosen operand, construct the checker
+before any other emulated field — are discharged in `Ext12.ToCommit` and
+`NewExt12` respectively (§2.4 below covers the ordering).
 
 ## 2. Recursion composition (`std/recursion`, `examples/poseidon`)
 
@@ -264,8 +194,8 @@ a single `(numCommitments+1)`-pairing check via the `PRECOMPILE_VERIFY`
 
 | # | Item | Status |
 | --- | --- | --- |
-| 1 | Schwartz-Zippel challenge, full native width vs. 2-limb truncation | Fixed, #5 |
-| 2 | Quotient coefficients carry no range check | Deliberate, argued safe in §1.3 |
+| 1 | Schwartz-Zippel challenge, full native width vs. 2-limb truncation | Fixed, #5; argued in the toolkit's spec §2 |
+| 2 | Quotient coefficients carry no range check | Deliberate, argued in the toolkit's spec §3 |
 | 3 | Verifying-key constants built via `Field.NewElement` rather than `emulated.ValueOf` | Deliberate (belt-and-suspenders); both are sound, §2.3 |
 | 4 | Public-input sum via incomplete `curve.Add` instead of `MultiScalarMul` | Fixed, #14 |
 | 5 | `AssertProof` has no structural BSB22-commitment guard | Open, #17 |

@@ -18,12 +18,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Install solc
-        run: |
-          curl -fsSL -o /usr/local/bin/solc "https://github.com/ethereum/solidity/releases/download/v0.8.24/solc-static-linux"
-          chmod +x /usr/local/bin/solc
-          solc --version
-
       - name: gofmt
         run: |
           unformatted="$(gofmt -l .)"
@@ -33,13 +27,8 @@ jobs:
             exit 1
           fi
 
+      - name: go vet
+        run: go vet ./...
+
       - name: go test
         run: go test ./...
-
-      # polynomial-ring-toolkit is a module of its own, so ./... above does not
-      # reach it.
-      - name: go test (polynomial-ring-toolkit)
-        working-directory: polynomial-ring-toolkit
-        run: |
-          go vet ./...
-          go test ./...

@@ -29,8 +29,8 @@ anything that handles real value without an audit first.
 
 | path | what it is |
 | --- | --- |
-| `std/polyring` | the ring checker: deferred product checks over `𝔽p[x]/(mod)`, batched with a Schwartz-Zippel argument |
-| `std/ring_bn254` | the ring bolted onto gnark's `fields_bn254.Ext12`, and the Miller loop and pairing check built on it |
+| `polynomial-ring-toolkit` | a module of its own: the ring checker, deferred product checks over `𝔽p[x]/(mod)` batched with a Schwartz-Zippel argument, with no dependency on anything else here |
+| `std/ring_bn254` | that ring bolted onto gnark's `fields_bn254.Ext12`, and the Miller loop and pairing check built on it |
 | `std/recursion` | the outer Verifier circuit: a Groth16 proof of an inner circuit, checked via the ring pairing |
 | `solidity` | the Solidity generator, for circuits with more than one commitment |
 | `examples/poseidon` | an inner circuit to recurse over: a poseidon 2→1 compression preimage |
@@ -40,6 +40,15 @@ Emulating a big field inside a small one is expensive because every product has
 to be reduced. The ring takes the other route: the prover claims a product and
 its quotient through a hint, and every claim in a circuit is batched into one
 identity checked at a single random point after `Define` returns.
+
+Nothing about that protocol is specific to pairings, BN254, or Groth16 — a
+modulus and a coefficient field are all it sees — so it lives in
+[`polynomial-ring-toolkit/`](polynomial-ring-toolkit), a module of its own
+with its own tests, docs and release notes, published separately as
+[`github.com/mistcash/polynomial-ring-toolkit`](https://github.com/mistcash/polynomial-ring-toolkit).
+This repository is its reference consumer: `std/ring_bn254` instantiates it
+once, for `x¹² − 18x⁶ + 82`. Until a version is tagged, a `replace` directive
+in `go.mod` builds against the copy in the tree.
 
 Everything that is not the ring comes from gnark. The 𝔽p¹² element type and its
 coefficient-wise operations, the Frobenius maps, the tower conversions, the G1
@@ -145,6 +154,13 @@ go test ./...        # full suite, including the outer circuit
 go test -short ./... # skips nothing at the moment; every remaining test is cheap
 ```
 
+`polynomial-ring-toolkit` is a separate module, so `./...` does not reach it.
+It has a suite of its own:
+
+```sh
+cd polynomial-ring-toolkit && go test ./...
+```
+
 Constraint counts are reported by the benchmarks, not stated here:
 
 ```sh
@@ -161,10 +177,12 @@ reduced to the parts that actually differ from gnark.
 
 ## Review
 
-External cryptographers reviewing the novel surface (the deferred ring
-check, the ring pairing, the recursion, the multi-commitment verifier)
-should start at [`docs/review-spec.md`](docs/review-spec.md): the soundness
-arguments, and the deliberate deviations and open items, stated explicitly.
+External cryptographers reviewing the novel surface (the ring pairing, the
+recursion, the multi-commitment verifier) should start at
+[`docs/review-spec.md`](docs/review-spec.md): the soundness arguments, and
+the deliberate deviations and open items, stated explicitly. The deferred
+ring check underneath them has its own, in the module it lives in:
+[`polynomial-ring-toolkit/docs/review-spec.md`](polynomial-ring-toolkit/docs/review-spec.md).
 
 ## License
 

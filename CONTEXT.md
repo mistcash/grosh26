@@ -5,8 +5,12 @@ Recursive SNARK tooling: an accelerated BN254 pairing check inside gnark circuit
 ## Language
 
 **PolyRingChecker**:
-The deferred polynomial-ring product checker over 𝔽p[x]/(mod) that replaces repeated extension-field products with hinted products and one batched identity.
+The deferred polynomial-ring product checker over 𝔽p[x]/(mod) that replaces repeated extension-field products with hinted products and one batched identity. Lives in `polynomial-ring-toolkit/`, a separate module.
 _Avoid_: ring checker, polyring emulation
+
+**polynomial-ring-toolkit**:
+The module holding `PolyRingChecker`, in-tree at `polynomial-ring-toolkit/` and published as `github.com/mistcash/polynomial-ring-toolkit`. Curve- and proof-system-agnostic; grosh26 is its reference consumer, not its owner.
+_Avoid_: `std/polyring` (the old path), the polyring package
 
 **Deferred ring check**:
 Claiming a ring product via a hint during `Define`, then batch-verifying all claims as one Schwartz–Zippel identity at a random point.
