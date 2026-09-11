@@ -225,7 +225,7 @@ restriction lives only in the two constructors. Currently a mismatched
 proof/VK is caught as a byproduct of `AssertProof`'s public-input length
 check, not by a purpose-built guard. Tracked in #17.
 
-## 3. The multi-commitment Solidity verifier (`solidity/`)
+## 3. The multi-commitment Solidity verifier (`lib/solidity/`)
 
 ### 3.1 Why it exists
 
@@ -243,7 +243,7 @@ knowledge. The prover, setup and off-chain verifier are gnark's, unmodified
 gnark-crypto's prover derives the challenge that folds multiple commitments'
 proofs of knowledge with `fr.Hash` — RFC 9380 `hash_to_field`,
 `expand_message_xmd` over SHA-256, domain separation tag `"G16-BSB22"`. The
-generated contract's `foldingChallenge` (`solidity/solidity.go:503-512`)
+generated contract's `foldingChallenge` (`lib/solidity/solidity.go:503-512`)
 reproduces this construction exactly, in three `sha256` precompile calls,
 from the same public commitment hashes the prover folds. This is what lets
 the stock gnark prover and this repository's generated verifier agree on the
@@ -255,7 +255,7 @@ Mirroring `gnark-crypto`'s `pedersen.BatchVerifyMultiVk`: each commitment
 carries its own `GSigmaNeg` (the sigma trapdoor is sampled independently per
 commitment key), scaled by successive powers of the folding challenge; the
 shared Pedersen `G` (sampled once for the whole circuit — Groth16 setup's
-`WithG2Point` invariant, `solidity/solidity.go:100-102`) is checked once
+`WithG2Point` invariant, `lib/solidity/solidity.go:100-102`) is checked once
 against the already-folded proof of knowledge. The whole fold is verified as
 a single `(numCommitments+1)`-pairing check via the `PRECOMPILE_VERIFY`
 (BN254 pairing) precompile.

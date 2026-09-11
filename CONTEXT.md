@@ -44,7 +44,7 @@ The Groth16-verifier circuit: inner verifying key baked in as constants, checks 
 _Avoid_: verifier circuit, wrapper circuit
 
 **Verifier generator**:
-The custom Solidity verifier exporter (`solidity/`) that supports proofs with multiple BSB22 commitments, unlike gnark's single-commitment generator.
+The custom Solidity verifier exporter (`lib/solidity/`) that supports proofs with multiple BSB22 commitments, unlike gnark's single-commitment generator.
 _Avoid_: gnark's generator (that means the single-commitment one)
 
 **tiny-gnark**:
