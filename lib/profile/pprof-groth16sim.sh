@@ -51,30 +51,33 @@ go test -c -o "$TESTBIN" ./lib/profile
 
 simprofile() {
 	name="$1" # groth16sim-ring | groth16sim-gnark
-	sub="$2"  # ring | gnark
+	sub="$2"  # sub-benchmark regex: .*Sim$ (ring) | .*SimGnark$ (gnark)
 	echo "== $name (benchtime=$BENCHTIME)"
-	GNARK_PROFILE_DIR="$OUTDIR" "$TESTBIN" \
-		-test.run '^$' \
-		-test.bench "BenchmarkGroth16Sim/$sub" \
-		-test.benchtime "$BENCHTIME" \
-		-test.count 1 \
-		-test.v \
-		-test.cpuprofile "$OUTDIR/$name.cpu.out" \
-		-test.memprofile "$OUTDIR/$name.mem.out" \
-		2>&1 | tee "$OUTDIR/$name.bench.log"
-	go tool pprof -pdf -output "$OUTDIR/$name.cpu.pdf" "$TESTBIN" "$OUTDIR/$name.cpu.out"
-	go tool pprof -pdf -output "$OUTDIR/$name.mem.pdf" "$TESTBIN" "$OUTDIR/$name.mem.out"
-	go tool pprof -pdf -sample_index=constraints -output "$OUTDIR/$name.constraints.pdf" "$OUTDIR/$name.pprof"
-	go tool pprof -pdf -sample_index=operations -output "$OUTDIR/$name.operations.pdf" "$OUTDIR/$name.pprof"
+	# GNARK_PROFILE_DIR="$OUTDIR" "$TESTBIN" \
+	# 	-test.run '^$' \
+	# 	-test.bench "BenchmarkGroth16Sim/$sub" \
+	# 	-test.benchtime "$BENCHTIME" \
+	# 	-test.count 1 \
+	# 	-test.v \
+	# 	-test.cpuprofile "$OUTDIR/$name.cpu.out" \
+	# 	-test.memprofile "$OUTDIR/$name.mem.out" \
+	# 	2>&1 | tee "$OUTDIR/$name.bench.log"
+	# go tool pprof -pdf -output "$OUTDIR/$name.cpu.pdf" "$TESTBIN" "$OUTDIR/$name.cpu.out"
+	# go tool pprof -pdf -output "$OUTDIR/$name.mem.pdf" "$TESTBIN" "$OUTDIR/$name.mem.out"
+	# go tool pprof -pdf -sample_index=constraints -output "$OUTDIR/$name.constraints.pdf" "$OUTDIR/$name.pprof"
+	# go tool pprof -pdf -sample_index=operations -output "$OUTDIR/$name.operations.pdf" "$OUTDIR/$name.pprof"
 }
 
-simprofile groth16sim-ring ring
-simprofile groth16sim-gnark gnark
+simprofile groth16sim-ring '.*Sim$'
+simprofile groth16sim-gnark '.*SimGnark$'
 
-echo "== other benches (counts only)"
+ROOT_BENCH="$PROJECT_ROOT/bench"
+mkdir -p "$ROOT_BENCH"
+echo "== other benches"
+pwd
 TEST_RESULTS=$(go test ./... -run '^$' -bench '.' -benchtime=1x -count=1 -v 2>&1)
-mkdir -p "$PROJECT_ROOT/bench"
-echo "$TEST_RESULTS" | grep -E "groth16sim_test.go|BenchmarkGroth16Sim" | tee "$PROJECT_ROOT/bench/groth16-delta.txt"
-echo "$TEST_RESULTS" | grep -E "groth16sim_test.go|BenchmarkGroth16Sim|constraints|^(--- FAIL|FAIL|ok )"
+echo -e "Tests\n$TEST_RESULTS"
+echo "$TEST_RESULTS" | grep -E "groth16sim_test.go|BenchmarkGroth16Sim" | tee "$ROOT_BENCH/groth16-delta.txt"
+# echo "$TEST_RESULTS" | grep -E "BENCH|ns/op|allocs/op"
 
 echo "done: $OUTDIR"

@@ -190,7 +190,7 @@ type (
 	G2Affine = ring_bn254.G2Affine
 )
 
-// groth16Sim checks the Groth16 identity
+// groth16SimGnark checks the Groth16 identity
 // e(Ar,Bs) · e(αₙₑg,β) · e(kSum,γₙₑg) · e(Krs,δₙₑg) == 1 with three pairs
 // in the loop and e(αₙₑg,β) folded in as a previous Miller loop value. GammaNeg
 // and DeltaNeg are the same G2 point carrying precomputed lines, so their ladders
