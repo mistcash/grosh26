@@ -30,7 +30,7 @@ grosh26     [████████████░░░░░░░░] 153.6
 > verification shape in either toolkit, and the functional frontier moves
 > there first.
 
-**Unaudited.** Do not use in production, audit pending. See `docs/review-spec.md` for the soundness arguments and open items.
+**Unaudited.** Do not use in production, audit pending.
 
 ## Requirements
 
@@ -100,7 +100,6 @@ err = solidity.ExportSolidity(vk.(*groth16bn254.VerifyingKey), out /* io.Writer 
 | `lib/profile` | ring-vs-gnark comparison bench + `pprof-groth16sim.sh` profiling run |
 | `examples/poseidon` | inner circuit (demo statement) |
 | `examples/recursion` | end-to-end recursion flow (copy this) |
-| `docs/review-spec.md` | protocol + soundness notes for reviewers |
 
 ## Tests
 
