@@ -1,14 +1,20 @@
 // Package ringpairing checks pairings inside gnark circuits with 𝔽p¹²
 // arithmetic evaluated in the polynomial ring 𝔽p[w]/(w¹² - 2ξ₀w⁶ + ξ₀² + 1)
 // instead of reducing every product on the spot, following
-// [On Proving Pairings]. BN254 (ξ₀ = 9) and BLS12-381 (ξ₀ = 1) are supported.
+// [On Proving Pairings].
+//
+// This package is the curve-agnostic core: the ring, the Miller loop driver
+// and the residue witness check. Everything curve-specific -- the twist and
+// its G2 ladder, the line shape, the loop counter, gnark's types and hints --
+// lives behind [Curve], implemented by std/ring_bn254 and std/ring_bls12381,
+// which also provide the constructors.
 //
 // Everything about 𝔽p¹² itself -- the element types, the Frobenius maps, the
-// tower conversions, the residue witness hints -- comes from gnark's
-// fields_bn254 and fields_bls12381, which already represent E12 as this
-// direct extension. What this package adds is the ring: a product is claimed
-// through a hint and its correctness deferred, so a whole circuit's worth of
-// claims collapses into one identity checked at a random point.
+// tower conversions, the residue witness hints -- comes from gnark, which
+// already represents E12 as this direct extension. What this package adds is
+// the ring: a product is claimed through a hint and its correctness deferred,
+// so a whole circuit's worth of claims collapses into one identity checked at
+// a random point.
 //
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
 package ringpairing
@@ -17,7 +23,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 
 	"github.com/mistcash/grosh26/std/polyring"
@@ -25,9 +30,10 @@ import (
 
 type poly[F emulated.FieldParams] = polyring.Poly[F]
 
-// ring is 𝔽p¹² as 𝔽p[w]/(w¹² - 2ξ₀w⁶ + ξ₀² + 1). Both curves build 𝔽p¹² as
-// 𝔽p²[w]/(w⁶ - ξ) with 𝔽p² = 𝔽p[u]/(u² + 1) and ξ = ξ₀ + u, so u = w⁶ - ξ₀
-// and (w⁶ - ξ₀)² = -1 gives the modulus.
+// ring is 𝔽p¹² as 𝔽p[w]/(w¹² - 2ξ₀w⁶ + ξ₀² + 1), for a curve building 𝔽p¹²
+// as 𝔽p²[w]/(w⁶ - ξ) with 𝔽p² = 𝔽p[u]/(u² + 1) and ξ = ξ₀ + u: then
+// u = w⁶ - ξ₀, and (w⁶ - ξ₀)² = -1 gives the modulus. A curve with another
+// 𝔽p² would need its own modulus here.
 type ring[F emulated.FieldParams] struct {
 	fp    *emulated.Field[F]
 	prc   *polyring.PolyRingChecker[F]
@@ -38,16 +44,10 @@ type ring[F emulated.FieldParams] struct {
 	inverseHint solver.Hint
 }
 
-// newRing registers the ring group with the compiler. The deferred checks run
-// once Define returns.
-//
-// Call this before anything else in the circuit creates an emulated field: the
-// ring checks emit range checks of their own, and gnark runs deferred callbacks
-// in registration order, so the range checker -- created with the first
-// emulated field -- has to be registered after the ring checker or it will
-// already be closed by the time the ring checks run.
-func newRing[F emulated.FieldParams](api frontend.API, xi0 int64, inverseHint solver.Hint) *ring[F] {
-	prc := polyring.NewPolyRingChecker[F](api)
+// newRing adds the ring group for ξ₀ to prc, whose deferred checks run once
+// Define returns. prc has to be created before anything else in the circuit
+// creates an emulated field, see [New].
+func newRing[F emulated.FieldParams](prc *polyring.PolyRingChecker[F], xi0 int64, inverseHint solver.Hint) *ring[F] {
 	fp := prc.Field()
 	c0, c6 := xi0*xi0+1, -2*xi0
 

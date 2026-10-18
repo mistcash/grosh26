@@ -1,4 +1,4 @@
-package ringpairing
+package ringpairing_test
 
 import (
 	"crypto/rand"
@@ -20,6 +20,9 @@ import (
 	"github.com/consensys/gnark/test"
 
 	"github.com/mistcash/grosh26/lib/bench"
+	"github.com/mistcash/grosh26/std/ring_bls12381"
+	"github.com/mistcash/grosh26/std/ring_bn254"
+	"github.com/mistcash/grosh26/std/ringpairing"
 )
 
 // fixture is one curve's satisfying instance e(P1,Q1)·e(P2,Q2) == 1, with
@@ -27,7 +30,7 @@ import (
 // Constants baked into a circuit travel as native values and are built inside
 // Define (see fixedG2 and gtEl), so every compile gets fresh ones.
 type fixture[F emulated.FieldParams, G2El, GtEl any] struct {
-	p1, p2, bad G1Affine[F] // bad = [42]G1, unrelated to P1
+	p1, p2, bad ringpairing.G1Affine[F] // bad = [42]G1, unrelated to P1
 	q1, q2      G2El
 	nativeQ2    any  // Q2 natively, for baking in with fixedG2
 	offTwistQ2  any  // a native G2 point off the twist
@@ -138,14 +141,14 @@ func bls12381Fixture(t testing.TB) fixture[emparams.BLS12381Fp, sw_bls12381.G2Af
 // std/recursion gives its verifying key -- so the unassigned circuit has to
 // carry it.
 type pairingCheckCircuit[F emulated.FieldParams, G2El, GtEl any] struct {
-	P1, P2 G1Affine[F]
+	P1, P2 ringpairing.G1Affine[F]
 	Q1, Q2 G2El
 
 	fixedQ2 any
 }
 
 func (c *pairingCheckCircuit[F, G2El, GtEl]) Define(api frontend.API) error {
-	pr, err := New[F, G2El, GtEl](api)
+	pr, err := newPairing[F, G2El, GtEl](api)
 	if err != nil {
 		return err
 	}
@@ -156,7 +159,7 @@ func (c *pairingCheckCircuit[F, G2El, GtEl]) Define(api frontend.API) error {
 		fixed := fixedG2[G2El](c.fixedQ2)
 		q2 = &fixed
 	}
-	return pr.PairingCheck([]*G1Affine[F]{&c.P1, &c.P2}, []*G2El{&c.Q1, q2}, nil)
+	return pr.PairingCheck([]*ringpairing.G1Affine[F]{&c.P1, &c.P2}, []*G2El{&c.Q1, q2}, nil)
 }
 
 // previousCircuit checks e(P1,Q1)·previous == 1, like gnark's
@@ -164,7 +167,7 @@ func (c *pairingCheckCircuit[F, G2El, GtEl]) Define(api frontend.API) error {
 // prevConst set, previous is built inside Define -- the verifier's shape --
 // and travels as a constant rather than a witness.
 type previousCircuit[F emulated.FieldParams, G2El, GtEl any] struct {
-	P1   G1Affine[F]
+	P1   ringpairing.G1Affine[F]
 	Q1   G2El
 	Prev GtEl
 
@@ -172,7 +175,7 @@ type previousCircuit[F emulated.FieldParams, G2El, GtEl any] struct {
 }
 
 func (c *previousCircuit[F, G2El, GtEl]) Define(api frontend.API) error {
-	pr, err := New[F, G2El, GtEl](api)
+	pr, err := newPairing[F, G2El, GtEl](api)
 	if err != nil {
 		return err
 	}
@@ -182,7 +185,7 @@ func (c *previousCircuit[F, G2El, GtEl]) Define(api frontend.API) error {
 		v := gtEl[GtEl](c.prevConst)
 		prev = &v
 	}
-	return pr.PairingCheck([]*G1Affine[F]{&c.P1}, []*G2El{&c.Q1}, prev)
+	return pr.PairingCheck([]*ringpairing.G1Affine[F]{&c.P1}, []*G2El{&c.Q1}, prev)
 }
 
 // previousOnlyCircuit has nothing left for the Miller loop to run over.
@@ -191,7 +194,7 @@ type previousOnlyCircuit[F emulated.FieldParams, G2El, GtEl any] struct {
 }
 
 func (c *previousOnlyCircuit[F, G2El, GtEl]) Define(api frontend.API) error {
-	pr, err := New[F, G2El, GtEl](api)
+	pr, err := newPairing[F, G2El, GtEl](api)
 	if err != nil {
 		return err
 	}
@@ -201,7 +204,7 @@ func (c *previousOnlyCircuit[F, G2El, GtEl]) Define(api frontend.API) error {
 // pairCircuit asserts R is the reduced pairing e(P,Q), or with raw set the
 // Miller loop value.
 type pairCircuit[F emulated.FieldParams, G2El, GtEl any] struct {
-	P G1Affine[F]
+	P ringpairing.G1Affine[F]
 	Q G2El
 	R GtEl
 
@@ -209,7 +212,7 @@ type pairCircuit[F emulated.FieldParams, G2El, GtEl any] struct {
 }
 
 func (c *pairCircuit[F, G2El, GtEl]) Define(api frontend.API) error {
-	pr, err := New[F, G2El, GtEl](api)
+	pr, err := newPairing[F, G2El, GtEl](api)
 	if err != nil {
 		return err
 	}
@@ -217,7 +220,7 @@ func (c *pairCircuit[F, G2El, GtEl]) Define(api frontend.API) error {
 	if c.raw {
 		f = pr.MillerLoop
 	}
-	res, err := f([]*G1Affine[F]{&c.P}, []*G2El{&c.Q})
+	res, err := f([]*ringpairing.G1Affine[F]{&c.P}, []*G2El{&c.Q})
 	if err != nil {
 		return err
 	}
@@ -322,7 +325,7 @@ func testPairing[F emulated.FieldParams, G2El, GtEl any](t *testing.T, fx fixtur
 // statement, so the gap between the two counts is what the ring Miller loop
 // saves over gnark's.
 type gnarkCheckCircuit[F emulated.FieldParams, G2El, GtEl any] struct {
-	P1, P2 G1Affine[F]
+	P1, P2 ringpairing.G1Affine[F]
 	Q1, Q2 G2El
 }
 
@@ -341,12 +344,12 @@ func (c *gnarkCheckCircuit[F, G2El, GtEl]) Define(api frontend.API) error {
 		return err
 	}
 	p := pr.(interface {
-		AssertIsOnG1(*G1Affine[F])
-		PairingCheck([]*G1Affine[F], []*G2El) error
+		AssertIsOnG1(*ringpairing.G1Affine[F])
+		PairingCheck([]*ringpairing.G1Affine[F], []*G2El) error
 	})
 	p.AssertIsOnG1(&c.P1)
 	p.AssertIsOnG1(&c.P2)
-	return p.PairingCheck([]*G1Affine[F]{&c.P1, &c.P2}, []*G2El{&c.Q1, &c.Q2})
+	return p.PairingCheck([]*ringpairing.G1Affine[F]{&c.P1, &c.P2}, []*G2El{&c.Q1, &c.Q2})
 }
 
 // BenchmarkPairingCheck compiles the two-pair check, both G2 points from the
@@ -386,4 +389,22 @@ func gtEl[GtEl any](v any) GtEl {
 		res = sw_bls12381.NewGTEl(v)
 	}
 	return res.(GtEl)
+}
+
+// newPairing returns the ring pairing from the curve package G2El belongs to.
+func newPairing[F emulated.FieldParams, G2El, GtEl any](api frontend.API) (*ringpairing.Pairing[F, G2El, GtEl], error) {
+	var (
+		p   any
+		err error
+	)
+	switch any((*G2El)(nil)).(type) {
+	case *sw_bn254.G2Affine:
+		p, err = ring_bn254.NewPairing(api)
+	case *sw_bls12381.G2Affine:
+		p, err = ring_bls12381.NewPairing(api)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return p.(*ringpairing.Pairing[F, G2El, GtEl]), nil
 }

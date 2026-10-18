@@ -6,11 +6,8 @@ import (
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
-	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/consensys/gnark/std/math/emulated/emparams"
 
 	"github.com/mistcash/grosh26/std/polyring"
 )
@@ -21,125 +18,128 @@ import (
 // evaluations of degree 8 or 9, so 69 fits a squaring plus five lines.
 const accumulatorTargetDegree = 69
 
-// G1Affine is a point on the curve over the emulated base field F: gnark's
-// sw_bn254.G1Affine or sw_bls12381.G1Affine.
+// G1Affine is a point on the curve over the emulated base field F.
 type G1Affine[F emulated.FieldParams] = sw_emulated.AffinePoint[F]
 
-// BN254 and BLS12381 are the ring pairings over the two supported curves, in
-// gnark's own point and target group types. Build witness points with
-// sw_*.NewG1Affine / NewG2Affine and fixed points with sw_*.NewG2AffineFixed:
-// a Q carrying Lines skips the ladder.
-type (
-	BN254    = Pairing[emparams.BN254Fp, sw_bn254.G2Affine, sw_bn254.GTEl]
-	BLS12381 = Pairing[emparams.BLS12381Fp, sw_bls12381.G2Affine, sw_bls12381.GTEl]
-)
+// Line is one line of the Miller loop in gnark's form: R0 = λ, the slope, and
+// R1 = λ·x - y for a point (x, y) on it, each an 𝔽p² element given as its two
+// coefficients.
+type Line[F emulated.FieldParams] struct {
+	R0, R1 [2]*emulated.Element[F]
+}
 
-// curve is everything about a pairing-friendly curve the ring pairing needs
+// Lines are a G2 point's lines, indexed [half][iteration] like gnark's: half 0
+// holds the doubling line, half 1 the addition line of a non-zero digit.
+type Lines[F emulated.FieldParams] [2][]*Line[F]
+
+// NewLines returns empty lines for a loop of n iterations.
+func NewLines[F emulated.FieldParams](n int) *Lines[F] {
+	return &Lines[F]{make([]*Line[F], n), make([]*Line[F], n)}
+}
+
+// Curve is everything about a pairing-friendly curve the ring pairing needs
 // beyond the ring itself: gnark's types, hints and 𝔽p¹² maps, the Miller loop's
-// shape and the ladder computing lines for a G2 point given as a witness.
-type curve[F emulated.FieldParams, G2El, GtEl any] interface {
-	// xi0 is the real part of the sextic non-residue ξ = ξ₀ + u.
-	xi0() int64
-	// loopCounter is the Miller loop's signed binary expansion, most
+// shape, and the twist with the ladder computing lines for a G2 point given as
+// a witness.
+type Curve[F emulated.FieldParams, G2El, GtEl any] interface {
+	// Xi0 is the real part of the sextic non-residue ξ = ξ₀ + u.
+	Xi0() int64
+	// LoopCounter is the Miller loop's signed binary expansion, most
 	// significant digit last; the loop starts at the second-to-last digit.
-	loopCounter() []int8
-	// lineSlots are the powers of w a line 1 + (R0·(-x/y)) + (R1·(1/y))
-	// evaluated at P = (x, y) puts its three terms on, the 𝔽p² ones embedded
-	// with [ring.embedE2].
-	lineSlots() (one, r0, r1 int)
-	// lastLines is the iteration index of lines applied after the loop, or -1
-	// for none (BN254 has two, through π(Q) and -π²(Q)).
-	lastLines() int
-	// conjugateMillerLoop reports whether the loop's raw value is conjugated
-	// into the Miller loop value, as for BLS12-381's negative seed.
-	conjugateMillerLoop() bool
+	LoopCounter() []int8
+	// LineSlots are the powers of w a line 1 + R0·(-x/y) + R1·(1/y), evaluated
+	// at P = (x, y), puts its three terms on; the 𝔽p² terms are embedded as
+	// a0 + a1·u = (a0 - ξ₀a1)·wᵏ + a1·wᵏ⁺⁶.
+	LineSlots() (one, r0, r1 int)
+	// LastLines is the iteration index of lines applied after the loop, or -1
+	// for none.
+	LastLines() int
+	// ConjugateMillerLoop reports whether the loop's raw value is conjugated
+	// into the Miller loop value, as for a negative seed.
+	ConjugateMillerLoop() bool
 
-	g2(Q *G2El) (x, y *e2[F], lines *lineEvals[F])
-	// computeLines runs the ladder for a witness Q, asserting Q is on G2.
-	computeLines(Q *G2El) *lineEvals[F]
-	assertIsOnG1(P *G1Affine[F])
-	assertIsOnG2(Q *G2El)
+	// G2 returns Q's coordinates (x.A0, x.A1, y.A0, y.A1) and its precomputed
+	// lines, or nil lines when Q carries none.
+	G2(Q *G2El) ([4]*emulated.Element[F], *Lines[F])
+	// ComputeLines runs the ladder for a witness Q, asserting Q is on G2.
+	ComputeLines(Q *G2El) *Lines[F]
+	AssertIsOnG1(P *G1Affine[F])
+	AssertIsOnG2(Q *G2El)
 
-	toPoly(x *GtEl) *poly[F]
-	fromPoly(x *poly[F]) *GtEl
-	toTower(x *GtEl) [12]*emulated.Element[F]
-	fromTower(x [12]*emulated.Element[F]) *GtEl
+	// Coeffs and FromCoeffs convert between GtEl and its direct-extension
+	// coefficients; ToTower and FromTower between GtEl and gnark-crypto's tower.
+	Coeffs(x *GtEl) [12]*emulated.Element[F]
+	FromCoeffs(c [12]*emulated.Element[F]) *GtEl
+	ToTower(x *GtEl) [12]*emulated.Element[F]
+	FromTower(x [12]*emulated.Element[F]) *GtEl
 
-	// checkHint returns gnark's residue witness hint for a pairing check,
+	// InverseHint is gnark's 𝔽p¹² inverse hint, on direct-extension
+	// coefficients.
+	InverseHint() solver.Hint
+	// CheckHint returns gnark's residue witness hint for a pairing check,
 	// with or without a previous Miller loop value, and whether its first
 	// output is the residue witness's inverse rather than the witness.
-	checkHint(withPrevious bool) (hint solver.Hint, givesInverse bool)
-	// residueTail returns the factors that turn the loop's output
-	// f·c^(-x₀) into f·c^(-λ)·(scaling)⁻¹, given c and c⁻¹. c is nil when
-	// [curve.needsResidue] is false.
-	residueTail(c, cInv *GtEl) []*GtEl
-	// needsResidue reports whether the check needs c itself, not just c⁻¹.
-	needsResidue() bool
+	CheckHint(withPrevious bool) (hint solver.Hint, givesInverse bool)
+	// NeedsResidue reports whether the check needs the residue witness c
+	// itself, not just c⁻¹.
+	NeedsResidue() bool
+	// ResidueTail returns the factors that complete c^(-λ) once the loop,
+	// seeded with c⁻¹, has run. c is nil unless NeedsResidue.
+	ResidueTail(c, cInv *GtEl) []*GtEl
 
-	// mulGT, conjugateGT and finalExponentiation are gnark's, coefficient-wise.
-	mulGT(x, y *GtEl) *GtEl
-	conjugateGT(x *GtEl) *GtEl
-	finalExponentiation(x *GtEl) *GtEl
-	assertIsEqualGT(x, y *GtEl)
+	// Mul, Conjugate, FinalExponentiation and AssertIsEqual are gnark's
+	// coefficient-wise 𝔽p¹² arithmetic.
+	Mul(x, y *GtEl) *GtEl
+	Conjugate(x *GtEl) *GtEl
+	FinalExponentiation(x *GtEl) *GtEl
+	AssertIsEqual(x, y *GtEl)
 }
 
 // Pairing computes pairings with the 𝔽p¹² products evaluated in the
 // polynomial ring. Point arithmetic, subgroup checks, the Frobenius maps and
-// the residue witness hints all come from gnark; what is different is the
-// Miller loop accumulation, which queues line evaluations as ring products
-// instead of reducing each one with a sparse multiplication.
+// the residue witness hints all come from gnark through the [Curve]; what is
+// different is the Miller loop accumulation, which queues line evaluations as
+// ring products instead of reducing each one with a sparse multiplication.
 type Pairing[F emulated.FieldParams, G2El, GtEl any] struct {
 	*ring[F]
-	c curve[F, G2El, GtEl]
+	c Curve[F, G2El, GtEl]
 }
 
-// NewBN254 returns a BN254 ring pairing, see [New].
-func NewBN254(api frontend.API) (*BN254, error) {
-	return New[emparams.BN254Fp, sw_bn254.G2Affine, sw_bn254.GTEl](api)
-}
-
-// NewBLS12381 returns a BLS12-381 ring pairing, see [New].
-func NewBLS12381(api frontend.API) (*BLS12381, error) {
-	return New[emparams.BLS12381Fp, sw_bls12381.G2Affine, sw_bls12381.GTEl](api)
-}
-
-// New returns the ring pairing over the curve G2El belongs to, sharing api's
-// emulated field. It registers the ring checker, so call it before anything
-// else in the circuit creates an emulated field; see [newRing].
-func New[F emulated.FieldParams, G2El, GtEl any](api frontend.API) (*Pairing[F, G2El, GtEl], error) {
-	var (
-		r   *ring[F]
-		c   any
-		err error
-	)
-	switch any((*G2El)(nil)).(type) {
-	case *sw_bn254.G2Affine:
-		r = newRing[F](api, 9, bn254InverseHint)
-		c, err = newBN254Curve(api)
-	case *sw_bls12381.G2Affine:
-		r = newRing[F](api, 1, bls12381InverseHint)
-		c, err = newBLS12381Curve(api)
-	default:
-		return nil, fmt.Errorf("ringpairing: unsupported G2 type %T", (*G2El)(nil))
-	}
+// New returns a ring pairing over the curve newCurve builds. Curve packages
+// wrap it in their own NewPairing.
+//
+// The ring checker is registered before newCurve runs: the ring checks emit
+// range checks of their own, and gnark runs deferred callbacks in
+// registration order, so the range checker -- created with the first emulated
+// field -- has to be registered after the ring checker or it will already be
+// closed by the time the ring checks run. Call New before anything else in
+// the circuit creates an emulated field for the same reason.
+func New[F emulated.FieldParams, G2El, GtEl any](api frontend.API, newCurve func(frontend.API) (Curve[F, G2El, GtEl], error)) (*Pairing[F, G2El, GtEl], error) {
+	prc := polyring.NewPolyRingChecker[F](api)
+	c, err := newCurve(api)
 	if err != nil {
 		return nil, err
 	}
-	cc, ok := c.(curve[F, G2El, GtEl])
-	if !ok {
-		return nil, fmt.Errorf("ringpairing: base field or target group does not match G2 type %T", (*G2El)(nil))
-	}
-	return &Pairing[F, G2El, GtEl]{ring: r, c: cc}, nil
+	return &Pairing[F, G2El, GtEl]{ring: newRing[F](prc, c.Xi0(), c.InverseHint()), c: c}, nil
 }
 
 // AssertIsOnG1 asserts P is on the curve and in the prime-order subgroup.
-func (pr *Pairing[F, G2El, GtEl]) AssertIsOnG1(P *G1Affine[F]) { pr.c.assertIsOnG1(P) }
+func (pr *Pairing[F, G2El, GtEl]) AssertIsOnG1(P *G1Affine[F]) { pr.c.AssertIsOnG1(P) }
 
 // AssertIsOnG2 asserts Q is on the twist and in the prime-order subgroup.
-func (pr *Pairing[F, G2El, GtEl]) AssertIsOnG2(Q *G2El) { pr.c.assertIsOnG2(Q) }
+func (pr *Pairing[F, G2El, GtEl]) AssertIsOnG2(Q *G2El) { pr.c.AssertIsOnG2(Q) }
 
 // AssertIsEqual asserts x == y in 𝔽p¹².
-func (pr *Pairing[F, G2El, GtEl]) AssertIsEqual(x, y *GtEl) { pr.c.assertIsEqualGT(x, y) }
+func (pr *Pairing[F, G2El, GtEl]) AssertIsEqual(x, y *GtEl) { pr.c.AssertIsEqual(x, y) }
+
+func (pr *Pairing[F, G2El, GtEl]) toPoly(x *GtEl) *poly[F] {
+	c := pr.c.Coeffs(x)
+	return &poly[F]{Coeffs: c[:]}
+}
+
+func (pr *Pairing[F, G2El, GtEl]) fromPoly(p *poly[F]) *GtEl {
+	return pr.c.FromCoeffs([12]*emulated.Element[F](p.Coeffs))
+}
 
 // MillerLoop computes the multi-Miller loop ∏ᵢ fᵢ(Pᵢ, Qᵢ), the raw value
 // gnark-crypto's MillerLoopFixedQ returns.
@@ -152,9 +152,9 @@ func (pr *Pairing[F, G2El, GtEl]) MillerLoop(P []*G1Affine[F], Q []*G2El) (*GtEl
 	if err != nil {
 		return nil, err
 	}
-	res := pr.c.fromPoly(pr.millerLoopLines(P, lines, nil, nil).Eval())
-	if pr.c.conjugateMillerLoop() {
-		res = pr.c.conjugateGT(res)
+	res := pr.fromPoly(pr.millerLoopLines(P, lines, nil, nil).Eval())
+	if pr.c.ConjugateMillerLoop() {
+		res = pr.c.Conjugate(res)
 	}
 	return res, nil
 }
@@ -165,7 +165,7 @@ func (pr *Pairing[F, G2El, GtEl]) Pair(P []*G1Affine[F], Q []*G2El) (*GtEl, erro
 	if err != nil {
 		return nil, fmt.Errorf("miller loop: %w", err)
 	}
-	return pr.c.finalExponentiation(res), nil
+	return pr.c.FinalExponentiation(res), nil
 }
 
 // PairingCheck asserts ∏ᵢ e(Pᵢ, Qᵢ) == 1 following Section 4 of
@@ -176,9 +176,8 @@ func (pr *Pairing[F, G2El, GtEl]) Pair(P []*G1Affine[F], Q []*G2El) (*GtEl, erro
 // the subgroup check; the rest run them in-circuit. An optional previous
 // Miller loop value is folded in as one factor instead of a pass through the
 // loop (cf. gnark's MillerLoopAndMul), in the form gnark's
-// AssertMultiMillerLoopAndFinalExpIsOne takes it: MillerLoopFixedQ output,
-// conjugated for BLS12-381. The G1 points are not checked either way, see
-// [Pairing.AssertIsOnG1].
+// AssertMultiMillerLoopAndFinalExpIsOne takes it. The G1 points are not
+// checked either way, see [Pairing.AssertIsOnG1].
 //
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
 func (pr *Pairing[F, G2El, GtEl]) PairingCheck(P []*G1Affine[F], Q []*G2El, previous *GtEl) error {
@@ -192,16 +191,16 @@ func (pr *Pairing[F, G2El, GtEl]) PairingCheck(P []*G1Affine[F], Q []*G2El, prev
 		inputs = append(inputs, &P[i].X, &P[i].Y)
 	}
 	for i := range Q {
-		x, y, _ := pr.c.g2(Q[i])
-		inputs = append(inputs, &x.A0, &x.A1, &y.A0, &y.A1)
+		coords, _ := pr.c.G2(Q[i])
+		inputs = append(inputs, coords[:]...)
 	}
 	if previous != nil {
 		// the residue covers the whole product, so previous travels with
 		// the points as its tower limbs.
-		tower := pr.c.toTower(previous)
+		tower := pr.c.ToTower(previous)
 		inputs = append(inputs, tower[:]...)
 	}
-	checkHint, givesInverse := pr.c.checkHint(previous != nil)
+	checkHint, givesInverse := pr.c.CheckHint(previous != nil)
 	hint, err := pr.fp.NewHint(checkHint, 18, inputs...)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
@@ -213,11 +212,11 @@ func (pr *Pairing[F, G2El, GtEl]) PairingCheck(P []*G1Affine[F], Q []*G2El, prev
 	// [ring.inverse] constrains both invertible, ruling out the all-zero
 	// witness that would satisfy the check for any input.
 	var c, cInv *poly[F]
-	w := pr.c.toPoly(pr.c.fromTower([12]*emulated.Element[F](hint[:12])))
+	w := pr.toPoly(pr.c.FromTower([12]*emulated.Element[F](hint[:12])))
 	switch {
 	case !givesInverse:
 		c, cInv = w, pr.inverse(w)
-	case pr.c.needsResidue():
+	case pr.c.NeedsResidue():
 		c, cInv = pr.inverse(w), w
 	default:
 		cInv = w
@@ -238,48 +237,48 @@ func (pr *Pairing[F, G2El, GtEl]) PairingCheck(P []*G1Affine[F], Q []*G2El, prev
 	res.Mul(scaling)
 	var cGT *GtEl
 	if c != nil {
-		cGT = pr.c.fromPoly(c)
+		cGT = pr.fromPoly(c)
 	}
-	for _, f := range pr.c.residueTail(cGT, pr.c.fromPoly(cInv)) {
-		res.Mul(pr.c.toPoly(f))
+	for _, f := range pr.c.ResidueTail(cGT, pr.fromPoly(cInv)) {
+		res.Mul(pr.toPoly(f))
 	}
 
-	prod := pr.c.fromPoly(res.Eval())
+	prod := pr.fromPoly(res.Eval())
 	if previous != nil {
 		// A previous value is a plain factor: the loop's squarings would
 		// otherwise raise it along with everything else. This uses gnark's
 		// E12 arithmetic, not the ring: the ring reads raw limbs, which
 		// ValueOf constants only gain on their first genuine field op.
-		prod = pr.c.mulGT(prod, previous)
+		prod = pr.c.Mul(prod, previous)
 	}
-	pr.assertIsOne(pr.c.toPoly(prod))
+	pr.assertIsOne(pr.toPoly(prod))
 	return nil
 }
 
 // prepare validates the pairs, commits the points the ring products are
 // built from and returns each Q's lines, running the ladder for those not
 // carrying precomputed ones.
-func (pr *Pairing[F, G2El, GtEl]) prepare(P []*G1Affine[F], Q []*G2El) ([]*lineEvals[F], error) {
+func (pr *Pairing[F, G2El, GtEl]) prepare(P []*G1Affine[F], Q []*G2El) ([]*Lines[F], error) {
 	if len(P) == 0 || len(P) != len(Q) {
 		return nil, errors.New("invalid inputs sizes")
 	}
-	lines := make([]*lineEvals[F], len(Q))
+	lines := make([]*Lines[F], len(Q))
 	for i := range P {
 		if P[i] == nil || Q[i] == nil {
 			return nil, fmt.Errorf("pair %d is nil", i)
 		}
 		pr.commit(&P[i].X, &P[i].Y)
-		x, y, l := pr.c.g2(Q[i])
+		coords, l := pr.c.G2(Q[i])
 		if l == nil {
-			pr.commit(&x.A0, &x.A1, &y.A0, &y.A1)
-			l = pr.c.computeLines(Q[i])
+			pr.commit(coords[:]...)
+			l = pr.c.ComputeLines(Q[i])
 		} else {
 			// precomputed lines are usually constants, which commit skips,
 			// but a circuit may take them from the witness
 			for _, half := range l {
 				for _, li := range half {
 					if li != nil {
-						pr.commit(&li.R0.A0, &li.R0.A1, &li.R1.A0, &li.R1.A1)
+						pr.commit(li.R0[0], li.R0[1], li.R1[0], li.R1[1])
 					}
 				}
 			}
@@ -293,7 +292,7 @@ func (pr *Pairing[F, G2El, GtEl]) prepare(P []*G1Affine[F], Q []*G2El) ([]*lineE
 // and is multiplied back in on every positive digit, initInv on every
 // negative one; both are nil for a plain Miller loop, and initInv may be nil
 // when the loop counter has no negative digits.
-func (pr *Pairing[F, G2El, GtEl]) millerLoopLines(P []*G1Affine[F], lines []*lineEvals[F], init, initInv *poly[F]) *polyring.PolyRingAccumulator[F] {
+func (pr *Pairing[F, G2El, GtEl]) millerLoopLines(P []*G1Affine[F], lines []*Lines[F], init, initInv *poly[F]) *polyring.PolyRingAccumulator[F] {
 	n := len(P)
 	fp := pr.fp
 
@@ -301,7 +300,7 @@ func (pr *Pairing[F, G2El, GtEl]) millerLoopLines(P []*G1Affine[F], lines []*lin
 	// undefined, so yInv is forced to 0 there.
 	yInv := make([]*emulated.Element[F], n)
 	xNegOverY := make([]*emulated.Element[F], n)
-	for k := 0; k < n; k++ {
+	for k := range n {
 		isYZero := fp.IsZero(&P[k].Y)
 		y := fp.Select(isYZero, fp.One(), &P[k].Y)
 		yInv[k] = fp.Select(isYZero, fp.Zero(), fp.Inverse(y))
@@ -309,14 +308,14 @@ func (pr *Pairing[F, G2El, GtEl]) millerLoopLines(P []*G1Affine[F], lines []*lin
 	}
 
 	// line k of iteration i, evaluated at P[k] as a sparse ring element
-	oneAt, r0At, r1At := pr.c.lineSlots()
+	oneAt, r0At, r1At := pr.c.LineSlots()
 	size := max(oneAt, r0At+6, r1At+6) + 1
 	line := func(k, half, i int) *poly[F] {
 		l := lines[k][half][i]
 		coeffs := make([]*emulated.Element[F], size)
 		coeffs[oneAt] = fp.One()
-		pr.embedE2(coeffs, r0At, fp.Mul(&l.R0.A0, xNegOverY[k]), fp.Mul(&l.R0.A1, xNegOverY[k]))
-		pr.embedE2(coeffs, r1At, fp.Mul(&l.R1.A0, yInv[k]), fp.Mul(&l.R1.A1, yInv[k]))
+		pr.embedE2(coeffs, r0At, fp.Mul(l.R0[0], xNegOverY[k]), fp.Mul(l.R0[1], xNegOverY[k]))
+		pr.embedE2(coeffs, r1At, fp.Mul(l.R1[0], yInv[k]), fp.Mul(l.R1[1], yInv[k]))
 		return &poly[F]{Coeffs: coeffs}
 	}
 
@@ -325,13 +324,13 @@ func (pr *Pairing[F, G2El, GtEl]) millerLoopLines(P []*G1Affine[F], lines []*lin
 		res.Mul(init)
 	}
 
-	loopCounter := pr.c.loopCounter()
+	loopCounter := pr.c.LoopCounter()
 	for i := len(loopCounter) - 2; i >= 0; i-- {
 		res.Sqr()
 
 		switch loopCounter[i] {
 		case 0:
-			for k := 0; k < n; k++ {
+			for k := range n {
 				res.Mul(line(k, 0, i))
 			}
 		case 1, -1:
@@ -343,7 +342,7 @@ func (pr *Pairing[F, G2El, GtEl]) millerLoopLines(P []*G1Affine[F], lines []*lin
 					res.Mul(initInv)
 				}
 			}
-			for k := 0; k < n; k++ {
+			for k := range n {
 				res.Mul(line(k, 0, i)).Mul(line(k, 1, i))
 			}
 		default:
@@ -355,8 +354,8 @@ func (pr *Pairing[F, G2El, GtEl]) millerLoopLines(P []*G1Affine[F], lines []*lin
 		res.Eval()
 	}
 
-	if last := pr.c.lastLines(); last >= 0 {
-		for k := 0; k < n; k++ {
+	if last := pr.c.LastLines(); last >= 0 {
+		for k := range n {
 			res.Mul(line(k, 0, last)).Mul(line(k, 1, last))
 		}
 	}

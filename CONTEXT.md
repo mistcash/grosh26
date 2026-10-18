@@ -16,12 +16,12 @@ _Avoid_: lazy check, batched multiplication
 gnark's Fp12 direct-extension arithmetic with polynomial-ring operations over the modulus w¹² − 2ξ₀w⁶ + ξ₀² + 1: x¹² − 18x⁶ + 82 for BN254 (ξ₀ = 9), x¹² − 2x⁶ + 2 for BLS12-381 (ξ₀ = 1).
 
 **Ring pairing**:
-The BN254 or BLS12-381 pairing computed over the Ext12 ring, following eprint 2024/640. One generic implementation (`std/ringpairing`); each curve supplies a small spec (line shape, loop counter, residue tail, G2 ladder).
+The BN254 or BLS12-381 pairing computed over the Ext12 ring, following eprint 2024/640. A shared core (`std/ringpairing`) plus one package per curve (`std/ring_bn254`, `std/ring_bls12381`) providing `NewPairing`.
 _Avoid_: Fp12 pairing
 
-**Curve spec**:
-The per-curve part of the ring pairing: what differs between BN254 and BLS12-381 (`ringpairing.curve`). Everything else is shared.
-_Avoid_: curve adapter, backend
+**Curve package**:
+The per-curve half of the ring pairing, implementing `ringpairing.Curve`: the twist and its G2 ladder on gnark's own 𝔽p² arithmetic, the line shape, loop counter, residue tail and gnark's hints. The shared core holds nothing about 𝔽p² or G2.
+_Avoid_: curve adapter, curve spec, backend
 
 **Schwartz–Zippel challenge**:
 The random ring element at which the deferred identity is evaluated; drawn only after the related operands are committed.

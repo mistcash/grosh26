@@ -12,7 +12,7 @@ The outer verifier circuit (`std/recursion`) over a genuine Poseidon 2→1 inner
 
 | Inner curve | Metric | gnark | grosh26 | Delta |
 | :--- | :--- | ---: | ---: | ---: |
-| **BN254** | R1CS constraints | 791,462 | 492,287 | −37.8% |
+| **BN254** | R1CS constraints | 791,462 | 492,167 | −37.8% |
 | | Committed variables | 589,289 | 399,489 | −32.2% |
 | | BSB22 commitments | 1 | 3 | 2 extra verifier pairings |
 | | Witness solve time¹ | 340 ms | 223 ms | −34.4% |
@@ -26,7 +26,7 @@ The outer verifier circuit (`std/recursion`) over a genuine Poseidon 2→1 inner
 ```
 R1CS constraints (lower is better)
 BN254      gnark    [███████████████░░░░░]   791,462
-           grosh26  [█████████░░░░░░░░░░░]   492,287  (-37.8%)
+           grosh26  [█████████░░░░░░░░░░░]   492,167  (-37.8%)
 BLS12-381  gnark    [████████████████████] 1,085,538
            grosh26  [██████████████░░░░░░]   783,156  (-27.9%)
 ```
@@ -41,10 +41,10 @@ R1CS constraints per verifier phase. kSum, the G1 checks and the Bs ladder (on-t
 
 | Phase | gnark | grosh26 | Delta |
 | :--- | ---: | ---: | ---: |
-| Total | 791,462 | 492,287 | 299,175 |
+| Total | 791,462 | 492,167 | 299,295 |
 | kSum recomb | 17,654 | 17,654 | 0 |
 | G1 checks ×2 | 1,276 | 1,276 | 0 |
-| Bs ladder+subgroup | 116,352 | 120,186 | −3,834 |
+| Bs ladder+subgroup | 116,352 | 120,066 | −3,714 |
 | Loop+tail+previous | 656,180 | 353,171 | 303,009 |
 
 **BLS12-381**
@@ -131,14 +131,15 @@ gnark comes via the `replace` in `go.mod` (pinned `mistcash/tiny-gnark` fork). N
 
 ## How it works
 
-Pairing over the polynomial ring `F_p[w]/(w^12 − 2ξ₀w^6 + ξ₀² + 1)` — `x^12 − 18x^6 + 82` for BN254, `x^12 − 2x^6 + 2` for BLS12-381 — with deferred product checks (one batched Schwartz–Zippel identity), following [On Proving Pairings](https://eprint.iacr.org/2024/640.pdf). Only `e(A,B)` runs the full Miller loop; `e(α,β)` is folded in as a constant previous value and `e(L,γ)`, `e(C,δ)` use precomputed lines. One generic Miller loop, residue check and G2 ladder serve both curves; each curve contributes a small spec (`std/ringpairing/bn254.go`, `bls12381.go`). Details: `std/ringpairing`, `std/polyring`.
+Pairing over the polynomial ring `F_p[w]/(w^12 − 2ξ₀w^6 + ξ₀² + 1)` — `x^12 − 18x^6 + 82` for BN254, `x^12 − 2x^6 + 2` for BLS12-381 — with deferred product checks (one batched Schwartz–Zippel identity), following [On Proving Pairings](https://eprint.iacr.org/2024/640.pdf). Only `e(A,B)` runs the full Miller loop; `e(α,β)` is folded in as a constant previous value and `e(L,γ)`, `e(C,δ)` use precomputed lines. The Miller loop driver and residue check are shared (`std/ringpairing`); each curve package owns its twist — G2 ladder, line shape, subgroup check, loop schedule — on gnark's own 𝔽p² arithmetic (`std/ring_bn254`, `std/ring_bls12381`). Details there and in `std/polyring`.
 
 ## Layout
 
 | path | what |
 | --- | --- |
 | `std/recursion` | outer Groth16 verifier, generic over the inner curve — start here |
-| `std/ringpairing` | ring pairing + `PairingCheck`, BN254 and BLS12-381 |
+| `std/ringpairing` | ring pairing core: ring, Miller loop driver, `PairingCheck`, the `Curve` interface |
+| `std/ring_bn254`, `std/ring_bls12381` | per-curve ring pairing: twist, G2 ladder, hints, `NewPairing` |
 | `std/polyring` | deferred product checker |
 | `lib/solidity` | multi-commitment verifier exporter |
 | `examples/poseidon`, `examples/recursion` | inner statement + end-to-end flow |

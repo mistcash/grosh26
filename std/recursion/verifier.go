@@ -13,7 +13,8 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 
-	"github.com/mistcash/grosh26/std/ringpairing"
+	"github.com/mistcash/grosh26/std/ring_bls12381"
+	"github.com/mistcash/grosh26/std/ring_bn254"
 )
 
 // G1Affine is a point on the inner curve, over its emulated base field F.
@@ -40,24 +41,34 @@ func (g gnarkPairing[F, G2El, GtEl]) PairingCheck(P []*G1Affine[F], Q []*G2El, p
 	return nil
 }
 
+// newPairing returns the ring pairing, or gnark's with useGnark, over the
+// curve G2El belongs to.
 func newPairing[F emulated.FieldParams, G2El, GtEl any](api frontend.API, useGnark bool) (pairing[F, G2El, GtEl], error) {
-	if !useGnark {
-		return ringpairing.New[F, G2El, GtEl](api)
-	}
 	var (
 		p   any
 		err error
 	)
 	switch any((*G2El)(nil)).(type) {
 	case *sw_bn254.G2Affine:
-		p, err = sw_bn254.NewPairing(api)
+		if useGnark {
+			p, err = sw_bn254.NewPairing(api)
+		} else {
+			p, err = ring_bn254.NewPairing(api)
+		}
 	case *sw_bls12381.G2Affine:
-		p, err = sw_bls12381.NewPairing(api)
+		if useGnark {
+			p, err = sw_bls12381.NewPairing(api)
+		} else {
+			p, err = ring_bls12381.NewPairing(api)
+		}
 	default:
 		return nil, fmt.Errorf("unsupported G2 type %T", (*G2El)(nil))
 	}
 	if err != nil {
 		return nil, err
+	}
+	if !useGnark {
+		return p.(pairing[F, G2El, GtEl]), nil
 	}
 	return gnarkPairing[F, G2El, GtEl]{p: p.(interface {
 		AssertIsOnG1(*G1Affine[F])
@@ -85,7 +96,7 @@ func NewVerifier[F, S emulated.FieldParams, G2El, GtEl any](api frontend.API, vk
 		return nil, err
 	}
 	// the ring checker has to be registered before anything else creates an
-	// emulated field, see the note on newRing in std/ringpairing/ring.go.
+	// emulated field, see ringpairing.New.
 	pr, err := newPairing[F, G2El, GtEl](api, cfg.gnarkPairing)
 	if err != nil {
 		return nil, fmt.Errorf("new pairing: %w", err)
