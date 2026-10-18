@@ -465,12 +465,8 @@ func (prc *PolyRingChecker[T]) performDeferredRingChecks(api frontend.API) error
 	for _, group := range prc.checks {
 
 		// additional variables to commit to for obtaining schwartz zippel lemma
-		// challenge. Constants are fixed before the draw by definition.
-		for _, v := range group.toCommit {
-			if _, isConst := api.Compiler().ConstantValue(v); !isConst {
-				remainderCoeffCommits = append(remainderCoeffCommits, v)
-			}
-		}
+		// challenge
+		remainderCoeffCommits = appendNonConstant(api, remainderCoeffCommits, group.toCommit)
 
 		for _, check := range group.checks {
 			for _, rCoeff := range check.r.Coeffs {
@@ -610,6 +606,19 @@ func (prc *PolyRingChecker[T]) performDeferredRingChecks(api frontend.API) error
 	return nil
 }
 
+// appendNonConstant appends the variables of vs that are not compile-time
+// constants to dst. Constants are fixed before the challenge is drawn by
+// definition, so committing to them is wasted work; everything else -- witness
+// limbs, hint outputs, and expressions over them -- is kept.
+func appendNonConstant(api frontend.API, dst, vs []frontend.Variable) []frontend.Variable {
+	for _, v := range vs {
+		if _, isConst := api.Compiler().ConstantValue(v); !isConst {
+			dst = append(dst, v)
+		}
+	}
+	return dst
+}
+
 // callQuotientsRLCHint computes the random linear combination ∑_i z^i * q_i of
 // the provided quotient polynomials with the scalar challenge z. The result is
 // a single Poly[T] whose coefficients are emulated field elements reduced
@@ -651,7 +660,11 @@ func (prc *PolyRingChecker[T]) callQuotientsRLCHint(quotients []*Poly[T], z fron
 	result := &Poly[T]{Coeffs: make([]*Element[T], maxTerms)}
 	for i := range result.Coeffs {
 		termLimbs := ret[i*nbLimbs : (i+1)*nbLimbs]
-		result.Coeffs[i] = prc.f.UnsafeFromLimbs(termLimbs)
+		// unlike the individual quotients, qAcc is evaluated in-circuit, so
+		// its limbs need range checks: emulated arithmetic on unbounded limbs
+		// is unsound (see [Field.UnsafeFromLimbs]), and they come straight
+		// from the hint.
+		result.Coeffs[i] = prc.f.NewElement(termLimbs)
 	}
 
 	return result, nil
