@@ -2,41 +2,38 @@
 
 Groth16-in-Groth16 recursion for [gnark](https://github.com/Consensys/gnark): verify a BN254 or BLS12-381 Groth16 proof inside a BN254 Groth16 circuit, and on-chain.
 
-The in-circuit pairing costs ~38% fewer constraints and ~36% less prover time than gnark's, at the price of two extra verifier pairings. See [How it works](#how-it-works).
+The in-circuit pairing costs ~28–38% fewer constraints and ~34–44% less witness solve time than gnark's, at the price of two extra verifier pairings. See [How it works](#how-it-works).
 
 **Unaudited — research / testnet use only.**
 
 ## Benchmark
 
-Pairing-only lower bound (`lib/profile` `groth16Sim` vs gnark), plus the full recursion example (`examples/recursion`, Poseidon 2→1 inner → outer):
+The outer verifier circuit (`std/recursion`) over a genuine Poseidon 2→1 inner proof, with gnark's pairing vs polyring's ring pairing. Same circuit, same statement; only the pairing check differs. Outer field is BN254 in every case.
 
-| Phase/Metric | gnark | polyring | Delta |
-| :--- | :--- | :--- | :--- |
-| R1CS Constraints | 791,462 | 492,028 | −37.8% |
-| Committed Variables | 589,289 | 399,398 | −32.2% |
-| BSB22 Commitments | 1 | 3 | 2 extra verifier pairings |
-| Witness Solve Time | 240.7 ms | 153.6 ms | −36.2% |
-| Compile Time | 1,101 ms | 626.9 ms | −43.1% |
-| **Groth16 Phases** |  |  |  |
-| kSum recomb (shared) | 168,603 | 168,603 | 0 |
-| G1 checks ×2 (shared) | 1,276 | 1,276 | 0 |
-| Bs ladder+subgroup | 107,888 | 108,642 | −754 |
-| Loop+tail+previous | 513,695 | 213,507 | 300,188 |
-
+| Inner curve | Metric | gnark | polyring | Delta |
+| :--- | :--- | ---: | ---: | ---: |
+| **BN254** | R1CS constraints | 791,462 | 492,167 | −37.8% |
+| | Committed variables | 589,289 | 399,489 | −32.2% |
+| | BSB22 commitments | 1 | 3 | 2 extra verifier pairings |
+| | Witness solve time¹ | 340 ms | 223 ms | −34.4% |
+| | Compile time | 1,618 ms | 923 ms | −43.0% |
+| **BLS12-381** | R1CS constraints | 1,085,538 | 783,156 | −27.9% |
+| | Committed variables | 813,210 | 621,923 | −23.5% |
+| | BSB22 commitments | 1 | 3 | 2 extra verifier pairings |
+| | Witness solve time¹ | 462 ms | 258 ms | −44.2% |
+| | Compile time | 2,199 ms | 1,470 ms | −33.2% |
 
 ```
-R1CS Constraints (lower is better)
-gnark       [████████████████████] 791,462
-polyring    [████████████░░░░░░░░] 492,028  (-37.8%)
-
-Solve Time (lower is better)
-gnark       [████████████████████] ~240 ms
-polyring    [████████████░░░░░░░░] ~155 ms  (~-36%)
+R1CS constraints (lower is better)
+BN254      gnark    [███████████████░░░░░]   791,462
+           polyring [█████████░░░░░░░░░░░]   492,167  (-37.8%)
+BLS12-381  gnark    [████████████████████] 1,085,538
+           polyring [██████████████░░░░░░]   783,156  (-27.9%)
 ```
 
 ¹ Solve times are indicative (they jitter ±20% run to run). Hardware: Apple M3 Pro 36gb
 
-Re-run locally for your numbers:
+Re-run locally for your numbers (`lib/profile`, plus the bare two-pair check in `std/ringpairing`):
 `go test ./... -run=^$ -bench=. -benchtime=1x -v`.
 
 
@@ -46,8 +43,6 @@ Re-run locally for your numbers:
 - Generates on chain verifier for recursion
 - Inner proofs over BN254 or BLS12-381, one generic verifier circuit for both
 - Polyring uses a bigger on-chain verifier (3 BSB22 commitment pairings instead of 1) for a cheaper prover.
-
-Most optimised version is implementated in `lib/profile/groth16sim_test.go`.
 
 If you need nested recursion (outer-of-outer), see [Further work](#further-work).
 
@@ -124,13 +119,13 @@ Pairing over the polynomial ring `F_p[w]/(w^12 − 2ξ₀w^6 + ξ₀² + 1)` —
 | `std/polyring` | deferred product checker |
 | `lib/solidity` | multi-commitment verifier exporter |
 | `examples/poseidon`, `examples/recursion` | inner statement + end-to-end flow |
-| `lib/profile`, `lib/bench` | pairing bench + compile-and-solve helper |
+| `lib/profile`, `lib/bench` | Groth16 bench (both curves, gnark vs polyring) + compile-and-solve helper |
 
 ## Tests
 
 ```sh
 go test ./...
-./lib/profile/pprof-groth16sim.sh  # profiles + full bench sweep → bench/groth16-delta.txt, needs graphviz `dot`
+./lib/profile/pprof-groth16.sh  # profiles + full bench sweep → bench/groth16-delta.txt, needs graphviz `dot`
 ```
 
 ## License
