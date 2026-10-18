@@ -23,7 +23,6 @@ type G1Affine[F emulated.FieldParams] = sw_emulated.AffinePoint[F]
 // pairing, or gnark's through [gnarkPairing].
 type pairing[F emulated.FieldParams, G2El, GtEl any] interface {
 	AssertIsOnG1(*G1Affine[F])
-	AssertIsOnG2(*G2El)
 	PairingCheck(P []*G1Affine[F], Q []*G2El, previous *GtEl) error
 }
 
@@ -31,13 +30,11 @@ type pairing[F emulated.FieldParams, G2El, GtEl any] interface {
 type gnarkPairing[F emulated.FieldParams, G2El, GtEl any] struct {
 	p interface {
 		AssertIsOnG1(*G1Affine[F])
-		AssertIsOnG2(*G2El)
 		AssertMultiMillerLoopAndFinalExpIsOne([]*G1Affine[F], []*G2El, *GtEl)
 	}
 }
 
 func (g gnarkPairing[F, G2El, GtEl]) AssertIsOnG1(P *G1Affine[F]) { g.p.AssertIsOnG1(P) }
-func (g gnarkPairing[F, G2El, GtEl]) AssertIsOnG2(Q *G2El)        { g.p.AssertIsOnG2(Q) }
 func (g gnarkPairing[F, G2El, GtEl]) PairingCheck(P []*G1Affine[F], Q []*G2El, previous *GtEl) error {
 	g.p.AssertMultiMillerLoopAndFinalExpIsOne(P, Q, previous)
 	return nil
@@ -64,7 +61,6 @@ func newPairing[F emulated.FieldParams, G2El, GtEl any](api frontend.API, useGna
 	}
 	return gnarkPairing[F, G2El, GtEl]{p: p.(interface {
 		AssertIsOnG1(*G1Affine[F])
-		AssertIsOnG2(*G2El)
 		AssertMultiMillerLoopAndFinalExpIsOne([]*G1Affine[F], []*G2El, *GtEl)
 	})}, nil
 }
@@ -161,9 +157,12 @@ func (v *Verifier[F, S, G2El, GtEl]) AssertProof(proof Proof[F, G2El], publicWit
 	}
 	kSum = v.curve.AddUnified(kSum, &k[0])
 
+	// Bs gets no AssertIsOnG2: it carries no precomputed lines, so the
+	// pairing check runs its ladder in-circuit, and both pairings assert the
+	// point is on the twist and in G2 there, reusing the ladder endpoint.
+	// A separate AssertIsOnG2 would repeat that at ~100k constraints.
 	v.pairing.AssertIsOnG1(&proof.Ar)
 	v.pairing.AssertIsOnG1(&proof.Krs)
-	v.pairing.AssertIsOnG2(&proof.Bs)
 
 	return v.pairing.PairingCheck(
 		[]*G1Affine[F]{&proof.Ar, kSum, &proof.Krs},

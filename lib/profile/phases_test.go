@@ -35,13 +35,11 @@ type G1Affine[F emulated.FieldParams] = sw_emulated.AffinePoint[F]
 // std/recursion: the ring pairing, or gnark's through [gnarkPairing].
 type pairing[F emulated.FieldParams, G2El, GtEl any] interface {
 	AssertIsOnG1(*G1Affine[F])
-	AssertIsOnG2(*G2El)
 	PairingCheck(P []*G1Affine[F], Q []*G2El, previous *GtEl) error
 }
 
 type gnarkPairingAPI[F emulated.FieldParams, G2El, GtEl any] interface {
 	AssertIsOnG1(*G1Affine[F])
-	AssertIsOnG2(*G2El)
 	AssertMultiMillerLoopAndFinalExpIsOne([]*G1Affine[F], []*G2El, *GtEl)
 }
 
@@ -196,22 +194,6 @@ func (c *g1ChecksCircuit[F, G2El, GtEl]) Define(api frontend.API) error {
 	return nil
 }
 
-// g2CheckCircuit isolates the AssertIsOnG2 on Bs.
-type g2CheckCircuit[F emulated.FieldParams, G2El, GtEl any] struct {
-	Bs G2El
-
-	gnark bool
-}
-
-func (c *g2CheckCircuit[F, G2El, GtEl]) Define(api frontend.API) error {
-	pr, err := newPairing[F, G2El, GtEl](api, c.gnark)
-	if err != nil {
-		return err
-	}
-	pr.AssertIsOnG2(&c.Bs)
-	return nil
-}
-
 // pairingCheckCircuit isolates the pairing check over (Ar,Bs), (kSum,γ),
 // (Krs,δ) with e(α,β) as the previous value. With fixedBs, Bs is swapped for
 // the constant β carrying precomputed lines, which drops the in-circuit
@@ -247,7 +229,7 @@ func (c *pairingCheckCircuit[F, G2El, GtEl]) Define(api frontend.API) error {
 
 // phases is one pairing's constraint count per verifier phase.
 type phases struct {
-	total, kSum, g1Checks, g2Check, ladder, rest int
+	total, kSum, g1Checks, ladder, rest int
 }
 
 // logPhases prints the per-phase constraint breakdown of the outer verifier
@@ -275,11 +257,10 @@ func logPhases[F, S emulated.FieldParams, G2El, GtEl any](b *testing.B, name str
 			total:    count(recursion.NewCircuit[F, S, G2El, GtEl](vk, opts...)),
 			kSum:     kSum,
 			g1Checks: count(&g1ChecksCircuit[F, G2El, GtEl]{gnark: gnark}),
-			g2Check:  count(&g2CheckCircuit[F, G2El, GtEl]{gnark: gnark}),
 		}
 		check := count(&pairingCheckCircuit[F, G2El, GtEl]{vk: innerVK, gnark: gnark})
 		p.ladder = check - count(&pairingCheckCircuit[F, G2El, GtEl]{vk: innerVK, gnark: gnark, fixedBs: true})
-		p.rest = p.total - p.kSum - p.g1Checks - p.g2Check - p.ladder
+		p.rest = p.total - p.kSum - p.g1Checks - p.ladder
 		return p
 	}
 	gnark, ring := measure(true), measure(false)
@@ -293,7 +274,6 @@ func logPhases[F, S emulated.FieldParams, G2El, GtEl any](b *testing.B, name str
 		{"total", gnark.total, ring.total},
 		{"kSum recomb (shared)", gnark.kSum, ring.kSum},
 		{"G1 checks x2", gnark.g1Checks, ring.g1Checks},
-		{"G2 check (Bs)", gnark.g2Check, ring.g2Check},
 		{"Bs ladder+subgroup", gnark.ladder, ring.ladder},
 		{"loop+tail+previous", gnark.rest, ring.rest},
 	} {
