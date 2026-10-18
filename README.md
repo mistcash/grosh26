@@ -33,6 +33,32 @@ BLS12-381  gnark    [███████████████████�
 
 ¹ Solve times are indicative (they jitter ±20% run to run). Hardware: Apple M3 Pro 36gb
 
+### Groth16 phases
+
+R1CS constraints per verifier phase. kSum, the G1/G2 checks and the Bs ladder are measured from small isolating circuits; loop+tail+previous (Miller accumulation, final exponentiation/residue tail, folded-in e(α,β)) is the remainder, so phases sum to the total. Delta is gnark − grosh26.
+
+**BN254**
+
+| Phase | gnark | grosh26 | Delta |
+| :--- | ---: | ---: | ---: |
+| Total | 868,118 | 567,723 | 300,395 |
+| kSum recomb | 17,654 | 17,654 | 0 |
+| G1 checks ×2 | 1,276 | 1,276 | 0 |
+| G2 check (Bs) | 100,624 | 100,624 | 0 |
+| Bs ladder+subgroup | 116,352 | 120,593 | −4,241 |
+| Loop+tail+previous | 632,212 | 327,576 | 304,636 |
+
+**BLS12-381**
+
+| Phase | gnark | grosh26 | Delta |
+| :--- | ---: | ---: | ---: |
+| Total | 1,187,146 | 883,086 | 304,060 |
+| kSum recomb | 24,206 | 24,206 | 0 |
+| G1 checks ×2 | 246,429 | 246,429 | 0 |
+| G2 check (Bs) | 130,232 | 130,232 | 0 |
+| Bs ladder+subgroup | 144,459 | 144,508 | −49 |
+| Loop+tail+previous | 641,820 | 337,711 | 304,109 |
+
 Re-run locally for your numbers (`lib/profile`, plus the bare two-pair check in `std/ringpairing`):
 `go test ./... -run=^$ -bench=. -benchtime=1x -v`.
 
