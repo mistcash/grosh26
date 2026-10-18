@@ -33,6 +33,30 @@ BLS12-381  gnark    [███████████████████�
 
 ¹ Solve times are indicative (they jitter ±20% run to run). Hardware: Apple M3 Pro 36gb
 
+### Groth16 phases
+
+R1CS constraints per verifier phase. kSum, the G1 checks and the Bs ladder (on-twist and subgroup check included: Bs needs no separate `AssertIsOnG2`) are measured from small isolating circuits; loop+tail+previous (Miller accumulation, final exponentiation/residue tail, folded-in e(α,β)) is the remainder, so phases sum to the total. Delta is gnark − polyring.
+
+**BN254**
+
+| Phase | gnark | polyring | Delta |
+| :--- | ---: | ---: | ---: |
+| Total | 791,462 | 492,167 | 299,295 |
+| kSum recomb | 17,654 | 17,654 | 0 |
+| G1 checks ×2 | 1,276 | 1,276 | 0 |
+| Bs ladder+subgroup | 116,352 | 120,066 | −3,714 |
+| Loop+tail+previous | 656,180 | 353,171 | 303,009 |
+
+**BLS12-381**
+
+| Phase | gnark | polyring | Delta |
+| :--- | ---: | ---: | ---: |
+| Total | 1,085,538 | 783,156 | 302,382 |
+| kSum recomb | 24,206 | 24,206 | 0 |
+| G1 checks ×2 | 246,429 | 246,429 | 0 |
+| Bs ladder+subgroup | 144,459 | 144,509 | −50 |
+| Loop+tail+previous | 670,444 | 368,012 | 302,432 |
+
 Re-run locally for your numbers (`lib/profile`, plus the bare two-pair check in `std/ringpairing`):
 `go test ./... -run=^$ -bench=. -benchtime=1x -v`.
 
