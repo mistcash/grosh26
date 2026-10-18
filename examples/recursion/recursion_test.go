@@ -68,6 +68,36 @@ func newInnerFixture(t testing.TB) *innerFixture {
 	return &innerFixture{vk: bnVK, proof: bnProof, public: vector}
 }
 
+// twistPointOutsideG2 returns a point on the twist y² = x³ + b' that is not in
+// the prime-order subgroup: the twist's cofactor is huge, so a random point
+// on it is outside G2 but for a negligible chance.
+func twistPointOutsideG2(t testing.TB) bn254.G2Affine {
+	t.Helper()
+	// b' = y² - x³ from the generator
+	_, g2, _, _ := bn254.Generators()
+	var b, x3 bn254.E2
+	b.Square(&g2.Y)
+	x3.Square(&g2.X).Mul(&x3, &g2.X)
+	b.Sub(&b, &x3)
+
+	for range 100 {
+		var p bn254.G2Affine
+		_, err := p.X.SetRandom()
+		require.NoError(t, err)
+		var rhs bn254.E2
+		rhs.Square(&p.X).Mul(&rhs, &p.X).Add(&rhs, &b)
+		if rhs.Legendre() != 1 {
+			continue
+		}
+		p.Y.Sqrt(&rhs)
+		require.True(t, p.IsOnCurve())
+		require.False(t, p.IsInSubGroup())
+		return p
+	}
+	t.Fatal("no twist point outside G2 found")
+	return bn254.G2Affine{}
+}
+
 // circuit builds the outer circuit and its witness from native values, so
 // subtests can tamper with the proof or public inputs first.
 func (fx *innerFixture) circuit(t testing.TB, vk *groth16backend.VerifyingKey, proof *groth16backend.Proof, public fr.Vector) (*recursion.Circuit, *recursion.Circuit) {
@@ -109,6 +139,25 @@ func TestGroth16Verifier(t *testing.T) {
 		tampered := *fx.proof
 		_, _, g1, _ := bn254.Generators()
 		tampered.Krs.ScalarMultiplication(&g1, big.NewInt(42))
+
+		unassigned, assignment := fx.circuit(t, fx.vk, &tampered, fx.public)
+		assert.Error(test.IsSolved(unassigned, assignment, ecc.BN254.ScalarField()))
+	})
+
+	// Bs is the one G2 point the circuit receives as a witness: the pairing
+	// check's ladder is the only thing asserting it is on the twist and in
+	// G2, there being no separate AssertIsOnG2.
+	t.Run("rejects Bs off the twist", func(t *testing.T) {
+		tampered := *fx.proof
+		tampered.Bs.X.A0.Add(&tampered.Bs.X.A0, new(fp.Element).SetOne())
+
+		unassigned, assignment := fx.circuit(t, fx.vk, &tampered, fx.public)
+		assert.Error(test.IsSolved(unassigned, assignment, ecc.BN254.ScalarField()))
+	})
+
+	t.Run("rejects Bs outside the G2 subgroup", func(t *testing.T) {
+		tampered := *fx.proof
+		tampered.Bs = twistPointOutsideG2(t)
 
 		unassigned, assignment := fx.circuit(t, fx.vk, &tampered, fx.public)
 		assert.Error(test.IsSolved(unassigned, assignment, ecc.BN254.ScalarField()))

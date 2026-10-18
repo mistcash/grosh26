@@ -236,9 +236,12 @@ func (v *Verifier) AssertProof(proof Proof, publicWitness PublicWitness) error {
 	}
 	kSum = v.curve.AddUnified(kSum, &v.k[0])
 
+	// Bs gets no AssertIsOnG2: it carries no precomputed lines, so the
+	// pairing check runs its ladder in-circuit, and asserts the point is on
+	// the twist and in G2 there, reusing the ladder endpoint. A separate
+	// AssertIsOnG2 would repeat that at ~77k constraints.
 	v.pairing.AssertIsOnG1(&proof.Ar)
 	v.pairing.AssertIsOnG1(&proof.Krs)
-	v.pairing.AssertIsOnG2(&proof.Bs)
 
 	return v.pairing.PairingCheck(
 		[]*G1Affine{&proof.Ar, kSum, &proof.Krs},
