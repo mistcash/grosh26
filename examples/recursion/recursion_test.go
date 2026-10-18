@@ -27,8 +27,8 @@ import (
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 
-	"github.com/mistcash/grosh26/examples/poseidon"
-	"github.com/mistcash/grosh26/std/recursion"
+	"github.com/mistcash/polyring/examples/poseidon"
+	"github.com/mistcash/polyring/std/recursion"
 )
 
 // innerFixture compiles the poseidon inner circuit, runs its Groth16 setup

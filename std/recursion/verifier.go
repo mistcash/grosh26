@@ -1,5 +1,5 @@
 // Package recursion holds the outer Verifier circuit: a Groth16 verifier for
-// gnark BN254 proofs, checked with grosh26's ring pairing instead of gnark's
+// gnark BN254 proofs, checked with polyring's ring pairing instead of gnark's
 // own. v0.1 handles inner circuits that carry no BSB22 commitments of their
 // own -- the poseidon demo's case.
 package recursion
@@ -15,7 +15,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 
-	"github.com/mistcash/grosh26/std/ring_bn254"
+	"github.com/mistcash/polyring/std/ring_bn254"
 )
 
 type (
@@ -102,7 +102,7 @@ func ValueOfPublicWitness(public []fr.Element) PublicWitness {
 }
 
 // Verifier verifies Groth16 proofs against a fixed [VerifyingKey], using
-// grosh26's ring pairing rather than gnark's own.
+// polyring's ring pairing rather than gnark's own.
 type Verifier struct {
 	curve   *sw_emulated.Curve[emparams.BN254Fp, emparams.BN254Fr]
 	pairing *ring_bn254.Pairing

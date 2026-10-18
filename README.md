@@ -1,4 +1,4 @@
-# grosh26
+# polyring
 
 Groth16-in-Groth16 recursion for [gnark](https://github.com/Consensys/gnark): verify a BN254 Groth16 proof inside another Groth16 circuit, and on-chain.
 
@@ -10,7 +10,7 @@ The in-circuit pairing costs ~38% fewer constraints and ~36% less prover time th
 
 Pairing-only lower bound (`lib/profile` `groth16Sim` vs gnark), plus the full recursion example (`examples/recursion`, Poseidon 2→1 inner → outer):
 
-| Phase/Metric | gnark | grosh26 | Delta |
+| Phase/Metric | gnark | polyring | Delta |
 | :--- | :--- | :--- | :--- |
 | R1CS Constraints | 791,462 | 492,028 | −37.8% |
 | Committed Variables | 589,289 | 399,398 | −32.2% |
@@ -27,11 +27,11 @@ Pairing-only lower bound (`lib/profile` `groth16Sim` vs gnark), plus the full re
 ```
 R1CS Constraints (lower is better)
 gnark       [████████████████████] 791,462
-grosh26     [████████████░░░░░░░░] 492,028  (-37.8%)
+polyring    [████████████░░░░░░░░] 492,028  (-37.8%)
 
 Solve Time (lower is better)
 gnark       [████████████████████] ~240 ms
-grosh26     [████████████░░░░░░░░] ~155 ms  (~-36%)
+polyring    [████████████░░░░░░░░] ~155 ms  (~-36%)
 ```
 
 ¹ Solve times are indicative (they jitter ±20% run to run). Hardware: Apple M3 Pro 36gb
@@ -40,11 +40,11 @@ Re-run locally for your numbers:
 `go test ./... -run=^$ -bench=. -benchtime=1x -v`.
 
 
-## What does Grosh26 do
+## What does Polyring do
 
 - Wraps one proof into one outer proof
 - Generates on chain verifier for recursion
-- Grosh26 uses a bigger on-chain verifier (3 BSB22 commitment pairings instead of 1) for a cheaper prover.
+- Polyring uses a bigger on-chain verifier (3 BSB22 commitment pairings instead of 1) for a cheaper prover.
 
 Most optimised version is implementated in `lib/profile/groth16sim_test.go`.
 
@@ -64,7 +64,7 @@ import (
     groth16bn254 "github.com/consensys/gnark/backend/groth16/bn254"
     "github.com/consensys/gnark/frontend"
     "github.com/consensys/gnark/frontend/cs/r1cs"
-    "github.com/mistcash/grosh26/std/recursion"
+    "github.com/mistcash/polyring/std/recursion"
 )
 
 vk, _ := recursion.NewVerifyingKey(innerVK.(*groth16bn254.VerifyingKey))
@@ -85,7 +85,7 @@ import (
     "github.com/consensys/gnark/backend"
     "github.com/consensys/gnark/backend/groth16"
     gnarksolidity "github.com/consensys/gnark/backend/solidity"
-    "github.com/mistcash/grosh26/lib/solidity"
+    "github.com/mistcash/polyring/lib/solidity"
 )
 
 proof, _ := groth16.Prove(ccs, pk, witness,

@@ -5,8 +5,8 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 
-	"github.com/mistcash/grosh26/lib/bench"
-	"github.com/mistcash/grosh26/std/recursion"
+	"github.com/mistcash/polyring/lib/bench"
+	"github.com/mistcash/polyring/std/recursion"
 )
 
 // BenchmarkOuterCircuit compiles the end-to-end Groth16-in-Groth16 verifier

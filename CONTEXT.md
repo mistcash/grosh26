@@ -1,4 +1,4 @@
-# grosh26
+# polyring
 
 Recursive SNARK tooling: an accelerated BN254 pairing check inside gnark circuits, with a multi-commitment Solidity verifier, so that one Groth16 proof can be verified inside another and on-chain.
 
@@ -32,7 +32,7 @@ A fully-fixed pairing factor passed to the check directly as an 𝔽p¹² elemen
 _Avoid_: constant pairing
 
 **BSB22 commitment**:
-gnark's batched-Pedersen `Commit`. Grosh26 proofs carry three: the remainder commitment and the quotient commitment from the deferred ring checks, plus the range checker's own.
+gnark's batched-Pedersen `Commit`. Polyring proofs carry three: the remainder commitment and the quotient commitment from the deferred ring checks, plus the range checker's own.
 _Avoid_: "the 3 commitments" without saying which
 
 **Inner circuit**:
