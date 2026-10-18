@@ -646,7 +646,11 @@ func (prc *PolyRingChecker[T]) callQuotientsRLCHint(quotients []*Poly[T], z fron
 	result := &Poly[T]{Coeffs: make([]*Element[T], maxTerms)}
 	for i := range result.Coeffs {
 		termLimbs := ret[i*nbLimbs : (i+1)*nbLimbs]
-		result.Coeffs[i] = prc.f.UnsafeFromLimbs(termLimbs)
+		// unlike the individual quotients, qAcc is evaluated in-circuit, so
+		// its limbs need range checks: emulated arithmetic on unbounded limbs
+		// is unsound (see [Field.UnsafeFromLimbs]), and they come straight
+		// from the hint.
+		result.Coeffs[i] = prc.f.NewElement(termLimbs)
 	}
 
 	return result, nil
