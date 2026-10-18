@@ -22,8 +22,8 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 
-	"github.com/mistcash/grosh26/lib/bench"
-	"github.com/mistcash/grosh26/std/ring_bn254"
+	"github.com/mistcash/polyring/lib/bench"
+	"github.com/mistcash/polyring/std/ring_bn254"
 )
 
 // fixedTriple returns [2]G1, [-6]G1, [3]G2 and G2, so that

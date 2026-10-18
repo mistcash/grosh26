@@ -1,4 +1,4 @@
-// Package poseidon holds the inner circuit for grosh26's recursion demo: a
+// Package poseidon holds the inner circuit for polyring's recursion demo: a
 // proof of knowledge of a poseidon 2→1 compression preimage.
 package poseidon
 

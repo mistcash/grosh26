@@ -1,4 +1,4 @@
-module github.com/mistcash/grosh26
+module github.com/mistcash/polyring
 
 go 1.26.2
 

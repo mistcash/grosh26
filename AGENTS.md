@@ -4,7 +4,7 @@
 
 ### Issue tracker
 
-GitHub Issues on mistcash/grosh26, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+GitHub Issues on mistcash/polyring, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

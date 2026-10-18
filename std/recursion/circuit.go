@@ -7,7 +7,7 @@ import (
 )
 
 // Circuit is the outer Groth16 verifier circuit: it verifies a Groth16 proof
-// of a fixed inner circuit, checked with grosh26's ring pairing rather than
+// of a fixed inner circuit, checked with polyring's ring pairing rather than
 // gnark's own.
 //
 // The inner verifying key is baked in as compile-time constants -- set it
