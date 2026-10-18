@@ -64,24 +64,15 @@ func (c *curve) ComputeLines(Q *G2Affine) *ringpairing.Lines[emulated.BN254Fp] {
 	// the endpoint the ladder already computed.
 	psiQ := c.psi(q)
 	psi2Q := c.phi(q)
-	psi3Q := c.psi(psi2Q)
-	lhs := c.addTwist(c.addTwist(acc, psiQ), psi3Q)
+	lhs := c.addTwist(c.addTwist(acc, psiQ), c.psi(psi2Q))
 	c.ext2.AssertIsEqual(&lhs.X, &psi2Q.X)
 	c.ext2.AssertIsEqual(&lhs.Y, &psi2Q.Y)
 
-	// the two extra lines through π(Q) and -π²(Q)
-	q1 := &g2Point{
-		X: *c.ext2.MulByNonResidue1Power2(c.ext2.Conjugate(&q.X)),
-		Y: *c.ext2.MulByNonResidue1Power3(c.ext2.Conjugate(&q.Y)),
-	}
-	q2 := &g2Point{
-		X: *c.ext2.MulByNonResidue2Power2(&q.X),
-		Y: *c.ext2.MulByNonResidue2Power3(&q.Y),
-	}
-
-	acc, a0, a1 = c.addStep(acc, q1)
+	// the two extra lines, through π(Q) and -π²(Q): on the twist those are
+	// exactly ψ(Q) and φ(Q), already at hand from the subgroup check
+	acc, a0, a1 = c.addStep(acc, psiQ)
 	setLine(0, n-1, a0, a1)
-	a0, a1 = c.lineCompute(acc, q2)
+	a0, a1 = c.lineCompute(acc, psi2Q)
 	setLine(1, n-1, a0, a1)
 	return lines
 }
