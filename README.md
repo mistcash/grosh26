@@ -2,7 +2,7 @@
 
 Groth16-in-Groth16 recursion for [gnark](https://github.com/Consensys/gnark): verify a BN254 or BLS12-381 Groth16 proof inside a BN254 Groth16 circuit, and on-chain.
 
-The in-circuit pairing costs ~28–38% fewer constraints and ~40% less witness solve time than gnark's, at the price of two extra verifier pairings. See [How it works](#how-it-works).
+The in-circuit pairing costs ~28–38% fewer constraints and ~34–44% less witness solve time than gnark's, at the price of two extra verifier pairings. See [How it works](#how-it-works).
 
 **Unaudited — research / testnet use only.**
 
@@ -12,23 +12,23 @@ The outer verifier circuit (`std/recursion`) over a genuine Poseidon 2→1 inner
 
 | Inner curve | Metric | gnark | grosh26 | Delta |
 | :--- | :--- | ---: | ---: | ---: |
-| **BN254** | R1CS constraints | 791,462 | 491,067 | −38.0% |
-| | Committed variables | 589,289 | 398,561 | −32.4% |
+| **BN254** | R1CS constraints | 791,462 | 492,287 | −37.8% |
+| | Committed variables | 589,289 | 399,489 | −32.2% |
 | | BSB22 commitments | 1 | 3 | 2 extra verifier pairings |
-| | Witness solve time¹ | 351 ms | 202 ms | −42.5% |
-| | Compile time | 1,742 ms | 928 ms | −46.7% |
-| **BLS12-381** | R1CS constraints | 1,085,538 | 781,479 | −28.0% |
-| | Committed variables | 813,210 | 620,627 | −23.7% |
+| | Witness solve time¹ | 340 ms | 223 ms | −34.4% |
+| | Compile time | 1,618 ms | 923 ms | −43.0% |
+| **BLS12-381** | R1CS constraints | 1,085,538 | 783,156 | −27.9% |
+| | Committed variables | 813,210 | 621,923 | −23.5% |
 | | BSB22 commitments | 1 | 3 | 2 extra verifier pairings |
-| | Witness solve time¹ | 442 ms | 261 ms | −40.9% |
-| | Compile time | 2,470 ms | 1,419 ms | −42.5% |
+| | Witness solve time¹ | 462 ms | 258 ms | −44.2% |
+| | Compile time | 2,199 ms | 1,470 ms | −33.2% |
 
 ```
 R1CS constraints (lower is better)
 BN254      gnark    [███████████████░░░░░]   791,462
-           grosh26  [█████████░░░░░░░░░░░]   491,067  (-38.0%)
+           grosh26  [█████████░░░░░░░░░░░]   492,287  (-37.8%)
 BLS12-381  gnark    [████████████████████] 1,085,538
-           grosh26  [██████████████░░░░░░]   781,479  (-28.0%)
+           grosh26  [██████████████░░░░░░]   783,156  (-27.9%)
 ```
 
 ¹ Solve times are indicative (they jitter ±20% run to run). Hardware: Apple M3 Pro 36gb
@@ -41,21 +41,21 @@ R1CS constraints per verifier phase. kSum, the G1 checks and the Bs ladder (on-t
 
 | Phase | gnark | grosh26 | Delta |
 | :--- | ---: | ---: | ---: |
-| Total | 791,462 | 491,067 | 300,395 |
+| Total | 791,462 | 492,287 | 299,175 |
 | kSum recomb | 17,654 | 17,654 | 0 |
 | G1 checks ×2 | 1,276 | 1,276 | 0 |
-| Bs ladder+subgroup | 116,352 | 120,593 | −4,241 |
-| Loop+tail+previous | 656,180 | 351,544 | 304,636 |
+| Bs ladder+subgroup | 116,352 | 120,186 | −3,834 |
+| Loop+tail+previous | 656,180 | 353,171 | 303,009 |
 
 **BLS12-381**
 
 | Phase | gnark | grosh26 | Delta |
 | :--- | ---: | ---: | ---: |
-| Total | 1,085,538 | 781,479 | 304,059 |
+| Total | 1,085,538 | 783,156 | 302,382 |
 | kSum recomb | 24,206 | 24,206 | 0 |
 | G1 checks ×2 | 246,429 | 246,429 | 0 |
-| Bs ladder+subgroup | 144,459 | 144,508 | −49 |
-| Loop+tail+previous | 670,444 | 366,336 | 304,108 |
+| Bs ladder+subgroup | 144,459 | 144,509 | −50 |
+| Loop+tail+previous | 670,444 | 368,012 | 302,432 |
 
 Re-run locally for your numbers (`lib/profile`, plus the bare two-pair check in `std/ringpairing`):
 `go test ./... -run=^$ -bench=. -benchtime=1x -v`.
