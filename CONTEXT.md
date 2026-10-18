@@ -1,6 +1,6 @@
 # grosh26
 
-Recursive SNARK tooling: an accelerated BN254 pairing check inside gnark circuits, with a multi-commitment Solidity verifier, so that one Groth16 proof can be verified inside another and on-chain.
+Recursive SNARK tooling: an accelerated BN254 / BLS12-381 pairing check inside gnark circuits, with a multi-commitment Solidity verifier, so that one Groth16 proof can be verified inside another and on-chain.
 
 ## Language
 
@@ -13,22 +13,26 @@ Claiming a ring product via a hint during `Define`, then batch-verifying all cla
 _Avoid_: lazy check, batched multiplication
 
 **Ext12 ring**:
-gnark's Fp12 arithmetic type extended with polynomial-ring operations over the modulus x¹² − 18x⁶ + 82.
+gnark's Fp12 direct-extension arithmetic with polynomial-ring operations over the modulus w¹² − 2ξ₀w⁶ + ξ₀² + 1: x¹² − 18x⁶ + 82 for BN254 (ξ₀ = 9), x¹² − 2x⁶ + 2 for BLS12-381 (ξ₀ = 1).
 
 **Ring pairing**:
-The BN254 pairing computed over the Ext12 ring, following eprint 2024/640.
+The BN254 or BLS12-381 pairing computed over the Ext12 ring, following eprint 2024/640. One generic implementation (`std/ringpairing`); each curve supplies a small spec (line shape, loop counter, residue tail, G2 ladder).
 _Avoid_: Fp12 pairing
+
+**Curve spec**:
+The per-curve part of the ring pairing: what differs between BN254 and BLS12-381 (`ringpairing.curve`). Everything else is shared.
+_Avoid_: curve adapter, backend
 
 **Schwartz–Zippel challenge**:
 The random ring element at which the deferred identity is evaluated; drawn only after the related operands are committed.
 _Avoid_: random point, challenge point
 
 **Fixed-Q pair**:
-A Miller loop factor whose G2 point is known when the circuit is built, so its line evaluations are precomputed off-circuit and its ladder and subgroup check never enter the circuit. Built with `sw_bn254.NewG2AffineFixed`.
+A Miller loop factor whose G2 point is known when the circuit is built, so its line evaluations are precomputed off-circuit and its ladder and subgroup check never enter the circuit. Built with `sw_bn254.NewG2AffineFixed` / `sw_bls12381.NewG2AffineFixed`.
 _Avoid_: precomputed pairing, constant pairing
 
 **Previous Miller loop value**:
-A fully-fixed pairing factor passed to the check directly as an 𝔽p¹² element, folded into the Miller product as one factor instead of a pass through the loop. See `ring_bn254.Pairing.PairingCheck`, following gnark's `MillerLoopAndMul` pattern.
+A fully-fixed pairing factor passed to the check directly as an 𝔽p¹² element, folded into the Miller product as one factor instead of a pass through the loop. See `ringpairing.Pairing.PairingCheck`, following gnark's `MillerLoopAndMul` pattern. For BLS12-381 it is the conjugated `MillerLoopFixedQ` value, as gnark takes it.
 _Avoid_: constant pairing
 
 **BSB22 commitment**:
@@ -36,11 +40,11 @@ gnark's batched-Pedersen `Commit`. Grosh26 proofs carry three: the remainder com
 _Avoid_: "the 3 commitments" without saying which
 
 **Inner circuit**:
-The circuit whose Groth16 proof gets verified inside the outer circuit. At v0.1: a poseidon 2→1 compression preimage proof.
+The circuit whose Groth16 proof gets verified inside the outer circuit, over BN254 or BLS12-381. At v0.1: a poseidon 2→1 compression preimage proof.
 _Avoid_: child circuit, nested circuit
 
 **Outer circuit**:
-The Groth16-verifier circuit: inner verifying key baked in as constants, checks an inner proof against the inner public inputs using the ring pairing.
+The Groth16-verifier circuit (`recursion.Circuit`, one generic implementation for both inner curves, always on the BN254 scalar field): inner verifying key baked in as constants, checks an inner proof against the inner public inputs using the ring pairing (or gnark's, via `WithGnarkPairing`, for comparison).
 _Avoid_: verifier circuit, wrapper circuit
 
 **Verifier generator**:

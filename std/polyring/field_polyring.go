@@ -464,8 +464,13 @@ func (prc *PolyRingChecker[T]) performDeferredRingChecks(api frontend.API) error
 	var remainderCoeffCommits []frontend.Variable
 	for _, group := range prc.checks {
 
-		// additional variables to commit to for obtaining schwartz zippel lemma challenge.
-		remainderCoeffCommits = append(remainderCoeffCommits, group.toCommit...)
+		// additional variables to commit to for obtaining schwartz zippel lemma
+		// challenge. Constants are fixed before the draw by definition.
+		for _, v := range group.toCommit {
+			if _, isConst := api.Compiler().ConstantValue(v); !isConst {
+				remainderCoeffCommits = append(remainderCoeffCommits, v)
+			}
+		}
 
 		for _, check := range group.checks {
 			for _, rCoeff := range check.r.Coeffs {
@@ -793,10 +798,18 @@ func (prc *PolyRingChecker[T]) NativeToEmulated(v ...frontend.Variable) ([]*Elem
 	if err != nil {
 		return nil, err
 	}
+	// a field wider than the native one (BLS12-381's base field under BN254,
+	// say) has more limbs than the challenge fills; the rest are zero
+	nbFieldLimbs := max(nbLimbs, int(prc.fp.NbLimbs()))
 	elements := make([]*Element[T], len(v))
 	for i := range elements {
+		elLimbs := make([]frontend.Variable, nbFieldLimbs)
+		copy(elLimbs, ret[i*nbLimbs:(i+1)*nbLimbs])
+		for j := nbLimbs; j < nbFieldLimbs; j++ {
+			elLimbs[j] = 0
+		}
 		// packLimbs performs range checks on limbs
-		elements[i] = prc.f.NewElement(ret[i*nbLimbs : (i+1)*nbLimbs])
+		elements[i] = prc.f.NewElement(elLimbs)
 
 		rebuildEl := elements[i].Limbs[0]
 		placeValue := big.NewInt(1)
