@@ -8,6 +8,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
@@ -123,4 +125,67 @@ func testRingMul[T emulated.FieldParams](t *testing.T) {
 	test.NewAssert(t).CheckCircuit(&ringMulCircuit[T]{},
 		test.WithValidAssignment(assignment), test.WithInvalidAssignment(&bad),
 		test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16, backend.PLONK))
+}
+
+// commitSkipCircuit feeds [PolyRingGroupChecks.ToCommit] a mix of constant
+// and non-constant elements and records how many limbs survive the constant
+// skip of the deferred check. The counters are unexported, so the witness
+// schema ignores them.
+type commitSkipCircuit struct {
+	W emulated.Element[emparams.BLS12381Fp]
+	N frontend.Variable
+
+	nbCandidates, nbKept *int
+}
+
+func (c *commitSkipCircuit) Define(api frontend.API) error {
+	type T = emparams.BLS12381Fp
+	prc := NewPolyRingChecker[T](api)
+	f := prc.Field()
+	group := &PolyRingGroupChecks[T]{}
+
+	// constants, all skipped: built with NewElement, the field's own zero
+	// and one, ValueOf before (no limbs yet) and after a field op
+	// initialises its limbs
+	fresh, used := emulated.ValueOf[T](5), emulated.ValueOf[T](6)
+	f.Add(&used, f.One())
+	group.ToCommit(f.NewElement(7), f.Zero(), f.One(), &fresh, &used)
+
+	// non-constant, all limbs kept: a witness element (6 limbs) and an
+	// expression over it (6 limbs)
+	group.ToCommit(&c.W, f.Sub(&c.W, f.NewElement(3)))
+
+	// mixed: a native value as BLS12-381 element, 4 limbs from a hint and 2
+	// zero-padding constants
+	n, err := prc.NativeToEmulated(c.N)
+	if err != nil {
+		return err
+	}
+	group.ToCommit(n[0])
+
+	*c.nbCandidates = len(group.toCommit)
+	*c.nbKept = len(appendNonConstant(api, nil, group.toCommit))
+	return nil
+}
+
+func TestCommitSkipsOnlyConstants(t *testing.T) {
+	field := ecc.BN254.ScalarField()
+	compilers := map[string]func(frontend.Circuit) error{
+		"r1cs": func(c frontend.Circuit) error { _, err := frontend.Compile(field, r1cs.NewBuilder, c); return err },
+		"scs":  func(c frontend.Circuit) error { _, err := frontend.Compile(field, scs.NewBuilder, c); return err },
+	}
+	for name, compile := range compilers {
+		t.Run(name, func(t *testing.T) {
+			var nbCandidates, nbKept int
+			if err := compile(&commitSkipCircuit{nbCandidates: &nbCandidates, nbKept: &nbKept}); err != nil {
+				t.Fatal(err)
+			}
+			if want := 6 + 6 + 4; nbKept != want {
+				t.Fatalf("kept %d limbs to commit, want %d", nbKept, want)
+			}
+			if nbCandidates <= nbKept {
+				t.Fatalf("no constant limb skipped out of %d", nbCandidates)
+			}
+		})
+	}
 }

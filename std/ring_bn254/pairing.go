@@ -86,6 +86,9 @@ func (pr *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		if P[i] == nil || Q[i] == nil {
 			return nil, fmt.Errorf("pair %d is nil", i)
 		}
+	}
+	pr.commitInputs(P, Q)
+	for i := range Q {
 		if Q[i].Lines == nil {
 			pr.computeLines(Q[i])
 		}
@@ -127,6 +130,7 @@ func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine, previous *GTEl) er
 			return fmt.Errorf("pair %d is nil", i)
 		}
 	}
+	pr.commitInputs(P, Q)
 
 	inputs := make([]*baseEl, 0, 6*len(P))
 	for i := range P {
@@ -163,6 +167,10 @@ func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine, previous *GTEl) er
 		residueWitness = pr.PolyToE12(pr.InversePoly(residueWitnessInvPoly))
 	}
 	residueWitnessInv := pr.PolyToE12(residueWitnessInvPoly)
+
+	// the scaling factor's coefficients come straight from the hint and go
+	// into the final ring product, so they are committed too.
+	pr.ring.ToCommit(hint[12:]...)
 
 	// constrain cubicNonResiduePower to be in 𝔽p⁶, that is
 	// a100 = a101 = a110 = a111 = a120 = a121 = 0
@@ -215,6 +223,33 @@ func (pr *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine, previous *GTEl) er
 	pr.AssertIsEqual(prod, pr.One())
 
 	return nil
+}
+
+// commitInputs adds the points the ring products are built from to the values
+// the Schwartz-Zippel challenge is drawn from: a prover who could pick them
+// after seeing the challenge could pick products that satisfy the check at
+// that one point without holding in the ring. The P are always committed; a
+// witness Q is committed through its coordinates, the lines its ladder
+// computes being a constrained function of them. It has to run before
+// [Pairing.computeLines], which sets Q.Lines.
+func (pr *Pairing) commitInputs(P []*G1Affine, Q []*G2Affine) {
+	for i := range P {
+		pr.ring.ToCommit(&P[i].X, &P[i].Y)
+		q := Q[i]
+		if q.Lines == nil {
+			pr.ring.ToCommit(&q.P.X.A0, &q.P.X.A1, &q.P.Y.A0, &q.P.Y.A1)
+			continue
+		}
+		// precomputed lines are usually constants, which the ring checker
+		// skips, but a circuit may take them from the witness
+		for _, half := range q.Lines {
+			for _, l := range half {
+				if l != nil {
+					pr.ring.ToCommit(&l.R0.A0, &l.R0.A1, &l.R1.A0, &l.R1.A1)
+				}
+			}
+		}
+	}
 }
 
 // millerLoopLines runs the loop over Q's lines -- precomputed off-circuit
