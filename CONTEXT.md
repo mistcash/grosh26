@@ -40,11 +40,11 @@ gnark's batched-Pedersen `Commit`. Polyring proofs carry three: the remainder co
 _Avoid_: "the 3 commitments" without saying which
 
 **Inner circuit**:
-The circuit whose Groth16 proof gets verified inside the outer circuit. At v0.1: a poseidon 2→1 compression preimage proof.
+The circuit whose Groth16 proof gets verified inside the outer circuit, over BN254 or BLS12-381. At v0.1: a poseidon 2→1 compression preimage proof.
 _Avoid_: child circuit, nested circuit
 
 **Outer circuit**:
-The Groth16-verifier circuit: inner verifying key baked in as constants, checks an inner proof against the inner public inputs using the ring pairing.
+The Groth16-verifier circuit (`recursion.Circuit`, one generic implementation for both inner curves, always on the BN254 scalar field): inner verifying key baked in as constants, checks an inner proof against the inner public inputs using the ring pairing (or gnark's, via `WithGnarkPairing`, for comparison).
 _Avoid_: verifier circuit, wrapper circuit
 
 **Verifier generator**:

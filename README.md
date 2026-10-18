@@ -1,6 +1,6 @@
 # polyring
 
-Groth16-in-Groth16 recursion for [gnark](https://github.com/Consensys/gnark): verify a BN254 Groth16 proof inside another Groth16 circuit, and on-chain.
+Groth16-in-Groth16 recursion for [gnark](https://github.com/Consensys/gnark): verify a BN254 or BLS12-381 Groth16 proof inside a BN254 Groth16 circuit, and on-chain.
 
 The in-circuit pairing costs ~38% fewer constraints and ~36% less prover time than gnark's, at the price of two extra verifier pairings. See [How it works](#how-it-works).
 
@@ -44,11 +44,12 @@ Re-run locally for your numbers:
 
 - Wraps one proof into one outer proof
 - Generates on chain verifier for recursion
+- Inner proofs over BN254 or BLS12-381, one generic verifier circuit for both
 - Polyring uses a bigger on-chain verifier (3 BSB22 commitment pairings instead of 1) for a cheaper prover.
 
 Most optimised version is implementated in `lib/profile/groth16sim_test.go`.
 
-If you need nested recursion (outer-of-outer) or non-BN254 curves, see [Further work](#further-work).
+If you need nested recursion (outer-of-outer), see [Further work](#further-work).
 
 ## Quickstart
 
@@ -56,24 +57,25 @@ If you need nested recursion (outer-of-outer) or non-BN254 curves, see [Further 
 go test ./examples/recursion/ -run TestGroth16Verifier -v
 ```
 
-Template: `examples/recursion` (inner: `examples/poseidon`, Poseidon 2→1 preimage). Copy it.
+Template: `examples/recursion` (inner: `examples/poseidon`, Poseidon 2→1 preimage, on either curve). Copy it.
 
 ```go
 import (
     "github.com/consensys/gnark-crypto/ecc"
-    groth16bn254 "github.com/consensys/gnark/backend/groth16/bn254"
     "github.com/consensys/gnark/frontend"
     "github.com/consensys/gnark/frontend/cs/r1cs"
     "github.com/mistcash/polyring/std/recursion"
 )
 
-vk, _ := recursion.NewVerifyingKey(innerVK.(*groth16bn254.VerifyingKey))
+// innerVK, innerProof, innerPublic: a native BN254 or BLS12-381 Groth16 key,
+// proof and public witness (no BSB22 commitments in v0.1).
+vk, _ := recursion.NewVerifyingKey(innerVK)
 // Same vk for compile and witness: the inner VK is a compile-time constant.
-outerCcs, _ := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, recursion.NewCircuit(vk))
+// BLS12-381 inner proofs: NewBLS12381Circuit, otherwise identical.
+outerCcs, _ := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, recursion.NewBN254Circuit(vk))
 
-assignment := recursion.NewCircuit(vk)
-assignment.Proof, _ = recursion.ValueOfProof(innerProof) // no BSB22 commitments in v0.1
-assignment.PublicWitness = recursion.ValueOfPublicWitness(innerPublicInputs)
+assignment := recursion.NewBN254Circuit(vk)
+_ = assignment.Assign(innerProof, innerPublic)
 witness, _ := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
 // Setup / Prove / Verify from here are stock gnark.
 ```
@@ -116,7 +118,7 @@ Pairing over the polynomial ring `F_p[w]/(w^12 − 2ξ₀w^6 + ξ₀² + 1)` —
 
 | path | what |
 | --- | --- |
-| `std/recursion` | outer Groth16 verifier — start here |
+| `std/recursion` | outer Groth16 verifier, generic over the inner curve — start here |
 | `std/ringpairing` | ring pairing core: ring, Miller loop driver, `PairingCheck`, the `Curve` interface |
 | `std/ring_bn254`, `std/ring_bls12381` | per-curve ring pairing: twist, G2 ladder, hints, `NewPairing` |
 | `std/polyring` | deferred product checker |
