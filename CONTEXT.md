@@ -44,7 +44,7 @@ The circuit whose Groth16 proof gets verified inside the outer circuit, over BN2
 _Avoid_: child circuit, nested circuit
 
 **Outer circuit**:
-The Groth16-verifier circuit (`recursion.Circuit`, one generic implementation for both inner curves, always on the BN254 scalar field): inner verifying key baked in as constants, checks an inner proof against the inner public inputs using the ring pairing (or gnark's, via `WithGnarkPairing`, for comparison).
+The Groth16-verifier circuit (`recursion.Circuit`, one generic implementation for both inner curves, always on the BN254 scalar field): inner verifying key baked in as constants, checks an inner proof against the inner public inputs using the ring pairing.
 _Avoid_: verifier circuit, wrapper circuit
 
 **Verifier generator**:

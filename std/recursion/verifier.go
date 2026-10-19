@@ -1,6 +1,5 @@
 // Package recursion holds the outer Verifier circuit: a Groth16 verifier for
-// gnark BN254 or BLS12-381 proofs, checked with polyring's ring pairing (or,
-// for comparison, gnark's own). v0.1 handles inner circuits that carry no
+// gnark BN254 or BLS12-381 proofs, checked with polyring's ring pairing. v0.1 handles inner circuits that carry no
 // BSB22 commitments of their own -- the MiMC demo's case.
 package recursion
 
@@ -20,86 +19,59 @@ import (
 // G1Affine is a point on the inner curve, over its emulated base field F.
 type G1Affine[F emulated.FieldParams] = sw_emulated.AffinePoint[F]
 
-// pairing is the part of a pairing implementation the verifier uses: the ring
-// pairing, or gnark's through [gnarkPairing].
-type pairing[F emulated.FieldParams, G2El, GtEl any] interface {
+// Pairing is the part of a pairing implementation the verifier uses. The ring
+// pairings of std/ring_bn254 and std/ring_bls12381 satisfy it.
+type Pairing[F emulated.FieldParams, G2El, GtEl any] interface {
 	AssertIsOnG1(*G1Affine[F])
 	PairingCheck(P []*G1Affine[F], Q []*G2El, previous *GtEl) error
 }
 
-// gnarkPairing adapts gnark's sw_bn254 / sw_bls12381 pairing to [pairing].
-type gnarkPairing[F emulated.FieldParams, G2El, GtEl any] struct {
-	p interface {
-		AssertIsOnG1(*G1Affine[F])
-		AssertMultiMillerLoopAndFinalExpIsOne([]*G1Affine[F], []*G2El, *GtEl)
-	}
-}
-
-func (g gnarkPairing[F, G2El, GtEl]) AssertIsOnG1(P *G1Affine[F]) { g.p.AssertIsOnG1(P) }
-func (g gnarkPairing[F, G2El, GtEl]) PairingCheck(P []*G1Affine[F], Q []*G2El, previous *GtEl) error {
-	g.p.AssertMultiMillerLoopAndFinalExpIsOne(P, Q, previous)
-	return nil
-}
-
-// newPairing returns the ring pairing, or gnark's with useGnark, over the
-// curve G2El belongs to.
-func newPairing[F emulated.FieldParams, G2El, GtEl any](api frontend.API, useGnark bool) (pairing[F, G2El, GtEl], error) {
+// newRingPairing returns the ring pairing over the curve G2El belongs to.
+func newRingPairing[F emulated.FieldParams, G2El, GtEl any](api frontend.API) (Pairing[F, G2El, GtEl], error) {
 	var (
 		p   any
 		err error
 	)
 	switch any((*G2El)(nil)).(type) {
 	case *sw_bn254.G2Affine:
-		if useGnark {
-			p, err = sw_bn254.NewPairing(api)
-		} else {
-			p, err = ring_bn254.NewPairing(api)
-		}
+		p, err = ring_bn254.NewPairing(api)
 	case *sw_bls12381.G2Affine:
-		if useGnark {
-			p, err = sw_bls12381.NewPairing(api)
-		} else {
-			p, err = ring_bls12381.NewPairing(api)
-		}
+		p, err = ring_bls12381.NewPairing(api)
 	default:
 		return nil, fmt.Errorf("unsupported G2 type %T", (*G2El)(nil))
 	}
 	if err != nil {
 		return nil, err
 	}
-	if !useGnark {
-		return p.(pairing[F, G2El, GtEl]), nil
-	}
-	return gnarkPairing[F, G2El, GtEl]{p: p.(interface {
-		AssertIsOnG1(*G1Affine[F])
-		AssertMultiMillerLoopAndFinalExpIsOne([]*G1Affine[F], []*G2El, *GtEl)
-	})}, nil
+	return p.(Pairing[F, G2El, GtEl]), nil
 }
 
 // Verifier verifies Groth16 proofs against a fixed [VerifyingKey].
 type Verifier[F, S emulated.FieldParams, G2El, GtEl any] struct {
 	curve   *sw_emulated.Curve[F, S]
-	pairing pairing[F, G2El, GtEl]
+	pairing Pairing[F, G2El, GtEl]
 	vk      *vkConstants[F, G2El, GtEl]
 }
 
 // NewVerifier returns a verifier for proofs against vk, baking vk's points in
-// as compile-time constants. The verifier checks pairings with the ring
-// pairing unless [WithGnarkPairing] is given.
-func NewVerifier[F, S emulated.FieldParams, G2El, GtEl any](api frontend.API, vk *VerifyingKey, opts ...Option) (*Verifier[F, S, G2El, GtEl], error) {
-	var cfg config
-	for _, o := range opts {
-		o(&cfg)
+// as compile-time constants. It checks pairings with the ring pairing.
+func NewVerifier[F, S emulated.FieldParams, G2El, GtEl any](api frontend.API, vk *VerifyingKey) (*Verifier[F, S, G2El, GtEl], error) {
+	// the ring checker has to be registered before anything else creates an
+	// emulated field, see ringpairing.New.
+	pr, err := newRingPairing[F, G2El, GtEl](api)
+	if err != nil {
+		return nil, fmt.Errorf("new pairing: %w", err)
 	}
+	return NewVerifierWithPairing[F, S, G2El, GtEl](api, vk, pr)
+}
+
+// NewVerifierWithPairing is [NewVerifier] over a pairing of the caller's
+// choosing, which has to be created before anything else in the circuit
+// creates an emulated field.
+func NewVerifierWithPairing[F, S emulated.FieldParams, G2El, GtEl any](api frontend.API, vk *VerifyingKey, pr Pairing[F, G2El, GtEl]) (*Verifier[F, S, G2El, GtEl], error) {
 	consts, err := constantsOf[F, G2El, GtEl](vk)
 	if err != nil {
 		return nil, err
-	}
-	// the ring checker has to be registered before anything else creates an
-	// emulated field, see ringpairing.New.
-	pr, err := newPairing[F, G2El, GtEl](api, cfg.gnarkPairing)
-	if err != nil {
-		return nil, fmt.Errorf("new pairing: %w", err)
 	}
 	curve, err := sw_emulated.New[F, S](api, sw_emulated.GetCurveParams[F]())
 	if err != nil {
