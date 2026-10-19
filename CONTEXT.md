@@ -13,11 +13,15 @@ Claiming a ring product via a hint during `Define`, then batch-verifying all cla
 _Avoid_: lazy check, batched multiplication
 
 **Ext12 ring**:
-gnark's Fp12 arithmetic type extended with polynomial-ring operations over the modulus x¹² − 18x⁶ + 82.
+gnark's Fp12 direct-extension arithmetic with polynomial-ring operations over the modulus w¹² − 2ξ₀w⁶ + ξ₀² + 1: x¹² − 18x⁶ + 82 for BN254 (ξ₀ = 9).
 
 **Ring pairing**:
-The BN254 pairing computed over the Ext12 ring, following eprint 2024/640.
+The BN254 pairing computed over the Ext12 ring, following eprint 2024/640. A shared core (`std/ringpairing`) plus one package per curve (`std/ring_bn254`) providing `NewPairing`.
 _Avoid_: Fp12 pairing
+
+**Curve package**:
+The per-curve half of the ring pairing, implementing `ringpairing.Curve`: the twist and its G2 ladder on gnark's own 𝔽p² arithmetic, the line shape, loop counter, residue tail and gnark's hints. The shared core holds nothing about 𝔽p² or G2.
+_Avoid_: curve adapter, curve spec, backend
 
 **Schwartz–Zippel challenge**:
 The random ring element at which the deferred identity is evaluated; drawn only after the related operands are committed.
@@ -28,7 +32,7 @@ A Miller loop factor whose G2 point is known when the circuit is built, so its l
 _Avoid_: precomputed pairing, constant pairing
 
 **Previous Miller loop value**:
-A fully-fixed pairing factor passed to the check directly as an 𝔽p¹² element, folded into the Miller product as one factor instead of a pass through the loop. See `ring_bn254.Pairing.PairingCheck`, following gnark's `MillerLoopAndMul` pattern.
+A fully-fixed pairing factor passed to the check directly as an 𝔽p¹² element, folded into the Miller product as one factor instead of a pass through the loop. See `ringpairing.Pairing.PairingCheck`, following gnark's `MillerLoopAndMul` pattern.
 _Avoid_: constant pairing
 
 **BSB22 commitment**:

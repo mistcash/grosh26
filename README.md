@@ -110,14 +110,15 @@ gnark comes via the `replace` in `go.mod` (pinned `mistcash/tiny-gnark` fork). N
 
 ## How it works
 
-BN254 pairing over a polynomial ring `F_p[x]/(x^12 − 18x^6 + 82)` with deferred product checks (one batched Schwartz–Zippel identity), following [On Proving Pairings](https://eprint.iacr.org/2024/640.pdf). Only `e(A,B)` runs the full Miller loop; `e(α,β)` is folded in as a constant previous value and `e(L,γ)`, `e(C,δ)` use precomputed lines. Details: `std/ring_bn254`, `std/polyring`.
+BN254 pairing over a polynomial ring `F_p[x]/(x^12 − 18x^6 + 82)` with deferred product checks (one batched Schwartz–Zippel identity), following [On Proving Pairings](https://eprint.iacr.org/2024/640.pdf). Only `e(A,B)` runs the full Miller loop; `e(α,β)` is folded in as a constant previous value and `e(L,γ)`, `e(C,δ)` use precomputed lines. Details: `std/ringpairing` (the curve-agnostic core), `std/ring_bn254` (BN254's twist and lines), `std/polyring`.
 
 ## Layout
 
 | path | what |
 | --- | --- |
 | `std/recursion` | outer Groth16 verifier — start here |
-| `std/ring_bn254` | ring pairing + `PairingCheck` |
+| `std/ringpairing` | curve-agnostic ring pairing: Miller loop driver, `PairingCheck` |
+| `std/ring_bn254` | BN254 half of it: G2 ladder, lines, gnark's hints; `NewPairing` |
 | `std/polyring` | deferred product checker |
 | `lib/solidity` | multi-commitment verifier exporter |
 | `examples/poseidon`, `examples/recursion` | inner statement + end-to-end flow |
