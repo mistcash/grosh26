@@ -2,7 +2,7 @@
 
 Groth16-in-Groth16 recursion for [gnark](https://github.com/Consensys/gnark): verify a BN254 or BLS12-381 Groth16 proof inside a BN254 Groth16 circuit, and on-chain.
 
-The in-circuit pairing costs ~28–38% fewer constraints and ~34–44% less witness solve time than gnark's, at the price of two extra verifier pairings. See [How it works](#how-it-works).
+The in-circuit pairing costs ~31–38% fewer constraints and ~34–44% less witness solve time than gnark's, at the price of two extra verifier pairings. See [How it works](#how-it-works).
 
 **Unaudited — research / testnet use only.**
 
@@ -12,23 +12,23 @@ The outer verifier circuit (`std/recursion`) over a genuine MiMC inner proof, wi
 
 | Inner curve | Metric | gnark | polyring | Delta |
 | :--- | :--- | ---: | ---: | ---: |
-| **BN254** | R1CS constraints | 791,462 | 492,167 | −37.8% |
-| | Committed variables | 589,289 | 399,489 | −32.2% |
+| **BN254** | R1CS constraints | 791,400 | 492,105 | −37.8% |
+| | Committed variables | 589,535 | 399,735 | −32.2% |
 | | BSB22 commitments | 1 | 3 | 2 extra verifier pairings |
 | | Witness solve time¹ | 340 ms | 223 ms | −34.4% |
 | | Compile time | 1,618 ms | 923 ms | −43.0% |
-| **BLS12-381** | R1CS constraints | 1,085,538 | 783,156 | −27.9% |
-| | Committed variables | 813,210 | 621,923 | −23.5% |
+| **BLS12-381** | R1CS constraints | 979,700 | 677,317 | −30.9% |
+| | Committed variables | 731,178 | 539,891 | −26.2% |
 | | BSB22 commitments | 1 | 3 | 2 extra verifier pairings |
 | | Witness solve time¹ | 462 ms | 258 ms | −44.2% |
 | | Compile time | 2,199 ms | 1,470 ms | −33.2% |
 
 ```
 R1CS constraints (lower is better)
-BN254      gnark    [███████████████░░░░░]   791,462
-           polyring [█████████░░░░░░░░░░░]   492,167  (-37.8%)
-BLS12-381  gnark    [████████████████████] 1,085,538
-           polyring [██████████████░░░░░░]   783,156  (-27.9%)
+BN254      gnark    [███████████████░░░░░]   791,400
+           polyring [█████████░░░░░░░░░░░]   492,105  (-37.8%)
+BLS12-381  gnark    [████████████████████]  979,700
+           polyring [██████████████░░░░░░]   677,317  (-30.9%)
 ```
 
 ¹ Solve times are indicative (they jitter ±20% run to run). Hardware: Apple M3 Pro 36gb
@@ -41,21 +41,21 @@ R1CS constraints per verifier phase. kSum, the G1 checks and the Bs ladder (on-t
 
 | Phase | gnark | polyring | Delta |
 | :--- | ---: | ---: | ---: |
-| Total | 791,462 | 492,167 | 299,295 |
-| kSum recomb | 17,654 | 17,654 | 0 |
+| Total | 791,400 | 492,105 | 299,295 |
+| kSum recomb | 17,352 | 17,352 | 0 |
 | G1 checks ×2 | 1,276 | 1,276 | 0 |
 | Bs ladder+subgroup | 116,352 | 120,066 | −3,714 |
-| Loop+tail+previous | 656,180 | 353,171 | 303,009 |
+| Loop+tail+previous | 656,420 | 353,411 | 303,009 |
 
 **BLS12-381**
 
 | Phase | gnark | polyring | Delta |
 | :--- | ---: | ---: | ---: |
-| Total | 1,085,538 | 783,156 | 302,382 |
-| kSum recomb | 24,206 | 24,206 | 0 |
-| G1 checks ×2 | 246,429 | 246,429 | 0 |
+| Total | 979,700 | 677,317 | 302,383 |
+| kSum recomb | 23,486 | 23,486 | 0 |
+| G1 checks ×2 | 117,871 | 117,871 | 0 |
 | Bs ladder+subgroup | 144,459 | 144,509 | −50 |
-| Loop+tail+previous | 670,444 | 368,012 | 302,432 |
+| Loop+tail+previous | 693,884 | 391,451 | 302,433 |
 
 Re-run locally for your numbers (`lib/profile`, plus the bare two-pair check in `std/ringpairing`):
 `go test ./... -run=^$ -bench=. -benchtime=1x -v`.
@@ -124,7 +124,7 @@ calldata := solidity.MarshalSolidity(proof.(*groth16bn254.Proof))
 
 ## Requirements
 
-- Go 1.26.2
+- Go 1.26.8
 - `solc` on `PATH` only for `lib/solidity` on-chain tests (skipped without it)
 
 gnark comes via the `replace` in `go.mod` (pinned `mistcash/tiny-gnark` fork). No other setup.
