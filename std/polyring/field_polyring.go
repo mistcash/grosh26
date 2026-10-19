@@ -464,8 +464,8 @@ func (prc *PolyRingChecker[T]) performDeferredRingChecks(api frontend.API) error
 	var remainderCoeffCommits []frontend.Variable
 	for _, group := range prc.checks {
 
-		// additional variables to commit to for obtaining schwartz zippel lemma challenge.
-		remainderCoeffCommits = append(remainderCoeffCommits, group.toCommit...)
+		// additional variables to commit to for obtaining schwartz zippel lemma challenge
+		remainderCoeffCommits = appendNonConstant(api, remainderCoeffCommits, group.toCommit)
 
 		for _, check := range group.checks {
 			for _, rCoeff := range check.r.Coeffs {
@@ -603,6 +603,19 @@ func (prc *PolyRingChecker[T]) performDeferredRingChecks(api frontend.API) error
 	prc.checks = nil
 
 	return nil
+}
+
+// appendNonConstant appends the variables of vs that are not compile-time
+// constants to dst. Constants are fixed before the challenge is drawn by
+// definition, so committing to them is wasted work; everything else -- witness
+// limbs, hint outputs, and expressions over them -- is kept.
+func appendNonConstant(api frontend.API, dst, vs []frontend.Variable) []frontend.Variable {
+	for _, v := range vs {
+		if _, isConst := api.Compiler().ConstantValue(v); !isConst {
+			dst = append(dst, v)
+		}
+	}
+	return dst
 }
 
 // callQuotientsRLCHint computes the random linear combination ∑_i z^i * q_i of
