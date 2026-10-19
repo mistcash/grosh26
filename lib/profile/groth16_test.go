@@ -52,7 +52,8 @@ func profileOnce(b *testing.B, name string, template frontend.Circuit) {
 // e(Ar,Bs) · e(αₙₑg,β) · e(kSum,γₙₑg) · e(Krs,δₙₑg) == 1 for a genuine inner
 // proof: Bs from the witness, γₙₑg and δₙₑg carrying precomputed lines,
 // e(αₙₑg,β) folded in as the previous Miller loop value and kSum recombined
-// in-circuit from the public input.
+// in-circuit from the public input. Each curve ends with the per-phase
+// constraint breakdown, see [logPhases].
 func BenchmarkGroth16(b *testing.B) {
 	b.Run("bn254", benchGroth16[emparams.BN254Fp, emparams.BN254Fr, sw_bn254.G2Affine, sw_bn254.GTEl])
 	b.Run("bls12-381", benchGroth16[emparams.BLS12381Fp, emparams.BLS12381Fr, sw_bls12381.G2Affine, sw_bls12381.GTEl])
@@ -92,4 +93,5 @@ func benchGroth16[F, S emulated.FieldParams, G2El, GtEl any](b *testing.B) {
 		profileOnce(b, "groth16-"+name+"-"+backend.name, newCircuit())
 		bench.Circuit(b, newCircuit, assignment, backend.name)
 	}
+	logPhases[F, S, G2El, GtEl](b, name, innerVK, vk)
 }
