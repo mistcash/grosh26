@@ -1,5 +1,6 @@
 # build artifacts
 build/
+bench/
 lib/profile/profiles/**/*.log
 lib/profile/profiles/**/*.pdf
 lib/profile/profiles/**/*.pprof
