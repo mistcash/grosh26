@@ -12,8 +12,8 @@ The outer verifier circuit (`std/recursion`) over a genuine MiMC inner proof, wi
 
 | Inner curve | Metric | gnark | polyring | Delta |
 | :--- | :--- | ---: | ---: | ---: |
-| **BN254** | R1CS constraints | 791,400 | 492,105 | −37.8% |
-| | Committed variables | 589,535 | 399,735 | −32.2% |
+| **BN254** | R1CS constraints | 791,400 | 491,043 | −38.0% |
+| | Committed variables | 589,535 | 398,959 | −32.3% |
 | | BSB22 commitments | 1 | 3 | 2 extra verifier pairings |
 | | Witness solve time¹ | 340 ms | 223 ms | −34.4% |
 | | Compile time | 1,618 ms | 923 ms | −43.0% |
@@ -26,7 +26,7 @@ The outer verifier circuit (`std/recursion`) over a genuine MiMC inner proof, wi
 ```
 R1CS constraints (lower is better)
 BN254      gnark    [███████████████░░░░░]   791,400
-           polyring [█████████░░░░░░░░░░░]   492,105  (-37.8%)
+           polyring [█████████░░░░░░░░░░░]   491,043  (-38.0%)
 BLS12-381  gnark    [████████████████████]  979,700
            polyring [██████████████░░░░░░]   677,317  (-30.9%)
 ```
@@ -35,16 +35,16 @@ BLS12-381  gnark    [███████████████████�
 
 ### Groth16 phases
 
-R1CS constraints per verifier phase. kSum, the G1 checks and the Bs ladder (on-twist and subgroup check included: Bs needs no separate `AssertIsOnG2`) are measured from small isolating circuits; loop+tail+previous (Miller accumulation, final exponentiation/residue tail, folded-in e(α,β)) is the remainder, so phases sum to the total. Delta is gnark − polyring.
+R1CS constraints per verifier phase. kSum, the G1 checks and the Bs ladder (on-twist and subgroup check included: Bs needs no separate `AssertIsOnG2`) are measured from small isolating circuits; loop+tail+previous (Miller accumulation, final exponentiation/residue tail, folded-in e(α,β)) is the remainder, so phases sum to the total. Delta is gnark − polyring. The ladder row is a marginal (witness `Bs` minus the same check with precomputed lines), so it also picks up batching effects from the rest of the circuit; in an isolating ladder circuit, polyring's ladder is 1,348 constraints below gnark's.
 
 **BN254**
 
 | Phase | gnark | polyring | Delta |
 | :--- | ---: | ---: | ---: |
-| Total | 791,400 | 492,105 | 299,295 |
+| Total | 791,400 | 491,043 | 300,357 |
 | kSum recomb | 17,352 | 17,352 | 0 |
 | G1 checks ×2 | 1,276 | 1,276 | 0 |
-| Bs ladder+subgroup | 116,352 | 120,066 | −3,714 |
+| Bs ladder+subgroup | 116,352 | 119,004 | −2,652 |
 | Loop+tail+previous | 656,420 | 353,411 | 303,009 |
 
 **BLS12-381**

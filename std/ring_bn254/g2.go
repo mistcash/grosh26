@@ -64,15 +64,20 @@ func (c *curve) ComputeLines(Q *G2Affine) *ringpairing.Lines[emulated.BN254Fp] {
 	// the endpoint the ladder already computed.
 	psiQ := c.psi(q)
 	psi2Q := c.phi(q)
-	psi3Q := c.psi(psi2Q)
-	lhs := c.addTwist(c.addTwist(acc, psiQ), psi3Q)
+	// ψ and φ = ψ² commute, so ψ³(Q) = φ(ψ(Q)); φ is the cheaper of the
+	// two maps (two base-field multiplications, no conjugation or 𝔽p² mul).
+	psi3Q := c.phi(psiQ)
+
+	// The first closing line goes through acc and π(Q) = ψ(Q), so its
+	// addStep already produces acc + ψ(Q); the subgroup check starts from
+	// that point instead of computing the same addition twice.
+	acc, a0, a1 = c.addStep(acc, psiQ)
+	setLine(0, n-1, a0, a1)
+	lhs := c.addTwist(acc, psi3Q)
 	c.ext2.AssertIsEqual(&lhs.X, &psi2Q.X)
 	c.ext2.AssertIsEqual(&lhs.Y, &psi2Q.Y)
 
-	// the two extra lines, through π(Q) and -π²(Q): on the twist those are
-	// exactly ψ(Q) and φ(Q), already at hand from the subgroup check
-	acc, a0, a1 = c.addStep(acc, psiQ)
-	setLine(0, n-1, a0, a1)
+	// The second closing line runs through acc + ψ(Q) and -π²(Q) = φ(Q).
 	a0, a1 = c.lineCompute(acc, psi2Q)
 	setLine(1, n-1, a0, a1)
 	return lines
