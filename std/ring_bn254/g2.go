@@ -64,7 +64,8 @@ func (c *curve) ComputeLines(Q *G2Affine) *ringpairing.Lines[emulated.BN254Fp] {
 	// the endpoint the ladder already computed.
 	psiQ := c.psi(q)
 	psi2Q := c.phi(q)
-	lhs := c.addTwist(c.addTwist(acc, psiQ), c.psi(psi2Q))
+	psi3Q := c.psi(psi2Q)
+	lhs := c.addTwist(c.addTwist(acc, psiQ), psi3Q)
 	c.ext2.AssertIsEqual(&lhs.X, &psi2Q.X)
 	c.ext2.AssertIsEqual(&lhs.Y, &psi2Q.Y)
 
