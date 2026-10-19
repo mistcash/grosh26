@@ -464,8 +464,7 @@ func (prc *PolyRingChecker[T]) performDeferredRingChecks(api frontend.API) error
 	var remainderCoeffCommits []frontend.Variable
 	for _, group := range prc.checks {
 
-		// additional variables to commit to for obtaining schwartz zippel lemma
-		// challenge
+		// additional variables to commit to for obtaining schwartz zippel lemma challenge
 		remainderCoeffCommits = appendNonConstant(api, remainderCoeffCommits, group.toCommit)
 
 		for _, check := range group.checks {
