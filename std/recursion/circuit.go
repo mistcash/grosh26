@@ -24,8 +24,7 @@ type Circuit[F, S emulated.FieldParams, G2El, GtEl any] struct {
 	Proof         Proof[F, G2El]   `gnark:",secret"`
 	PublicWitness PublicWitness[S] `gnark:",public"`
 
-	vk  *VerifyingKey
-	cfg config
+	vk *VerifyingKey
 }
 
 type (
@@ -33,42 +32,26 @@ type (
 	BLS12381Circuit = Circuit[emparams.BLS12381Fp, emparams.BLS12381Fr, sw_bls12381.G2Affine, sw_bls12381.GTEl]
 )
 
-type config struct {
-	gnarkPairing bool
-}
-
-// Option configures a [Circuit] or [Verifier].
-type Option func(*config)
-
-// WithGnarkPairing checks the pairing identity with gnark's own pairing
-// instead of the ring pairing: the same statement, for comparison.
-func WithGnarkPairing() Option {
-	return func(c *config) { c.gnarkPairing = true }
-}
-
 // NewCircuit returns a [Circuit] with the inner verifying key baked in. Use
 // it both for the witness assignment and for the unassigned circuit passed to
 // [frontend.Compile]: the verifying key is a Go-level constant, not part of
 // the witness, so both need the same one.
-func NewCircuit[F, S emulated.FieldParams, G2El, GtEl any](vk *VerifyingKey, opts ...Option) *Circuit[F, S, G2El, GtEl] {
+func NewCircuit[F, S emulated.FieldParams, G2El, GtEl any](vk *VerifyingKey) *Circuit[F, S, G2El, GtEl] {
 	c := &Circuit[F, S, G2El, GtEl]{
 		PublicWitness: PublicWitness[S]{Public: make([]emulated.Element[S], vk.nbPublic)},
 		vk:            vk,
-	}
-	for _, o := range opts {
-		o(&c.cfg)
 	}
 	return c
 }
 
 // NewBN254Circuit is [NewCircuit] for BN254 inner proofs.
-func NewBN254Circuit(vk *VerifyingKey, opts ...Option) *BN254Circuit {
-	return NewCircuit[emparams.BN254Fp, emparams.BN254Fr, sw_bn254.G2Affine, sw_bn254.GTEl](vk, opts...)
+func NewBN254Circuit(vk *VerifyingKey) *BN254Circuit {
+	return NewCircuit[emparams.BN254Fp, emparams.BN254Fr, sw_bn254.G2Affine, sw_bn254.GTEl](vk)
 }
 
 // NewBLS12381Circuit is [NewCircuit] for BLS12-381 inner proofs.
-func NewBLS12381Circuit(vk *VerifyingKey, opts ...Option) *BLS12381Circuit {
-	return NewCircuit[emparams.BLS12381Fp, emparams.BLS12381Fr, sw_bls12381.G2Affine, sw_bls12381.GTEl](vk, opts...)
+func NewBLS12381Circuit(vk *VerifyingKey) *BLS12381Circuit {
+	return NewCircuit[emparams.BLS12381Fp, emparams.BLS12381Fr, sw_bls12381.G2Affine, sw_bls12381.GTEl](vk)
 }
 
 // Assign sets the witness to a native inner proof and the inner circuit's
@@ -91,7 +74,7 @@ func (c *Circuit[F, S, G2El, GtEl]) Assign(proof groth16.Proof, publicWitness wi
 }
 
 func (c *Circuit[F, S, G2El, GtEl]) Define(api frontend.API) error {
-	verifier, err := NewVerifier[F, S, G2El, GtEl](api, c.vk, func(cfg *config) { *cfg = c.cfg })
+	verifier, err := NewVerifier[F, S, G2El, GtEl](api, c.vk)
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
 	}

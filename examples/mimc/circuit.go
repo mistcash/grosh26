@@ -1,71 +1,57 @@
-// Package poseidon holds the inner circuit for polyring's recursion demo: a
-// proof of knowledge of a poseidon 2→1 compression preimage, over BN254 or
-// BLS12-381.
-package poseidon
+// Package mimc holds the inner circuit for polyring's recursion demo: a proof
+// of knowledge of a MiMC preimage, over BN254 or BLS12-381.
+package mimc
 
 import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	blsfr "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	blsposeidon2 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/poseidon2"
-	bnfr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	bnposeidon2 "github.com/consensys/gnark-crypto/ecc/bn254/fr/poseidon2"
+	"github.com/consensys/gnark-crypto/hash"
+	_ "github.com/consensys/gnark-crypto/hash/all"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/std/permutation/poseidon2"
+	stdmimc "github.com/consensys/gnark/std/hash/mimc"
 )
 
-// Circuit proves knowledge of A, B for which Digest = Compress(A, B), the
-// poseidon2 2→1 compression function: one width-2 permutation, feed-forward.
-// It carries no commitments of its own; the outer circuit that verifies its
-// proof draws the three BSB22 commitments.
+// Circuit proves knowledge of A, B for which Digest = MiMC(A, B). MiMC picks
+// its parameters from the curve the circuit is compiled over, so one circuit
+// serves both inner curves. It carries no commitments of its own; the outer
+// circuit that verifies its proof draws the three BSB22 commitments.
 type Circuit struct {
 	A, B   frontend.Variable `gnark:",secret"`
 	Digest frontend.Variable `gnark:",public"`
 }
 
 func (c *Circuit) Define(api frontend.API) error {
-	perm, err := poseidon2.NewPoseidon2(api)
+	h, err := stdmimc.NewMiMC(api)
 	if err != nil {
-		return fmt.Errorf("new poseidon2 permutation: %w", err)
+		return fmt.Errorf("new mimc: %w", err)
 	}
-	api.AssertIsEqual(perm.Compress(c.A, c.B), c.Digest)
+	h.Write(c.A, c.B)
+	api.AssertIsEqual(h.Sum(), c.Digest)
 	return nil
 }
 
-// Compress computes the poseidon2 2→1 compression of a and b natively over
-// curve's scalar field, using the same width-2 default parameters the
-// circuit's permutation uses.
-func Compress(curve ecc.ID, a, b *big.Int) (*big.Int, error) {
-	var digest []byte
-	var err error
-	switch curve {
-	case ecc.BN254:
-		var x, y bnfr.Element
-		xb, yb := x.SetBigInt(a).Bytes(), y.SetBigInt(b).Bytes()
-		digest, err = bnposeidon2.NewDefaultPermutation().Compress(xb[:], yb[:])
-	case ecc.BLS12_381:
-		var x, y blsfr.Element
-		xb, yb := x.SetBigInt(a).Bytes(), y.SetBigInt(b).Bytes()
-		digest, err = blsposeidon2.NewDefaultPermutation().Compress(xb[:], yb[:])
-	default:
-		return nil, fmt.Errorf("unsupported curve %s", curve)
+// Hash computes MiMC(a, b) natively over curve's scalar field. Both inputs
+// have to be reduced.
+func Hash(curve ecc.ID, a, b *big.Int) (*big.Int, error) {
+	h := hash.NewHash("MIMC_" + strings.ToUpper(curve.String()))
+	for _, x := range []*big.Int{a, b} {
+		if _, err := h.Write(x.FillBytes(make([]byte, 32))); err != nil {
+			return nil, fmt.Errorf("hash: %w", err)
+		}
 	}
-	if err != nil {
-		return nil, fmt.Errorf("compress: %w", err)
-	}
-	// the digest is a canonical field element, big-endian
-	return new(big.Int).SetBytes(digest), nil
+	return new(big.Int).SetBytes(h.Sum(nil)), nil
 }
 
 // Assign builds a witness for the given preimage.
 func Assign(curve ecc.ID, a, b *big.Int) (*Circuit, error) {
-	digest, err := Compress(curve, a, b)
+	digest, err := Hash(curve, a, b)
 	if err != nil {
 		return nil, err
 	}

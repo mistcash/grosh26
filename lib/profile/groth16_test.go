@@ -1,7 +1,7 @@
 package profile
 
 // Groth16 benchmark: the outer verifier circuit (std/recursion) over a
-// poseidon inner proof, for each supported inner curve, once with gnark's
+// MiMC inner proof, for each supported inner curve, once with gnark's
 // pairing and once with the ring pairing -- the same circuit and statement,
 // differing only in the pairing check. Solving is part of the benchmark, so
 // an unsatisfied statement fails it: this doubles as the solved test.
@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	gnarkprofile "github.com/consensys/gnark/profile"
@@ -20,7 +22,7 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 
-	"github.com/mistcash/polyring/examples/poseidon"
+	"github.com/mistcash/polyring/examples/mimc"
 	"github.com/mistcash/polyring/lib/bench"
 	"github.com/mistcash/polyring/std/recursion"
 )
@@ -57,12 +59,18 @@ func BenchmarkGroth16(b *testing.B) {
 	b.Run("bls12-381", benchGroth16[emparams.BLS12381Fp, emparams.BLS12381Fr, sw_bls12381.G2Affine, sw_bls12381.GTEl])
 }
 
+// assignable is an outer circuit that takes an inner proof as its witness.
+type assignable interface {
+	frontend.Circuit
+	Assign(groth16.Proof, witness.Witness) error
+}
+
 func benchGroth16[F, S emulated.FieldParams, G2El, GtEl any](b *testing.B) {
 	curve, name := ecc.BN254, "bn254"
 	if _, ok := any((*G2El)(nil)).(*sw_bls12381.G2Affine); ok {
 		curve, name = ecc.BLS12_381, "bls12-381"
 	}
-	innerVK, proof, public, err := poseidon.Prove(curve)
+	innerVK, proof, public, err := mimc.Prove(curve)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -72,16 +80,16 @@ func benchGroth16[F, S emulated.FieldParams, G2El, GtEl any](b *testing.B) {
 	}
 	for _, backend := range []struct {
 		name string
-		opts []recursion.Option
+		new  func() assignable
 	}{
-		{"gnark", []recursion.Option{recursion.WithGnarkPairing()}},
-		{"polyring", nil},
+		{"gnark", func() assignable { return newGnarkCircuit[F, S, G2El, GtEl](vk) }},
+		{"polyring", func() assignable { return recursion.NewCircuit[F, S, G2El, GtEl](vk) }},
 	} {
-		newCircuit := func() frontend.Circuit { return recursion.NewCircuit[F, S, G2El, GtEl](vk, backend.opts...) }
-		assignment := recursion.NewCircuit[F, S, G2El, GtEl](vk, backend.opts...)
+		assignment := backend.new()
 		if err := assignment.Assign(proof, public); err != nil {
 			b.Fatal(err)
 		}
+		newCircuit := func() frontend.Circuit { return backend.new() }
 		profileOnce(b, "groth16-"+name+"-"+backend.name, newCircuit())
 		bench.Circuit(b, newCircuit, assignment, backend.name)
 	}

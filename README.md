@@ -8,7 +8,7 @@ The in-circuit pairing costs ~28–38% fewer constraints and ~34–44% less witn
 
 ## Benchmark
 
-The outer verifier circuit (`std/recursion`) over a genuine Poseidon 2→1 inner proof, with gnark's pairing vs polyring's ring pairing. Same circuit, same statement; only the pairing check differs. Outer field is BN254 in every case.
+The outer verifier circuit (`std/recursion`) over a genuine MiMC inner proof, with gnark's pairing vs polyring's ring pairing. Same circuit, same statement; only the pairing check differs. Outer field is BN254 in every case.
 
 | Inner curve | Metric | gnark | polyring | Delta |
 | :--- | :--- | ---: | ---: | ---: |
@@ -76,7 +76,7 @@ If you need nested recursion (outer-of-outer), see [Further work](#further-work)
 go test ./examples/recursion/ -run TestGroth16Verifier -v
 ```
 
-Template: `examples/recursion` (inner: `examples/poseidon`, Poseidon 2→1 preimage, on either curve). Copy it.
+Template: `examples/recursion` (inner: `examples/mimc`, MiMC preimage, on either curve). Copy it.
 
 ```go
 import (
@@ -142,7 +142,7 @@ Pairing over the polynomial ring `F_p[w]/(w^12 − 2ξ₀w^6 + ξ₀² + 1)` —
 | `std/ring_bn254`, `std/ring_bls12381` | per-curve ring pairing: twist, G2 ladder, hints, `NewPairing` |
 | `std/polyring` | deferred product checker |
 | `lib/solidity` | multi-commitment verifier exporter |
-| `examples/poseidon`, `examples/recursion` | inner statement + end-to-end flow |
+| `examples/mimc`, `examples/recursion` | inner statement + end-to-end flow |
 | `lib/profile`, `lib/bench` | Groth16 bench (both curves, gnark vs polyring) + compile-and-solve helper |
 
 ## Tests
