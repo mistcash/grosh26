@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>polyring — Groth16-in-Groth16 recursion for gnark</title>
+    <meta
+      name="description"
+      content="Verify a BN254 or BLS12-381 Groth16 proof inside a BN254 Groth16 circuit, and on-chain. 31-38% fewer constraints than gnark's in-circuit pairing, at the price of two extra verifier pairings on chain."
+    />
+    <link rel="stylesheet" href="style.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='13' fill='none' stroke='%233b5bdb' stroke-width='3'/><circle cx='16' cy='16' r='4' fill='%233b5bdb'/></svg>"
+    />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <h1><span class="mono">polyring</span></h1>
+        <p class="tagline">
+          Groth16-in-Groth16 recursion for
+          <a href="https://github.com/Consensys/gnark">gnark</a>. Verify a BN254 or
+          BLS12-381 Groth16 proof inside a BN254 Groth16 circuit, and on-chain.
+        </p>
+        <div class="cta">
+          <a class="primary" href="https://github.com/mistcash/polyring">GitHub</a>
+          <a href="https://github.com/mistcash/polyring#readme">Readme</a>
+          <a href="https://github.com/mistcash/polyring/blob/main/docs/getting-started.md">Getting started</a>
+          <a href="https://eprint.iacr.org/2024/640">The paper</a>
+        </div>
+      </header>
+
+      <div class="warn">
+        <strong>Unaudited research software.</strong> v0.1, pre-1.0, no
+        releases yet. Do not use it to secure funds, and read the
+        <a href="https://github.com/mistcash/polyring/blob/main/SECURITY.md">security policy</a>
+        before reporting anything.
+      </div>
+
+      <h2>The trade</h2>
+      <p>
+        A Groth16 verifier circuit is dominated by one thing: the pairing check.
+        polyring evaluates the same identity gnark does, but over a polynomial
+        ring instead of over 𝔽p¹², so the prover does far less work. The
+        on-chain verifier pays for it: the ring checks draw three BSB22
+        commitments instead of one, and the contract has to check each of them.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th class="num">gnark</th>
+            <th class="num">polyring</th>
+            <th class="num">Delta</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="win">
+            <td>R1CS constraints</td>
+            <td class="num">791,400</td>
+            <td class="num">492,105</td>
+            <td class="num">−37.8%</td>
+          </tr>
+          <tr>
+            <td>BSB22 commitments</td>
+            <td class="num">1</td>
+            <td class="num">3</td>
+            <td class="num">+2</td>
+          </tr>
+          <tr>
+            <td>Proof size</td>
+            <td class="num">384 B</td>
+            <td class="num">512 B</td>
+            <td class="num">+128 B</td>
+          </tr>
+          <tr>
+            <td>Contract size</td>
+            <td class="num">7,407 B</td>
+            <td class="num">10,394 B</td>
+            <td class="num">+2,987 B</td>
+          </tr>
+          <tr>
+            <td><code>verifyProof</code> gas</td>
+            <td class="num">358,571</td>
+            <td class="num">459,994</td>
+            <td class="num">+101,423</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        Outer verifier over a BN254 inner proof, measured on a simulated EVM.
+        Reproduce with
+        <code>go test ./examples/recursion/ -run TestOuterOnChain -v</code>.
+        The constraint counts are exact; the timings are indicative.
+      </p>
+
+      <h2>When it pays</h2>
+      <div class="cards">
+        <div class="card">
+          <h3>You prove the outer proof</h3>
+          <p>
+            Fewer constraints is less proving time, less setup time and less
+            money at a service that prices by the constraint.
+          </p>
+        </div>
+        <div class="card">
+          <h3>You verify a BLS signature in-circuit</h3>
+          <p>
+            The same technique applies to signature verification, which is where
+            it comes from.
+          </p>
+        </div>
+        <div class="card">
+          <h3>You work on recursive SNARKs</h3>
+          <p>
+            A reference implementation for BN254 and BLS12-381, with the curve
+            split cleanly from the shared core.
+          </p>
+        </div>
+        <div class="card">
+          <h3>You want a faster PairingCheck</h3>
+          <p>
+            <code>lib/gnarkpairing</code> gives you both circuits from the same
+            verifying key, so you can A/B them in your own project.
+          </p>
+        </div>
+      </div>
+
+      <h2>Install</h2>
+      <pre><code>go get github.com/mistcash/polyring
+
+go test ./examples/recursion/ -run TestGroth16Verifier -v</code></pre>
+
+      <h2>How it works</h2>
+      <p>
+        The pairing is evaluated over the polynomial ring
+        <code>𝔽p[w]/(w¹² − 2ξ₀w⁶ + ξ₀² + 1)</code> — <code>x¹² − 18x⁶ + 82</code>
+        for BN254, <code>x¹² − 2x⁶ + 2</code> for BLS12-381 — with deferred
+        product checks, following
+        <a href="https://eprint.iacr.org/2024/640">On Proving Pairings</a>.
+        Only <code>e(A,B)</code> runs the full Miller loop;
+        <code>e(α,β)</code> is folded in as a constant previous value and
+        <code>e(L,γ)</code>, <code>e(C,δ)</code> use precomputed lines.
+      </p>
+      <p>
+        <a href="https://github.com/mistcash/polyring/blob/main/docs/how-it-works.md"
+          >Read the longer version →</a
+        >
+      </p>
+
+      <footer>
+        <p>
+          <a href="https://github.com/mistcash/polyring">mistcash/polyring</a> ·
+          Apache-2.0 ·
+          <a href="https://github.com/mistcash/polyring/blob/main/SECURITY.md">Security</a> ·
+          <a href="https://github.com/mistcash/polyring/blob/main/CHANGELOG.md">Changelog</a> ·
+          <a href="https://github.com/mistcash/polyring/blob/main/CITATION.cff">Cite</a>
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>

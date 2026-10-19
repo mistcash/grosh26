@@ -266,6 +266,15 @@ go test -short ./...                           # skip the on-chain tests
 ./lib/profile/pprof-groth16.sh                 # profiles + full bench sweep → bench/groth16-delta.txt, needs graphviz `dot`
 ```
 
+## Documentation
+
+- [Getting started](docs/getting-started.md) — install, run the example, write your own, go on-chain
+- [How it works](docs/how-it-works.md) — what the circuit does and why
+- [Benchmarks](docs/benchmarks.md) — the numbers, and how to reproduce them
+- [Architecture](docs/architecture.md) — the packages and the seams between them
+
+Also at <https://mistcash.github.io/polyring/>.
+
 ## Security
 
 Unaudited. Please read [SECURITY.md](SECURITY.md) before reporting anything,
