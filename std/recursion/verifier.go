@@ -1,7 +1,7 @@
 // Package recursion holds the outer Verifier circuit: a Groth16 verifier for
 // gnark BN254 or BLS12-381 proofs, checked with polyring's ring pairing (or,
 // for comparison, gnark's own). v0.1 handles inner circuits that carry no
-// BSB22 commitments of their own -- the poseidon demo's case.
+// BSB22 commitments of their own -- the MiMC demo's case.
 package recursion
 
 import (

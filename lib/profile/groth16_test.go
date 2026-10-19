@@ -1,7 +1,7 @@
 package profile
 
 // Groth16 benchmark: the outer verifier circuit (std/recursion) over a
-// poseidon inner proof, for each supported inner curve, once with gnark's
+// MiMC inner proof, for each supported inner curve, once with gnark's
 // pairing and once with the ring pairing -- the same circuit and statement,
 // differing only in the pairing check. Solving is part of the benchmark, so
 // an unsatisfied statement fails it: this doubles as the solved test.
@@ -20,7 +20,7 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 
-	"github.com/mistcash/polyring/examples/poseidon"
+	"github.com/mistcash/polyring/examples/mimc"
 	"github.com/mistcash/polyring/lib/bench"
 	"github.com/mistcash/polyring/std/recursion"
 )
@@ -61,7 +61,7 @@ func benchGroth16[F, S emulated.FieldParams, G2El, GtEl any](b *testing.B) {
 	if _, ok := any((*G2El)(nil)).(*sw_bls12381.G2Affine); ok {
 		curve, name = ecc.BLS12_381, "bls12-381"
 	}
-	innerVK, proof, public, err := poseidon.Prove(curve)
+	innerVK, proof, public, err := mimc.Prove(curve)
 	if err != nil {
 		b.Fatal(err)
 	}

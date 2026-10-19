@@ -1,5 +1,5 @@
 // Package recursion_test is the end-to-end example: a Groth16 proof of the
-// poseidon preimage circuit in examples/poseidon, over BN254 or BLS12-381,
+// MiMC preimage circuit in examples/mimc, over BN254 or BLS12-381,
 // verified inside a BN254 outer circuit by std/recursion's Verifier.
 //
 // The outer check is the Groth16 pairing identity
@@ -31,7 +31,7 @@ import (
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 
-	"github.com/mistcash/polyring/examples/poseidon"
+	"github.com/mistcash/polyring/examples/mimc"
 	"github.com/mistcash/polyring/std/recursion"
 )
 
@@ -45,7 +45,7 @@ func testGroth16Verifier[F, S emulated.FieldParams, G2El, GtEl any](t *testing.T
 	if _, ok := any((*G2El)(nil)).(*sw_bls12381.G2Affine); ok {
 		curve = ecc.BLS12_381
 	}
-	innerVK, proof, public, err := poseidon.Prove(curve)
+	innerVK, proof, public, err := mimc.Prove(curve)
 	require.NoError(t, err)
 	vk, err := recursion.NewVerifyingKey(innerVK)
 	require.NoError(t, err)
