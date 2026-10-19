@@ -6,8 +6,8 @@
 // This package is the curve-agnostic core: the ring, the Miller loop driver
 // and the residue witness check. Everything curve-specific -- the twist and
 // its G2 ladder, the line shape, the loop counter, gnark's types and hints --
-// lives behind [Curve], implemented by std/ring_bn254, which also provides the
-// constructor.
+// lives behind [Curve], implemented by std/ring_bn254 and std/ring_bls12381,
+// which also provide the constructors.
 //
 // Everything about 𝔽p¹² itself -- the element types, the Frobenius maps, the
 // tower conversions, the residue witness hints -- comes from gnark, which

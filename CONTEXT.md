@@ -1,6 +1,6 @@
 # polyring
 
-Recursive SNARK tooling: an accelerated BN254 pairing check inside gnark circuits, with a multi-commitment Solidity verifier, so that one Groth16 proof can be verified inside another and on-chain.
+Recursive SNARK tooling: an accelerated BN254 / BLS12-381 pairing check inside gnark circuits, with a multi-commitment Solidity verifier, so that one Groth16 proof can be verified inside another and on-chain.
 
 ## Language
 
@@ -13,10 +13,10 @@ Claiming a ring product via a hint during `Define`, then batch-verifying all cla
 _Avoid_: lazy check, batched multiplication
 
 **Ext12 ring**:
-gnark's Fp12 direct-extension arithmetic with polynomial-ring operations over the modulus w¹² − 2ξ₀w⁶ + ξ₀² + 1: x¹² − 18x⁶ + 82 for BN254 (ξ₀ = 9).
+gnark's Fp12 direct-extension arithmetic with polynomial-ring operations over the modulus w¹² − 2ξ₀w⁶ + ξ₀² + 1: x¹² − 18x⁶ + 82 for BN254 (ξ₀ = 9), x¹² − 2x⁶ + 2 for BLS12-381 (ξ₀ = 1).
 
 **Ring pairing**:
-The BN254 pairing computed over the Ext12 ring, following eprint 2024/640. A shared core (`std/ringpairing`) plus one package per curve (`std/ring_bn254`) providing `NewPairing`.
+The BN254 or BLS12-381 pairing computed over the Ext12 ring, following eprint 2024/640. A shared core (`std/ringpairing`) plus one package per curve (`std/ring_bn254`, `std/ring_bls12381`) providing `NewPairing`.
 _Avoid_: Fp12 pairing
 
 **Curve package**:
@@ -28,11 +28,11 @@ The random ring element at which the deferred identity is evaluated; drawn only 
 _Avoid_: random point, challenge point
 
 **Fixed-Q pair**:
-A Miller loop factor whose G2 point is known when the circuit is built, so its line evaluations are precomputed off-circuit and its ladder and subgroup check never enter the circuit. Built with `sw_bn254.NewG2AffineFixed`.
+A Miller loop factor whose G2 point is known when the circuit is built, so its line evaluations are precomputed off-circuit and its ladder and subgroup check never enter the circuit. Built with `sw_bn254.NewG2AffineFixed` / `sw_bls12381.NewG2AffineFixed`.
 _Avoid_: precomputed pairing, constant pairing
 
 **Previous Miller loop value**:
-A fully-fixed pairing factor passed to the check directly as an 𝔽p¹² element, folded into the Miller product as one factor instead of a pass through the loop. See `ringpairing.Pairing.PairingCheck`, following gnark's `MillerLoopAndMul` pattern.
+A fully-fixed pairing factor passed to the check directly as an 𝔽p¹² element, folded into the Miller product as one factor instead of a pass through the loop. See `ringpairing.Pairing.PairingCheck`, following gnark's `MillerLoopAndMul` pattern. For BLS12-381 it is the conjugated `MillerLoopFixedQ` value, as gnark takes it.
 _Avoid_: constant pairing
 
 **BSB22 commitment**:

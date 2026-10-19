@@ -110,15 +110,15 @@ gnark comes via the `replace` in `go.mod` (pinned `mistcash/tiny-gnark` fork). N
 
 ## How it works
 
-BN254 pairing over a polynomial ring `F_p[x]/(x^12 − 18x^6 + 82)` with deferred product checks (one batched Schwartz–Zippel identity), following [On Proving Pairings](https://eprint.iacr.org/2024/640.pdf). Only `e(A,B)` runs the full Miller loop; `e(α,β)` is folded in as a constant previous value and `e(L,γ)`, `e(C,δ)` use precomputed lines. Details: `std/ringpairing` (the curve-agnostic core), `std/ring_bn254` (BN254's twist and lines), `std/polyring`.
+Pairing over the polynomial ring `F_p[w]/(w^12 − 2ξ₀w^6 + ξ₀² + 1)` — `x^12 − 18x^6 + 82` for BN254, `x^12 − 2x^6 + 2` for BLS12-381 — with deferred product checks (one batched Schwartz–Zippel identity), following [On Proving Pairings](https://eprint.iacr.org/2024/640.pdf). Only `e(A,B)` runs the full Miller loop; `e(α,β)` is folded in as a constant previous value and `e(L,γ)`, `e(C,δ)` use precomputed lines. The Miller loop driver and residue check are shared (`std/ringpairing`); each curve package owns its twist — G2 ladder, line shape, subgroup check, loop schedule — on gnark's own 𝔽p² arithmetic (`std/ring_bn254`, `std/ring_bls12381`). Details there and in `std/polyring`.
 
 ## Layout
 
 | path | what |
 | --- | --- |
 | `std/recursion` | outer Groth16 verifier — start here |
-| `std/ringpairing` | curve-agnostic ring pairing: Miller loop driver, `PairingCheck` |
-| `std/ring_bn254` | BN254 half of it: G2 ladder, lines, gnark's hints; `NewPairing` |
+| `std/ringpairing` | ring pairing core: ring, Miller loop driver, `PairingCheck`, the `Curve` interface |
+| `std/ring_bn254`, `std/ring_bls12381` | per-curve ring pairing: twist, G2 ladder, hints, `NewPairing` |
 | `std/polyring` | deferred product checker |
 | `lib/solidity` | multi-commitment verifier exporter |
 | `examples/poseidon`, `examples/recursion` | inner statement + end-to-end flow |
