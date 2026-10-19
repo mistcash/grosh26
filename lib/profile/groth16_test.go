@@ -24,6 +24,7 @@ import (
 
 	"github.com/mistcash/polyring/examples/mimc"
 	"github.com/mistcash/polyring/lib/bench"
+	"github.com/mistcash/polyring/lib/gnarkpairing"
 	"github.com/mistcash/polyring/std/recursion"
 )
 
@@ -82,7 +83,7 @@ func benchGroth16[F, S emulated.FieldParams, G2El, GtEl any](b *testing.B) {
 		name string
 		new  func() assignable
 	}{
-		{"gnark", func() assignable { return newGnarkCircuit[F, S, G2El, GtEl](vk) }},
+		{"gnark", func() assignable { return gnarkpairing.NewCircuit[F, S, G2El, GtEl](vk) }},
 		{"polyring", func() assignable { return recursion.NewCircuit[F, S, G2El, GtEl](vk) }},
 	} {
 		assignment := backend.new()

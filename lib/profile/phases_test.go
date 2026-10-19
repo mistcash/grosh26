@@ -24,6 +24,7 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 
+	"github.com/mistcash/polyring/lib/gnarkpairing"
 	"github.com/mistcash/polyring/std/recursion"
 	"github.com/mistcash/polyring/std/ring_bls12381"
 	"github.com/mistcash/polyring/std/ring_bn254"
@@ -37,7 +38,7 @@ type G1Affine[F emulated.FieldParams] = recursion.G1Affine[F]
 // pairing registers a deferred check, see ringpairing.New.
 func newPairing[F emulated.FieldParams, G2El, GtEl any](api frontend.API, useGnark bool) (recursion.Pairing[F, G2El, GtEl], error) {
 	if useGnark {
-		return newGnarkPairing[F, G2El, GtEl](api)
+		return gnarkpairing.NewPairing[F, G2El, GtEl](api)
 	}
 	var (
 		p   any
@@ -230,7 +231,7 @@ func logPhases[F, S emulated.FieldParams, G2El, GtEl any](b *testing.B, name str
 	measure := func(gnark bool) phases {
 		var outer frontend.Circuit = recursion.NewCircuit[F, S, G2El, GtEl](vk)
 		if gnark {
-			outer = newGnarkCircuit[F, S, G2El, GtEl](vk)
+			outer = gnarkpairing.NewCircuit[F, S, G2El, GtEl](vk)
 		}
 		p := phases{
 			total:    count(outer),
