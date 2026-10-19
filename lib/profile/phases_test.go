@@ -30,61 +30,31 @@ import (
 )
 
 // G1Affine is a point on the inner curve, over its emulated base field F.
-type G1Affine[F emulated.FieldParams] = sw_emulated.AffinePoint[F]
-
-// pairing is the part of either pairing the verifier uses, as in
-// std/recursion: the ring pairing, or gnark's through [gnarkPairing].
-type pairing[F emulated.FieldParams, G2El, GtEl any] interface {
-	AssertIsOnG1(*G1Affine[F])
-	PairingCheck(P []*G1Affine[F], Q []*G2El, previous *GtEl) error
-}
-
-type gnarkPairingAPI[F emulated.FieldParams, G2El, GtEl any] interface {
-	AssertIsOnG1(*G1Affine[F])
-	AssertMultiMillerLoopAndFinalExpIsOne([]*G1Affine[F], []*G2El, *GtEl)
-}
-
-// gnarkPairing adapts gnark's sw_bn254 / sw_bls12381 pairing to [pairing].
-type gnarkPairing[F emulated.FieldParams, G2El, GtEl any] struct {
-	gnarkPairingAPI[F, G2El, GtEl]
-}
-
-func (g gnarkPairing[F, G2El, GtEl]) PairingCheck(P []*G1Affine[F], Q []*G2El, previous *GtEl) error {
-	g.AssertMultiMillerLoopAndFinalExpIsOne(P, Q, previous)
-	return nil
-}
+type G1Affine[F emulated.FieldParams] = recursion.G1Affine[F]
 
 // newPairing returns gnark's pairing or the ring pairing over G2El's curve.
 // Call it before anything else in Define creates an emulated field: the ring
 // pairing registers a deferred check, see ringpairing.New.
-func newPairing[F emulated.FieldParams, G2El, GtEl any](api frontend.API, useGnark bool) (pairing[F, G2El, GtEl], error) {
+func newPairing[F emulated.FieldParams, G2El, GtEl any](api frontend.API, useGnark bool) (recursion.Pairing[F, G2El, GtEl], error) {
+	if useGnark {
+		return newGnarkPairing[F, G2El, GtEl](api)
+	}
 	var (
 		p   any
 		err error
 	)
 	switch any((*G2El)(nil)).(type) {
 	case *sw_bn254.G2Affine:
-		if useGnark {
-			p, err = sw_bn254.NewPairing(api)
-		} else {
-			p, err = ring_bn254.NewPairing(api)
-		}
+		p, err = ring_bn254.NewPairing(api)
 	case *sw_bls12381.G2Affine:
-		if useGnark {
-			p, err = sw_bls12381.NewPairing(api)
-		} else {
-			p, err = ring_bls12381.NewPairing(api)
-		}
+		p, err = ring_bls12381.NewPairing(api)
 	default:
 		return nil, fmt.Errorf("unsupported G2 type %T", (*G2El)(nil))
 	}
 	if err != nil {
 		return nil, err
 	}
-	if !useGnark {
-		return p.(pairing[F, G2El, GtEl]), nil
-	}
-	return gnarkPairing[F, G2El, GtEl]{p.(gnarkPairingAPI[F, G2El, GtEl])}, nil
+	return p.(recursion.Pairing[F, G2El, GtEl]), nil
 }
 
 // keyConstants are the inner key's points as in-circuit constants, in the
@@ -258,12 +228,12 @@ func logPhases[F, S emulated.FieldParams, G2El, GtEl any](b *testing.B, name str
 	}
 	kSum := count(&kSumCircuit[F, S, G2El, GtEl]{Public: make([]emulated.Element[S], innerVK.NbPublicWitness()), vk: innerVK})
 	measure := func(gnark bool) phases {
-		var opts []recursion.Option
+		var outer frontend.Circuit = recursion.NewCircuit[F, S, G2El, GtEl](vk)
 		if gnark {
-			opts = append(opts, recursion.WithGnarkPairing())
+			outer = newGnarkCircuit[F, S, G2El, GtEl](vk)
 		}
 		p := phases{
-			total:    count(recursion.NewCircuit[F, S, G2El, GtEl](vk, opts...)),
+			total:    count(outer),
 			kSum:     kSum,
 			g1Checks: count(&g1ChecksCircuit[F, G2El, GtEl]{gnark: gnark}),
 		}
