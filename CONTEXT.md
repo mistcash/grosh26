@@ -51,6 +51,14 @@ _Avoid_: verifier circuit, wrapper circuit
 The custom Solidity verifier exporter (`lib/solidity/`) that supports proofs with multiple BSB22 commitments, unlike gnark's single-commitment generator.
 _Avoid_: gnark's generator (that means the single-commitment one)
 
+**Gnark-pairing baseline**:
+The outer circuit checked with gnark's own in-circuit pairing instead of polyring's ring pairing (`lib/gnarkpairing`). The reference the ring pairing is measured against: same circuit, same statement, only the pairing check differs.
+_Avoid_: baseline circuit (without saying which), gnark circuit
+
+**On-chain cost**:
+What the outer verifier's Solidity contract costs: `verifyProof` gas, contract size and proof size, measured against the gnark-pairing baseline's on a simulated EVM. The ring pairing buys prover constraints with it.
+_Avoid_: gas table, on-chain table
+
 **tiny-gnark**:
 The pinned gnark fork (pre-merge branch) whose builder fixes this repo's circuits require in order to compile.
 _Avoid_: "the fork"
