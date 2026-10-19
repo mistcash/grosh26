@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "polyring: Groth16-in-Groth16 recursion for gnark"
+abstract: >-
+  polyring checks a BN254 or BLS12-381 Groth16 pairing inside a BN254
+  Groth16 circuit, by evaluating the pairing over a polynomial ring with
+  deferred product checks. It makes the outer proof cheaper to prove at the
+  price of a bigger on-chain verifier.
+type: software
+authors:
+  - family-names: Srivastav
+    given-names: Shramee
+repository-code: "https://github.com/mistcash/polyring"
+url: "https://github.com/mistcash/polyring"
+license: Apache-2.0
+keywords:
+  - zk-SNARK
+  - recursion
+  - groth16
+  - pairing
+  - gnark
+  - polynomial ring
+references:
+  - type: report
+    title: "On Proving Pairings"
+    authors:
+      - family-names: Novakovic
+        given-names: Andrija
+      - family-names: Eagen
+        given-names: Liam
+    url: "https://eprint.iacr.org/2024/640"
+    year: 2024
