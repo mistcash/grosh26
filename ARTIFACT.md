@@ -40,6 +40,7 @@ Times are wall-clock on an Apple M3 Pro (36 GB).
 |---|---|---|
 | `go test -short ./...` | all tests except the on-chain one | ~25 s |
 | `go test ./examples/recursion/ -run TestOuterOnChain -v` | proves the outer circuit for real with both pairings, deploys the generated verifier to a simulated EVM, verifies, and rejects tampered commitments; prints the on-chain cost table | ~2 min |
+| `go test ./paper/ -run TestTable7 -v` | Table 7 on patched gnark, gnark vs polyring: prints the table with its reduction column, fails if a count moved; see [below](#table-7-on-patched-gnark-paper) | ~45 s |
 | `go test ./... -run='^$' -bench=. -benchtime=1x -v` | constraint counts for the Groth16 verifier and the two-pair check, gnark vs polyring, both curves | ~1 min |
 
 ## Paper to code
@@ -110,32 +111,80 @@ Two gnark advisories were published after `ppprt`'s last upstream merge:
 
 The carry range checks add constraints to every emulated multiplication, so they
 grow **both** columns: gnark's own pairing as much as the ring pairing. On the
-Table 7 circuit, gnark's pairing on patched gnark costs 1.58–1.75× what it did
+Table 7 circuit, gnark's pairing on gnark v0.16.4 costs 1.61–1.78× what it did
 in the paper:
 
-| Table 7 circuit, gnark's pairing | Paper | Patched gnark (`tiny-gnark`: v0.16.4 + 16 commits) |
+| Table 7 circuit, gnark's pairing | Paper | gnark v0.16.4 |
 |---|---|---|
-| BN254 SCS constraints | 1,592,440 | 2,774,037 |
-| BN254 R1CS constraints | 491,447 | 774,987 |
-| BLS12-381 SCS constraints | 1,784,247 | 3,123,182 |
-| BLS12-381 R1CS constraints | 545,510 | 868,422 |
+| BN254 SCS constraints | 1,592,440 | 2,834,581 |
+| BN254 R1CS constraints | 491,447 | 791,907 |
+| BLS12-381 SCS constraints | 1,784,247 | 3,164,858 |
+| BLS12-381 R1CS constraints | 545,510 | 881,274 |
 
-The ring pairing's relative saving survives the fixes and grows. Preliminary
-measurement of the same circuit with polyring, both pairings built against the
-same patched gnark:
+Two independent runs give the v0.16.4 column to the digit: ppprt's own benchmark
+file on upstream v0.16.4 ([ppprt's baseline steps](https://github.com/mistcash/ppprt#baseline-column)
+with `git checkout v0.16.4`), and the gnark column of `paper/` below.
 
-| | gnark | polyring | Reduction (paper) |
-|---|---|---|---|
-| BN254 SCS constraints | 2,774,037 | 1,674,447 | 39.6% (35.0%) |
-| BN254 R1CS constraints | 774,987 | 476,200 | 38.6% (35.7%) |
-| BLS12-381 SCS constraints | 3,123,182 | 1,987,105 | 36.4% (33.2%) |
-| BLS12-381 R1CS constraints | 868,422 | 566,083 | 34.8% (32.5%) |
+### Table 7 on patched gnark: `paper/`
 
-> [!NOTE]
-> The benchmark behind this table is not in the tree yet; it lands in a
-> follow-up, together with a committed-element count measured the way `ppprt`
-> measures it. Until then, no committed-element reduction on patched gnark is
-> claimed here.
+```sh
+go test ./paper/ -run TestTable7 -v
+```
+
+[`paper/table7_test.go`](paper/table7_test.go) builds ppprt's Table 7 circuit
+field for field: the 3-pairing check e(P₁,Q₁)·e(P₂,Q₂)·e(P₃,Q₃) = 1, with Q₁
+and Q₂ fixed (precomputed lines) and Q₃ from the witness, compiled over the
+curve's own scalar field. It runs it with gnark's pairing and with polyring's,
+on both curves and both constraint systems, all on the gnark this module builds
+with. For each it checks that the instance solves, benchmarks compile and
+solve, and prints Table 7 with a reduction column. It fails if any constraint
+or committed-wire count differs from the one recorded in the test.
+
+Counts are exact. Times and memory are one run on an Apple M3 Pro; repeated
+runs move the time reductions by a few points.
+
+| Metric | gnark | polyring | Reduction | Paper |
+| :--- | ---: | ---: | ---: | ---: |
+| **BN254 – SCS** | | | | |
+| Nb constraints | 2,834,581 | 1,739,215 | 38.6% | 35.0% |
+| Nb committed wires¹ | 599,158 | 377,345 | 37.0% | 35.5% |
+| Compile time | 1,628 ms | 915 ms | 43.8% | 43.6% |
+| Compile memory | 2.34 GiB | 1.37 GiB | 41.5% | 38.3% |
+| Solve time | 279 ms | 166 ms | 40.4% | 41.9% |
+| Solve memory | 618 MiB | 317 MiB | 48.8% | 48.0% |
+| **BN254 – R1CS** | | | | |
+| Nb constraints | 791,907 | 493,120 | 37.7% | 35.7% |
+| Nb committed wires¹ | 592,907 | 404,792 | 31.7% | 27.2% |
+| Compile time | 1,543 ms | 907 ms | 41.2% | 40.5% |
+| Compile memory | 2.63 GiB | 1.50 GiB | 42.8% | 38.8% |
+| Solve time | 285 ms | 171 ms | 40.0% | 39.4% |
+| Solve memory | 273 MiB | 138 MiB | 49.3% | 34.9% |
+| **BLS12-381 – SCS** | | | | |
+| Nb constraints | 3,164,858 | 2,011,453 | 36.4% | 33.2% |
+| Nb committed wires¹ | 670,229 | 428,291 | 36.1% | 36.1% |
+| Compile time | 1,808 ms | 1,075 ms | 40.5% | 36.9% |
+| Compile memory | 2.42 GiB | 1.55 GiB | 36.1% | 34.5% |
+| Solve time | 311 ms | 190 ms | 39.0% | 38.0% |
+| Solve memory | 634 MiB | 331 MiB | 47.8% | 21.5% |
+| **BLS12-381 – R1CS** | | | | |
+| Nb constraints | 881,274 | 573,283 | 34.9% | 32.5% |
+| Nb committed wires¹ | 664,065 | 471,596 | 29.0% | 24.4% |
+| Compile time | 1,684 ms | 1,024 ms | 39.2% | 38.3% |
+| Compile memory | 2.88 GiB | 1.78 GiB | 38.4% | 35.1% |
+| Solve time | 326 ms | 197 ms | 39.5% | 33.7% |
+| Solve memory | 282 MiB | 196 MiB | 30.5% | 48.8% |
+
+Every constraint reduction is 2.0–3.6 points larger than the paper's.
+
+¹ **Committed wires are not the paper's "Nb Fq Committed".** ppprt counts the
+values passed to every `api.Commit` call, so a wire committed twice counts
+twice. This benchmark counts the unique wires the circuit's commitments cover,
+which is what the prover commits to; the two measures can't be computed from
+each other. The Paper column for this row is therefore not Table 7's 52.8% and
+54.5%: it is the same unique-wire count re-run on ppprt against its upstream
+base ([ppprt's committed-wire counts](https://github.com/mistcash/ppprt#committed-wires)).
+On that measure the reduction was 24–36% in the paper's setting, and is 29–37%
+on patched gnark.
 
 ### What this repository measures
 

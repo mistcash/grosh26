@@ -148,6 +148,7 @@ Pairing over the polynomial ring `F_p[w]/(w^12 − 2ξ₀w^6 + ξ₀² + 1)` —
 | `lib/solidity` | multi-commitment verifier exporter |
 | `examples/mimc`, `examples/recursion` | inner statement + end-to-end flow |
 | `lib/profile`, `lib/bench` | Groth16 bench (both curves, gnark vs polyring) + compile-and-solve helper |
+| `paper` | the paper's Table 7 re-measured here, gnark vs polyring, see [ARTIFACT.md](ARTIFACT.md) |
 
 ## Tests
 

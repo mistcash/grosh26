@@ -64,3 +64,17 @@ jobs:
       # critical path of the rest.
       - name: go test -onchain
         run: go test ./examples/recursion/ -run TestOuterOnChain -v
+
+  paper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # Table 7 re-measured on this repo (ARTIFACT.md). Skipped by -short
+      # above; here it fails if any constraint or committed-wire count moves.
+      - name: go test ./paper
+        run: go test ./paper/ -run TestTable7 -v
