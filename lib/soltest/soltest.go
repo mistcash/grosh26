@@ -40,6 +40,9 @@ type Deployment struct {
 	Contract *bind.BoundContract
 	sim      *simulated.Backend
 	auth     *bind.TransactOpts
+	// BytecodeSize is the size of the deployed contract's runtime bytecode in
+	// bytes, for comparing contract sizes across generators.
+	BytecodeSize int
 }
 
 // Send submits method(args...) as a real transaction and returns its mined
@@ -110,5 +113,5 @@ func Deploy(t *testing.T, solcPath, source string) *Deployment {
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "verifier contract deployment failed")
 	t.Logf("deployed verifier: %d bytes of bytecode, %d gas", len(bytecodeHex)/2, receipt.GasUsed)
 
-	return &Deployment{Contract: contract, sim: sim, auth: auth}
+	return &Deployment{Contract: contract, sim: sim, auth: auth, BytecodeSize: len(bytecodeHex) / 2}
 }
