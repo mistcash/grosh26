@@ -33,5 +33,13 @@ jobs:
             exit 1
           fi
 
+      - name: go vet
+        run: go vet ./...
+
+      # The on-chain test compiles and proves the outer circuit twice, so it
+      # is the slow part of the suite; it is the only test that -short skips.
       - name: go test
         run: go test ./...
+
+      - name: go test -race
+        run: go test -race -short ./...
