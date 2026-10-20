@@ -6,6 +6,10 @@ The in-circuit pairing costs ~31–38% fewer constraints and ~34–44% less witn
 
 **Unaudited — research / testnet use only.**
 
+## Paper
+
+The maintained implementation of *Pairing Proofs and Polynomial Ring Toolkit* (S. Srivastav, IACR TCHES 2027). The paper's numbers were measured on an earlier gnark fork, kept frozen at [mistcash/ppprt](https://github.com/mistcash/ppprt) to reproduce them; it predates two gnark soundness fixes this repository carries. [ARTIFACT.md](ARTIFACT.md) maps the paper to the code and explains how the numbers relate.
+
 ## Benchmark
 
 The outer verifier circuit (`std/recursion`) over a genuine MiMC inner proof, with gnark's pairing vs polyring's ring pairing. Same circuit, same statement; only the pairing check differs. Outer field is BN254 in every case.
