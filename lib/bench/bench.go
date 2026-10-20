@@ -60,14 +60,26 @@ func LogCircuitConstraints(b testing.TB, newCircuit frontend.Circuit, assignment
 	}
 
 	comms := ccs.GetCommitments().(constraint.Groth16Commitments)
-	nbCommittedVars := 0
-	for _, cm := range comms {
-		nbPriv := len(cm.PrivateCommitted)
-		nbPub := cm.NbPublicCommitted
-		nbNested := len(cm.PublicAndCommitmentCommitted) - cm.NbPublicCommitted
-		// unique new vars in this commit = nbPriv; total refs = nbPriv+nbPub+nbNested
-		nbCommittedVars += nbPriv + nbPub + nbNested
-	}
+	b.Logf("\n[BENCH]     %-22s %10d r1cs constraints  %10d vars over %d commitments ", circuitName, ccs.GetNbConstraints(), NbCommittedVars(ccs), len(comms))
+}
 
-	b.Logf("\n[BENCH]     %-22s %10d r1cs constraints  %10d vars over %d commitments ", circuitName, ccs.GetNbConstraints(), nbCommittedVars, len(comms))
+// NbCommittedVars counts the variables ccs's commitments cover, read from
+// gnark's compiled commitment info, for both R1CS and SCS.
+func NbCommittedVars(ccs constraint.ConstraintSystem) int {
+	n := 0
+	switch comms := ccs.GetCommitments().(type) {
+	case constraint.Groth16Commitments:
+		for _, cm := range comms {
+			nbPriv := len(cm.PrivateCommitted)
+			nbPub := cm.NbPublicCommitted
+			nbNested := len(cm.PublicAndCommitmentCommitted) - cm.NbPublicCommitted
+			// unique new vars in this commit = nbPriv; total refs = nbPriv+nbPub+nbNested
+			n += nbPriv + nbPub + nbNested
+		}
+	case constraint.PlonkCommitments:
+		for _, cm := range comms {
+			n += len(cm.Committed)
+		}
+	}
+	return n
 }

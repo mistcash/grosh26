@@ -138,7 +138,7 @@ curve's own scalar field. It runs it with gnark's pairing and with polyring's,
 on both curves and both constraint systems, all on the gnark this module builds
 with. For each it checks that the instance solves, benchmarks compile and
 solve, and prints Table 7 with a reduction column. It fails if any constraint
-or committed-wire count differs from the one recorded in the test.
+or committed-variable count differs from the one recorded in the test.
 
 Counts are exact. Times and memory are one run on an Apple M3 Pro; repeated
 runs move the time reductions by a few points.
@@ -147,28 +147,28 @@ runs move the time reductions by a few points.
 | :--- | ---: | ---: | ---: | ---: |
 | **BN254 – SCS** | | | | |
 | Nb constraints | 2,834,581 | 1,739,215 | 38.6% | 35.0% |
-| Nb committed wires¹ | 599,158 | 377,345 | 37.0% | 35.5% |
+| Nb committed vars¹ | 599,158 | 377,345 | 37.0% | 52.8% |
 | Compile time | 1,628 ms | 915 ms | 43.8% | 43.6% |
 | Compile memory | 2.34 GiB | 1.37 GiB | 41.5% | 38.3% |
 | Solve time | 279 ms | 166 ms | 40.4% | 41.9% |
 | Solve memory | 618 MiB | 317 MiB | 48.8% | 48.0% |
 | **BN254 – R1CS** | | | | |
 | Nb constraints | 791,907 | 493,120 | 37.7% | 35.7% |
-| Nb committed wires¹ | 592,907 | 404,792 | 31.7% | 27.2% |
+| Nb committed vars¹ | 592,907 | 404,792 | 31.7% | 52.8% |
 | Compile time | 1,543 ms | 907 ms | 41.2% | 40.5% |
 | Compile memory | 2.63 GiB | 1.50 GiB | 42.8% | 38.8% |
 | Solve time | 285 ms | 171 ms | 40.0% | 39.4% |
 | Solve memory | 273 MiB | 138 MiB | 49.3% | 34.9% |
 | **BLS12-381 – SCS** | | | | |
 | Nb constraints | 3,164,858 | 2,011,453 | 36.4% | 33.2% |
-| Nb committed wires¹ | 670,229 | 428,291 | 36.1% | 36.1% |
+| Nb committed vars¹ | 670,229 | 428,291 | 36.1% | 54.5% |
 | Compile time | 1,808 ms | 1,075 ms | 40.5% | 36.9% |
 | Compile memory | 2.42 GiB | 1.55 GiB | 36.1% | 34.5% |
 | Solve time | 311 ms | 190 ms | 39.0% | 38.0% |
 | Solve memory | 634 MiB | 331 MiB | 47.8% | 21.5% |
 | **BLS12-381 – R1CS** | | | | |
 | Nb constraints | 881,274 | 573,283 | 34.9% | 32.5% |
-| Nb committed wires¹ | 664,065 | 471,596 | 29.0% | 24.4% |
+| Nb committed vars¹ | 664,065 | 471,596 | 29.0% | 54.5% |
 | Compile time | 1,684 ms | 1,024 ms | 39.2% | 38.3% |
 | Compile memory | 2.88 GiB | 1.78 GiB | 38.4% | 35.1% |
 | Solve time | 326 ms | 197 ms | 39.5% | 33.7% |
@@ -176,15 +176,10 @@ runs move the time reductions by a few points.
 
 Every constraint reduction is 2.0–3.6 points larger than the paper's.
 
-¹ **Committed wires are not the paper's "Nb Fq Committed".** ppprt counts the
-values passed to every `api.Commit` call, so a wire committed twice counts
-twice. This benchmark counts the unique wires the circuit's commitments cover,
-which is what the prover commits to; the two measures can't be computed from
-each other. The Paper column for this row is therefore not Table 7's 52.8% and
-54.5%: it is the same unique-wire count re-run on ppprt against its upstream
-base ([ppprt's committed-wire counts](https://github.com/mistcash/ppprt#committed-wires)).
-On that measure the reduction was 24–36% in the paper's setting, and is 29–37%
-on patched gnark.
+¹ Read from gnark's compiled commitment info (`bench.NbCommittedVars`), the
+same count as the [README benchmark](README.md#benchmark). The paper's "Nb Fq
+Committed" is a different count: the values passed to `api.Commit`, from a
+counter `ppprt` adds to gnark, so it is reproduced there, not here.
 
 ### What this repository measures
 
@@ -207,7 +202,7 @@ Reading the benchmark output:
 
 - `[BENCH] <name> <n> r1cs constraints <m> vars over <k> commitments`:
   constraint counts are exact and reproduce to the digit. `vars` counts the
-  wires gnark's Groth16 backend commits to, range checker included. That is not
+  variables gnark's Groth16 backend commits to, range checker included. That is not
   the paper's "Fq committed", which counts the values passed to `api.Commit`.
 - Compile and solve times jitter by 20% or more from run to run.
 

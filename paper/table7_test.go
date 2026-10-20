@@ -6,7 +6,7 @@
 //	go test ./paper/ -run TestTable7 -v
 //
 // prints Table 7 for both curves with the reduction column, and fails if a
-// constraint or committed-wire count moved from the one recorded here.
+// constraint or committed-variable count moved from the one recorded here.
 package paper
 
 import (
@@ -27,6 +27,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/math/emulated"
 
+	"github.com/mistcash/polyring/lib/bench"
 	"github.com/mistcash/polyring/std/ring_bls12381"
 	"github.com/mistcash/polyring/std/ring_bn254"
 	"github.com/mistcash/polyring/std/ringpairing"
@@ -163,25 +164,6 @@ type result struct {
 	solveNs, solveB        int64
 }
 
-// committedWires counts the wires the circuit's commitments cover: what the
-// prover commits to. It is not the paper's "Nb Fq Committed", which ppprt
-// counts as the values passed to api.Commit, duplicates included; see
-// ARTIFACT.md.
-func committedWires(ccs constraint.ConstraintSystem) int {
-	n := 0
-	switch cms := ccs.GetCommitments().(type) {
-	case constraint.PlonkCommitments:
-		for _, cm := range cms {
-			n += len(cm.Committed)
-		}
-	case constraint.Groth16Commitments:
-		for _, cm := range cms {
-			n += len(cm.PrivateCommitted) + len(cm.PublicAndCommitmentCommitted)
-		}
-	}
-	return n
-}
-
 // measure compiles a fresh circuit from newCircuit, checks that w solves it,
 // and benchmarks compiling and solving it. The circuit is rebuilt for every
 // compile: the pairings cache api-bound state in Define.
@@ -212,7 +194,7 @@ func measure(t *testing.T, field *big.Int, newBuilder frontend.NewBuilder, newCi
 	})
 	return result{
 		constraints: ccs.GetNbConstraints(),
-		committed:   committedWires(ccs),
+		committed:   bench.NbCommittedVars(ccs),
 		compileNs:   compile.NsPerOp(), compileB: compile.AllocedBytesPerOp(),
 		solveNs: solve.NsPerOp(), solveB: solve.AllocedBytesPerOp(),
 	}
@@ -282,7 +264,7 @@ func table7[F emulated.FieldParams, G2El any](t *testing.T, cc curveCase[F, G2El
 		}
 		fmt.Fprintf(out, "| **%s – %s** | | | |\n", cc.name, be.name)
 		row(out, "Nb constraints", float64(g.constraints), float64(p.constraints), "%.0f")
-		row(out, "Nb committed wires", float64(g.committed), float64(p.committed), "%.0f")
+		row(out, "Nb committed vars", float64(g.committed), float64(p.committed), "%.0f")
 		row(out, "Compile time (ms)", float64(g.compileNs)/1e6, float64(p.compileNs)/1e6, "%.2f")
 		row(out, "Compile memory (GiB)", float64(g.compileB)/(1<<30), float64(p.compileB)/(1<<30), "%.2f")
 		row(out, "Solve time (ms)", float64(g.solveNs)/1e6, float64(p.solveNs)/1e6, "%.2f")
