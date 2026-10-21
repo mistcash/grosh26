@@ -8,7 +8,7 @@ The in-circuit pairing costs ~31–38% fewer constraints and ~34–44% less witn
 
 ## Paper
 
-The maintained implementation of *Pairing Proofs and Polynomial Ring Toolkit* (S. Srivastav, IACR TCHES 2027). The paper's numbers were measured on an earlier gnark fork, kept frozen at [mistcash/ppprt](https://github.com/mistcash/ppprt) to reproduce them; it predates two gnark soundness fixes this repository carries. [ARTIFACT.md](ARTIFACT.md) maps the paper to the code and explains how the numbers relate.
+The maintained implementation of *Pairing Proofs and Polynomial Ring Toolkit* (S. Srivastav, IACR TCHES 2027). The paper's numbers were measured on an earlier gnark fork, kept frozen at [mistcash/ppprt](https://github.com/mistcash/ppprt) to reproduce them; it predates two gnark soundness fixes this repository carries. [paper/ARTIFACT.md](paper/ARTIFACT.md) maps the paper to the code and explains how the numbers relate.
 
 ## Benchmark
 
@@ -148,7 +148,7 @@ Pairing over the polynomial ring `F_p[w]/(w^12 − 2ξ₀w^6 + ξ₀² + 1)` —
 | `lib/solidity` | multi-commitment verifier exporter |
 | `examples/mimc`, `examples/recursion` | inner statement + end-to-end flow |
 | `lib/profile`, `lib/bench` | Groth16 bench (both curves, gnark vs polyring) + compile-and-solve helper |
-| `paper` | the paper's Table 7 re-measured here, gnark vs polyring, see [ARTIFACT.md](ARTIFACT.md) |
+| `paper` | the paper's Table 7 re-measured here, gnark vs polyring, see [paper/ARTIFACT.md](paper/ARTIFACT.md) |
 
 ## Tests
 

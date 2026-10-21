@@ -7,7 +7,7 @@ This repository is the maintained implementation for:
 
 This guide maps the paper to the code, says where each of its results is
 reproduced, and explains why numbers measured here differ from the published
-ones. Usage and layout are in the [README](README.md).
+ones. Usage and layout are in the [README](../README.md).
 
 ## Two repositories
 
@@ -131,7 +131,7 @@ with `git checkout v0.16.4`), and the gnark column of `paper/` below.
 go test ./paper/ -run TestTable7 -v
 ```
 
-[`paper/table7_test.go`](paper/table7_test.go) builds ppprt's Table 7 circuit
+[`paper/table7_test.go`](table7_test.go) builds ppprt's Table 7 circuit
 field for field: the 3-pairing check e(P₁,Q₁)·e(P₂,Q₂)·e(P₃,Q₃) = 1, with Q₁
 and Q₂ fixed (precomputed lines) and Q₃ from the witness, compiled over the
 curve's own scalar field. It runs it with gnark's pairing and with polyring's,
@@ -177,7 +177,7 @@ runs move the time reductions by a few points.
 Every constraint reduction is 2.0–3.6 points larger than the paper's.
 
 ¹ Read from gnark's compiled commitment info (`bench.NbCommittedVars`), the
-same count as the [README benchmark](README.md#benchmark). The paper's "Nb Fq
+same count as the [README benchmark](../README.md#benchmark). The paper's "Nb Fq
 Committed" is a different count: the values passed to `api.Commit`, from a
 counter `ppprt` adds to gnark, so it is reproduced there, not here.
 
@@ -185,7 +185,7 @@ counter `ppprt` adds to gnark, so it is reproduced there, not here.
 
 The benchmarks in this tree measure what polyring is for: a full Groth16
 verifier inside a BN254 Groth16 circuit, over a real MiMC inner proof. These are
-R1CS counts; see the [README](README.md#benchmark) for the per-phase breakdown.
+R1CS counts; see the [README](../README.md#benchmark) for the per-phase breakdown.
 
 | Circuit | Inner curve | gnark | polyring | Reduction |
 |---|---|---|---|---|
