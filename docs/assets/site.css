@@ -1169,8 +1169,44 @@ pre {
   color: var(--ink-2);
 }
 
-.subscribe p + p {
-  margin-top: 10px;
+.subscribe p {
+  max-width: 44ch;
+}
+
+.socials {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.socials span {
+  flex-basis: 100%;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.socials a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 14px;
+  color: var(--ink-2);
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.socials a:hover {
+  color: var(--ink);
+  border-color: var(--link);
+}
+
+.socials svg {
+  width: 15px;
+  height: 15px;
 }
 
 .signup .row {
