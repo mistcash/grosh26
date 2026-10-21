@@ -39,8 +39,12 @@
 
   // Highlighting: comments, strings and a few keywords. Works on text nodes
   // only, so nothing in a code block is ever parsed as HTML.
-  var GO = /(\/\/[^\n]*)|("(?:[^"\\\n]|\\.)*"|`[^`]*`)|\b(func|return|if|err|nil|type|struct|package|import|for|range|replace|require|module|go)\b/g;
+  var GO_BASE = "(\\/\\/[^\\n]*)|(\"(?:[^\"\\\\\\n]|\\\\.)*\"|`[^`]*`)|\\b(func|return|if|err|nil|type|struct|package|import|for|range|replace|require|module|go)\\b|\\b((?:recursion|solidity|polyring)\\.\\w+)";
+  var GO;
+  try { GO = new RegExp(GO_BASE + "|(?<![\\w.])(\\d[\\d_]*)(?![\\w.])", "g"); }
+  catch (e) { GO = new RegExp(GO_BASE, "g"); } // older engines: no number colouring
   var SH = /(#[^\n]*)|("(?:[^"\\\n]|\\.)*")/g;
+  var CLS = ["", "c", "s", "k", "p", "n"];
   document.querySelectorAll("pre code[class*='lang-']").forEach(function (code) {
     var re = code.classList.contains("lang-sh") ? SH : code.classList.contains("lang-text") ? null : GO;
     if (!re) return;
@@ -48,8 +52,9 @@
     re.lastIndex = 0;
     while ((m = re.exec(src))) {
       if (m.index > last) out.appendChild(document.createTextNode(src.slice(last, m.index)));
-      var span = document.createElement("span");
-      span.className = m[1] ? "c" : m[2] ? "s" : "k";
+      var span = document.createElement("span"), g = 1;
+      while (g < m.length && m[g] === undefined) g++;
+      span.className = CLS[g] || "k";
       span.textContent = m[0];
       out.appendChild(span);
       last = re.lastIndex;

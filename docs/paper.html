@@ -6,7 +6,10 @@
 <title>Pairing Proofs and Polynomial Ring Toolkit | IACR TCHES 2027</title>
 <meta name="description" content="Pairing Proofs and Polynomial Ring Toolkit (Shramee Srivastav, IACR TCHES 2027): one polynomial identity per Miller loop step, implemented in gnark. Abstract, method and results.">
 <link rel="canonical" href="https://mistcash.github.io/polyring/paper.html">
+<meta name="description" content="Pairing Proofs and Polynomial Ring Toolkit, to appear in IACR TCHES 2027: one polynomial identity per Miller loop step, implemented in gnark.">
+<link rel="canonical" href="https://polyring.mist.cash/paper.html">
 <meta name="author" content="Shramee Srivastav">
+<meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#081019" media="(prefers-color-scheme: dark)">
 <script>try{var t=localStorage.getItem("polyring-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
@@ -15,15 +18,31 @@
 <meta property="og:site_name" content="polyring by MIST.cash">
 <meta property="og:title" content="Pairing Proofs and Polynomial Ring Toolkit (TCHES 2027)">
 <meta property="og:description" content="One polynomial identity per Miller loop step: over 32% fewer constraints and 50% fewer committed elements for a 3-pairing check in gnark.">
-<meta property="og:url" content="https://mistcash.github.io/polyring/paper.html">
-<meta property="og:image" content="https://mistcash.github.io/polyring/og.png">
+<meta property="og:url" content="https://polyring.mist.cash/paper.html">
+<meta property="og:image" content="https://polyring.mist.cash/og.png">
 <meta name="twitter:card" content="summary_large_image">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Groth16 inside Groth16, 38% cheaper to prove: polyring, a gnark library, with a diagram of the Miller loop steps">
+<meta name="twitter:title" content="Pairing Proofs and Polynomial Ring Toolkit">
+<meta name="twitter:description" content="One polynomial identity per Miller loop step: over 32% fewer constraints and 50% fewer committed elements.">
+<meta name="twitter:image" content="https://polyring.mist.cash/og.png">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Josefin+Sans:wght@600;700&family=Sen:wght@400;600;700;800&display=swap">
 <link rel="stylesheet" href="assets/site.css">
 
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "polyring", "item": "https://polyring.mist.cash/" },
+    { "@type": "ListItem", "position": 2, "name": "Paper", "item": "https://polyring.mist.cash/paper.html" }
+  ]
+}
+</script>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -66,7 +85,7 @@
 <div class="wrap paper">
 
   <section aria-labelledby="abstract-h">
-    <span class="eyebrow" id="abstract-h">Abstract</span>
+    <h2 class="eyebrow" id="abstract-h">Abstract</h2>
     <p class="abstract">Elliptic curve pairings are fundamental to modern zero-knowledge proof systems, including Groth16, PLONK, and KZG polynomial commitments. In resource-constrained execution environments (Ethereum VM, BitVM, blockchain smart contracts), where computation is metered by gas fees, and in arithmetized computation systems (R1CS, Plonkish, Cairo AIR), where each computational step imposes significant prover overhead, the cost of pairing computation remains a practical bottleneck. We present a public-coin interactive proof system that consolidates the Miller loop iterations and final exponentiation into a single polynomial relation. The relation can then be verified as polynomial identities, greatly reducing the pairing costs. We present a full implementation in gnark (the industry-standard framework for arithmetized circuit development) as a reusable polynomial ring toolkit in the emulated package. Benchmarked on a 3-pairing product check (the pairing workload of a Groth16 verification), our gnark implementation achieves over 32% reduction in constraints, over 50% reduction in committed elements, and reductions in both compile-time and solver memory for both BN254 and BLS12-381 curves. This enables practical pairing verification in recursive proof systems and resource-constrained environments.</p>
   </section>
 
@@ -80,7 +99,7 @@
         <p class="small">F is the loop accumulator, L<sub>1</sub> to L<sub>3</sub> the line functions of three pairs, and P<sub>12</sub> = x<sup>12</sup> − 18x<sup>6</sup> + 82 the BN254 extension modulus. Builds on El Housni, Feltroidprime, and Novakovic and Eagen's <a href="https://eprint.iacr.org/2024/640">On Proving Pairings</a>.</p>
       </div>
       <div>
-        <h3 style="font-size:18px">Constraints per loop step, three pairs</h3>
+        <h3 class="ct">Constraints per loop step, three pairs</h3>
         <div class="hbars">
           <div class="r"><span>𝔽<sub>p</sub><sup>12</sup> arithmetic (El Housni)</span><div class="t"><span class="f" style="--v:132;--max:132"></span></div><span class="n">132</span></div>
           <div class="r"><span>One identity per multiplication, 48 commitments</span><div class="t"><span class="f" style="--v:76;--max:132"></span></div><span class="n">76</span></div>
@@ -103,12 +122,12 @@
             <tr class="sub"><td colspan="3">R1CS</td></tr>
             <tr><td>Constraints</td><td class="n good">−35.7%</td><td class="n good">−32.5%</td></tr>
             <tr><td>Committed 𝔽<sub>q</sub> elements</td><td class="n good">−52.8%</td><td class="n good">−54.5%</td></tr>
-            <tr><td>Compile time</td><td class="n">−40.5%</td><td class="n">−38.3%</td></tr>
-            <tr><td>Solve time</td><td class="n">−39.4%</td><td class="n">−33.7%</td></tr>
+            <tr><td>Compile time</td><td class="n good">−40.5%</td><td class="n good">−38.3%</td></tr>
+            <tr><td>Solve time</td><td class="n good">−39.4%</td><td class="n good">−33.7%</td></tr>
             <tr class="sub"><td colspan="3">PLONK (SCS)</td></tr>
             <tr><td>Constraints</td><td class="n good">−35.0%</td><td class="n good">−33.2%</td></tr>
-            <tr><td>Compile time</td><td class="n">−43.6%</td><td class="n">−36.9%</td></tr>
-            <tr><td>Solve time</td><td class="n">−41.9%</td><td class="n">−38.0%</td></tr>
+            <tr><td>Compile time</td><td class="n good">−43.6%</td><td class="n good">−36.9%</td></tr>
+            <tr><td>Solve time</td><td class="n good">−41.9%</td><td class="n good">−38.0%</td></tr>
           </tbody>
         </table>
       </div>
@@ -119,8 +138,8 @@
           <tbody>
             <tr><td>CairoVM steps</td><td class="n good">−37.1%</td><td class="n good">−32.7%</td></tr>
             <tr><td>Committed elements</td><td class="n good">−50.7%</td><td class="n good">−41.6%</td></tr>
-            <tr><td>MULMOD</td><td class="n">−33.9%</td><td class="n">−31.5%</td></tr>
-            <tr><td>ADDMOD</td><td class="n">−30.2%</td><td class="n">−25.4%</td></tr>
+            <tr><td>MULMOD</td><td class="n good">−33.9%</td><td class="n good">−31.5%</td></tr>
+            <tr><td>ADDMOD</td><td class="n good">−30.2%</td><td class="n good">−25.4%</td></tr>
           </tbody>
         </table>
         <p class="small" style="margin-top:14px">Fewer committed elements means less to hash and less hint calldata per verification.</p>
@@ -162,13 +181,13 @@
       </div>
     </div>
     <div>
-      <h3 style="font-size:18px">R1CS constraints, BN254, gnark vs polyring</h3>
+      <h3 class="ct">R1CS constraints, BN254</h3>
       <div class="hbars">
-        <div class="r"><span>Paper, 3-pairing check</span><div class="t"><span class="f thin" style="--v:491447;--max:791400"></span><span class="f thin hot" style="--v:316167;--max:791400"></span></div><span class="n">−35.7%</span></div>
-        <div class="r"><span>Same circuit, patched gnark*</span><div class="t"><span class="f thin" style="--v:774987;--max:791400"></span><span class="f thin hot" style="--v:476200;--max:791400"></span></div><span class="n">−38.6%</span></div>
-        <div class="r"><span>Full Groth16 verifier</span><div class="t"><span class="f thin" style="--v:791400;--max:791400"></span><span class="f thin hot" style="--v:491043;--max:791400"></span></div><span class="n">−38.0%</span></div>
+        <div class="r"><span>Paper, 3-pairing check</span><div class="t"><span class="f thin gn" style="--v:491447;--max:791400"></span><span class="f thin hot" style="--v:316167;--max:791400"></span></div><span class="n good">−35.7%</span></div>
+        <div class="r"><span>Same circuit, patched gnark*</span><div class="t"><span class="f thin gn" style="--v:774987;--max:791400"></span><span class="f thin hot" style="--v:476200;--max:791400"></span></div><span class="n good">−38.6%</span></div>
+        <div class="r"><span>Full Groth16 verifier</span><div class="t"><span class="f thin gn" style="--v:791400;--max:791400"></span><span class="f thin hot" style="--v:491043;--max:791400"></span></div><span class="n good">−38.0%</span></div>
       </div>
-      <div class="meter" style="margin-top:14px"><div class="key"><span><i></i>gnark</span><span><i class="hot"></i>polyring</span></div></div>
+      <div class="meter" style="margin-top:14px"><div class="key"><span><i class="gnark"></i>gnark</span><span><i class="hot"></i>polyring</span></div></div>
       <p class="small" style="margin-top:10px">* Preliminary: measured, benchmark not yet in the tree.</p>
     </div>
   </section>
@@ -192,7 +211,7 @@ rem := acc.Eval()        // one deferred check for the whole chain</code></pre>
   </section>
 
   <section aria-labelledby="ack-h">
-    <span class="eyebrow" id="ack-h">Acknowledgements</span>
+    <h2 class="eyebrow" id="ack-h">Acknowledgements</h2>
     <p class="small" style="margin-top:12px;max-width:68ch">Youssef El Housni and Ivo Kubjas (Linea, Consensys) for discussions and encouragement, Feltroidprime for discussions on his technique, and StarkWare and the Starknet Foundation for supporting an earlier version of the technique.</p>
   </section>
 

@@ -21,11 +21,12 @@
 <meta property="og:image" content="https://mistcash.github.io/polyring/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="polyring: 38.0% fewer constraints to verify a Groth16 proof inside a BN254 circuit">
+<meta property="og:image:alt" content="Groth16 inside Groth16, 38% cheaper to prove: polyring, a gnark library, with a diagram of the Miller loop steps">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="polyring: Groth16 inside Groth16, 38% cheaper to prove">
 <meta name="twitter:description" content="Verify a Groth16 proof inside your gnark circuit with 38% fewer constraints.">
 <meta name="twitter:image" content="https://mistcash.github.io/polyring/og.png">
+<meta name="twitter:image" content="https://polyring.mist.cash/og.png">
 
 <link rel="alternate" type="text/plain" href="llms.txt" title="Instructions for AI coding agents">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -37,14 +38,30 @@
 {
   "@context": "https://schema.org",
   "@type": "SoftwareSourceCode",
-  "@id": "https://mistcash.github.io/polyring/#software",
-  "name": "polyring",
-  "description": "Groth16-in-Groth16 recursion for gnark: verify a BN254 or BLS12-381 Groth16 proof inside a BN254 Groth16 circuit with a polynomial-ring pairing check, and on-chain with a multi-commitment Solidity verifier.",
-  "codeRepository": "https://github.com/mistcash/polyring",
-  "programmingLanguage": "Go",
-  "runtimePlatform": "gnark",
-  "license": "https://www.apache.org/licenses/LICENSE-2.0",
-  "author": { "@type": "Person", "name": "Shramee Srivastav", "affiliation": { "@type": "Organization", "name": "MIST.cash", "url": "https://mist.cash" } },  "keywords": ["recursive SNARK", "Groth16 recursion", "in-circuit pairing", "BN254", "BLS12-381", "gnark", "Solidity verifier"]
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://polyring.mist.cash/#website",
+      "url": "https://polyring.mist.cash/",
+      "name": "polyring",
+      "description": "Recursive Groth16 verification for gnark."
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "@id": "https://polyring.mist.cash/#software",
+      "name": "polyring",
+      "url": "https://polyring.mist.cash/",
+      "image": "https://polyring.mist.cash/og.png",
+      "description": "Groth16-in-Groth16 recursion for gnark: verify a BN254 or BLS12-381 Groth16 proof inside a BN254 Groth16 circuit with a polynomial-ring pairing check, and on-chain with a multi-commitment Solidity verifier.",
+      "codeRepository": "https://github.com/mistcash/polyring",
+      "programmingLanguage": "Go",
+      "runtimePlatform": "gnark",
+      "license": "https://www.apache.org/licenses/LICENSE-2.0",
+      "author": { "@type": "Person", "name": "Shramee Srivastav", "affiliation": { "@type": "Organization", "name": "MIST.cash", "url": "https://mist.cash" } },
+      "isPartOf": { "@id": "https://polyring.mist.cash/#website" },
+      "keywords": ["recursive SNARK", "Groth16 recursion", "in-circuit pairing", "BN254", "BLS12-381", "gnark", "Solidity verifier"]
+    }
+  ]
 }
 </script>
 </head>
@@ -111,9 +128,9 @@
     <div class="meter">
       <div class="row">
         <div class="top"><b>gnark's verifier, BN254 inner proof</b><span>791,400 constraints</span></div>
-        <div class="bar"><span class="seg hot" style="--n:656420;--max:791400">Pairing · 656,420</span><span class="seg" style="--n:134980;--max:791400">Rest</span></div>
+        <div class="bar"><span class="seg gnark" style="--n:656420;--max:791400">Pairing · 656,420</span><span class="seg" style="--n:134980;--max:791400">Rest</span></div>
       </div>
-      <div class="key"><span><i class="hot"></i>Miller loop and final exponentiation</span><span><i></i>Inputs, point checks</span></div>
+      <div class="key"><span><i class="gnark"></i>gnark's Miller loop and final exponentiation</span><span><i></i>Inputs, point checks</span></div>
     </div>
   </div>
 </section>
@@ -129,7 +146,7 @@
     <div>
       <div class="eq" role="math" aria-label="F squared times L1 L2 L3 equals Q times P12 plus R">F² · L<sub>1</sub> L<sub>2</sub> L<sub>3</sub> = Q · P<sub>12</sub> + R</div>
       <div class="figs" style="margin-top:32px">
-        <div class="fig"><div class="v">132</div><div class="l">constraints per loop step, field multiplication by multiplication</div></div>
+        <div class="fig"><div class="v gn">132</div><div class="l">constraints per loop step, field multiplication by multiplication</div></div>
         <div class="fig"><div class="v cool">41</div><div class="l">constraints per loop step as one identity</div></div>
       </div>
     </div>
@@ -147,16 +164,16 @@
         <button type="button" data-value="bls12381" aria-pressed="false">BLS12-381</button>
       </div>
       <div class="figs">
-        <div class="fig" data-curve="bn254"><div class="v cool">−38%</div><div class="l">constraints</div><div class="s">791,400 → 491,043</div></div>
-        <div class="fig" data-curve="bn254"><div class="v cool">−34%</div><div class="l">witness solve time</div><div class="s">340 → 223 ms, M3 Pro</div></div>
-        <div class="fig" data-curve="bls12381"><div class="v cool">−31%</div><div class="l">constraints</div><div class="s">979,700 → 677,317</div></div>
-        <div class="fig" data-curve="bls12381"><div class="v cool">−44%</div><div class="l">witness solve time</div><div class="s">462 → 258 ms, M3 Pro</div></div>
+        <div class="fig" data-curve="bn254"><div class="v good">−38%</div><div class="l">constraints</div><div class="s">791,400 → 491,043</div></div>
+        <div class="fig" data-curve="bn254"><div class="v good">−34%</div><div class="l">witness solve time</div><div class="s">340 → 223 ms, M3 Pro</div></div>
+        <div class="fig" data-curve="bls12381"><div class="v good">−31%</div><div class="l">constraints</div><div class="s">979,700 → 677,317</div></div>
+        <div class="fig" data-curve="bls12381"><div class="v good">−44%</div><div class="l">witness solve time</div><div class="s">462 → 258 ms, M3 Pro</div></div>
       </div>
     </div>
     <div class="meter" id="result-bars" data-show="bn254">
       <div class="row" data-curve="bn254">
         <div class="top"><b>gnark</b><span>791,400</span></div>
-        <div class="bar"><span class="seg hot" style="--n:656420;--max:791400">656,420</span><span class="seg" style="--n:134980;--max:791400"></span></div>
+        <div class="bar"><span class="seg gnark" style="--n:656420;--max:791400">656,420</span><span class="seg" style="--n:134980;--max:791400"></span></div>
       </div>
       <div class="row" data-curve="bn254">
         <div class="top"><b>polyring</b><span>491,043</span></div>
@@ -164,13 +181,13 @@
       </div>
       <div class="row" data-curve="bls12381">
         <div class="top"><b>gnark</b><span>979,700</span></div>
-        <div class="bar"><span class="seg hot" style="--n:693884;--max:979700">693,884</span><span class="seg" style="--n:285816;--max:979700"></span></div>
+        <div class="bar"><span class="seg gnark" style="--n:693884;--max:979700">693,884</span><span class="seg" style="--n:285816;--max:979700"></span></div>
       </div>
       <div class="row" data-curve="bls12381">
         <div class="top"><b>polyring</b><span>677,317</span></div>
         <div class="bar"><span class="seg hot" style="--n:391451;--max:979700">391,451</span><span class="seg" style="--n:285866;--max:979700"></span><span class="seg ghost" style="--n:302383;--max:979700">302k saved</span></div>
       </div>
-      <div class="key"><span><i class="hot"></i>Pairing</span><span><i></i>Rest of the verifier, unchanged</span></div>
+      <div class="key"><span><i class="gnark"></i>gnark pairing</span><span><i class="hot"></i>polyring pairing</span><span><i></i>Rest of the verifier, unchanged</span><span><i class="good"></i>Saved</span></div>
     </div>
   </div>
 </section>
@@ -193,7 +210,7 @@
       <span class="eyebrow">The trade</span>
       <h2 id="trade-h">Cheaper to prove, dearer to verify on the EVM.</h2>
       <p class="lead">polyring's proof carries three commitments instead of one, so the Solidity verifier does more work: about 460k gas per <code>verifyProof</code> call, against 359k with gnark's pairing. Pick it when proving is your main cost: many proofs, modest hardware, or a proving service that bills by the constraint.</p>
-      <p class="lead">Where a VM runs the pairing itself, verifying gets cheaper too. Garaga on Starknet uses the paper's technique and needs <strong>37%</strong> fewer VM steps.</p>
+      <p class="lead">Where a VM runs the pairing itself, verifying gets cheaper too. Garaga on Starknet uses the paper's technique and needs <strong style="color:var(--good)">37%</strong> fewer VM steps.</p>
     </div>
     <div class="trade">
       <div>
