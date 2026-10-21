@@ -1,0 +1,605 @@
+/* polyring book — print layout for docs/book/book.html.
+   Layers on top of ../assets/site.css; forces the light palette. */
+
+@page {
+  size: A4;
+  margin: 20mm 18mm 22mm;
+}
+
+@page cover {
+  margin: 0;
+}
+
+@page opener {
+  margin: 0;
+}
+
+html {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+:root {
+  --mist: #acc4d6;
+}
+
+body {
+  background: #fff;
+  color: var(--ink);
+  font: 400 10.6pt/1.62 var(--text);
+}
+
+/* ---------- cover ---------- */
+.cover {
+  page: cover;
+  width: 210mm;
+  height: 297mm;
+  background: var(--band);
+  color: var(--ink);
+  padding: 26mm 22mm 22mm;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  break-after: page;
+}
+
+.cover .brand {
+  width: 46mm;
+  height: auto;
+  fill: var(--ink);
+}
+
+.cover .spacer {
+  margin-top: auto;
+}
+
+.cover .kicker {
+  font: 500 8pt/1 var(--mono);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--link);
+}
+
+.cover h1 {
+  margin: 6mm 0 0;
+  font: 700 46pt/1.02 var(--display);
+  letter-spacing: -.03em;
+  color: var(--ink);
+}
+
+.cover .sub {
+  margin-top: 7mm;
+  max-width: 132mm;
+  font-size: 13pt;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.cover .rule {
+  width: 26mm;
+  height: 2px;
+  margin-top: 12mm;
+  background: var(--link);
+}
+
+.cover .meta {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  font: 500 8pt/1.6 var(--mono);
+  color: var(--muted);
+}
+
+/* ---------- contents ---------- */
+.contents {
+  break-before: page;
+}
+
+.contents h1 {
+  margin: 3mm 0 12mm;
+  font: 700 30pt/1.05 var(--display);
+  letter-spacing: -.02em;
+}
+
+.toc-chapter {
+  display: flex;
+  align-items: baseline;
+  gap: 4mm;
+  margin-top: 9mm;
+  padding-top: 3mm;
+  border-top: 1px solid var(--line);
+}
+
+.toc-chapter .no {
+  font: 800 15pt/1 var(--text);
+  color: var(--link);
+  font-variant-numeric: tabular-nums;
+}
+
+.toc-chapter .t {
+  font: 700 15pt/1.2 var(--display);
+}
+
+.toc-chapter .p {
+  margin-left: auto;
+  font: 600 9pt/1 var(--mono);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.toc-sec {
+  display: flex;
+  align-items: baseline;
+  gap: 3mm;
+  margin: 2.1mm 0 0 12mm;
+  font-size: 9.4pt;
+  color: var(--ink-2);
+}
+
+.toc-sec .dots {
+  flex: 1;
+  border-bottom: 1px dotted #b9cddd;
+  transform: translateY(-1mm);
+}
+
+.toc-sec .p {
+  font: 600 8pt/1 var(--mono);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- chapter openers ---------- */
+.opener {
+  page: opener;
+  width: 210mm;
+  height: 297mm;
+  padding: 30mm 22mm 22mm;
+  display: flex;
+  flex-direction: column;
+  break-after: page;
+}
+
+.opener .no {
+  margin-top: 6mm;
+  font: 800 92pt/.8 var(--text);
+  letter-spacing: -.05em;
+  color: var(--mist);
+  font-variant-numeric: tabular-nums;
+}
+
+.opener h1 {
+  margin-top: 8mm;
+  font: 700 36pt/1.02 var(--display);
+  letter-spacing: -.025em;
+  color: var(--ink);
+}
+
+.opener .standfirst {
+  margin-top: 7mm;
+  max-width: 128mm;
+  font-size: 12pt;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.opener .opener-rule {
+  width: 26mm;
+  height: 2px;
+  margin-top: 11mm;
+  background: var(--link);
+}
+
+.opener-toc {
+  margin-top: 9mm;
+}
+
+.opener-toc .eyebrow {
+  margin-bottom: 3mm;
+}
+
+.opener-toc ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 132mm;
+}
+
+.opener-toc li {
+  padding: 2mm 0;
+  border-bottom: 1px solid #e2ecf4;
+  font-size: 9.4pt;
+  line-height: 1.35;
+  color: var(--ink-2);
+}
+
+.opener-toc li::before {
+  content: "—";
+  margin-right: 3mm;
+  color: var(--mist);
+}
+
+.opener .foot {
+  display: none;
+}
+
+/* ---------- chapter bodies ---------- */
+.chapter {
+  break-before: page;
+}
+
+.chapter-body .wrap {
+  max-width: none;
+  padding: 0;
+  margin: 0;
+}
+
+.chapter-body .band,
+.chapter-body .guide,
+.chapter-body .paper {
+  padding: 0;
+  margin: 0 0 9mm;
+  display: block;
+}
+
+.chapter-body .band.tint {
+  background: #f2f7fb;
+  padding: 7mm;
+  border-radius: 2px;
+}
+
+.chapter-body .spread {
+  display: block;
+}
+
+.chapter-body .spread > * + * {
+  margin-top: 6mm;
+}
+
+.chapter-body .paper {
+  display: block;
+}
+
+.chapter-body .paper > section {
+  margin-bottom: 10mm;
+}
+
+.chapter-body .guide {
+  display: block;
+}
+
+.chapter-body .two {
+  display: block;
+}
+
+.chapter-body .two > * + * {
+  margin-top: 6mm;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--display);
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+h2 {
+  margin: 0 0 3mm;
+  font-size: 17pt;
+  line-height: 1.14;
+  letter-spacing: -.01em;
+  break-after: avoid;
+}
+
+h3 {
+  margin: 0 0 2mm;
+  font-size: 11.4pt;
+  line-height: 1.3;
+  break-after: avoid;
+}
+
+p {
+  margin: 0 0 3mm;
+}
+
+p:last-child {
+  margin-bottom: 0;
+}
+
+.eyebrow {
+  margin: 0 0 2.5mm;
+  font-size: 7.4pt;
+  letter-spacing: .16em;
+  break-after: avoid;
+}
+
+.lead {
+  font-size: 11pt;
+  line-height: 1.6;
+  max-width: none;
+}
+
+.small {
+  font-size: 8.8pt;
+}
+
+.note {
+  padding: 3.5mm 4mm;
+  font-size: 9.2pt;
+  margin: 0 0 5mm;
+}
+
+/* hide site chrome */
+.nav,
+.footer,
+footer,
+.skip,
+.theme,
+.btns,
+.toggle,
+.next,
+.toc,
+.toc-cta,
+.copy,
+.install button {
+  display: none !important;
+}
+
+/* figures and data */
+.figs {
+  grid-template-columns: 1fr 1fr;
+  gap: 5mm;
+  margin-top: 0;
+}
+
+.fig .v {
+  font-size: 26pt;
+}
+
+.fig .l {
+  font-size: 8.6pt;
+  margin-top: 1.5mm;
+}
+
+.fig .s {
+  font-size: 8pt;
+}
+
+.meter .bar {
+  height: 7mm;
+}
+
+.meter .seg {
+  font-size: 7.2pt;
+  padding: 0 2.5mm;
+  animation: none;
+}
+
+.meter .top {
+  font-size: 9pt;
+}
+
+.meter .key {
+  font-size: 7.6pt;
+}
+
+.eq {
+  font-size: 12.5pt;
+  padding: 4mm 0;
+  white-space: normal;
+}
+
+.eq sub,
+.eq sup {
+  font-size: .6em;
+}
+
+.uses {
+  grid-template-columns: 1fr;
+  gap: 5mm;
+  margin-top: 4mm;
+}
+
+.use {
+  padding-top: 3mm;
+}
+
+.use h3 {
+  font-size: 12pt;
+}
+
+.use p {
+  font-size: 9.4pt;
+}
+
+.limits {
+  margin-top: 4mm;
+  break-inside: avoid;
+}
+
+.limits li {
+  grid-template-columns: 48mm 1fr;
+  gap: 2mm 6mm;
+  padding: 2.4mm 0;
+  font-size: 9.4pt;
+}
+
+.trade {
+  grid-template-columns: 1fr 1fr;
+  gap: 4mm;
+}
+
+.trade > div {
+  padding: 5mm;
+}
+
+.trade h3 {
+  font-size: 11pt;
+}
+
+.trade dl {
+  grid-template-columns: 1fr auto;
+  gap: 2mm;
+  font-size: 8.6pt;
+}
+
+.trade dd {
+  font-size: 12pt;
+}
+
+.trade dt small {
+  font-size: 7.6pt;
+}
+
+/* code */
+.code {
+  break-inside: avoid;
+  margin: 0;
+}
+
+.code pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 7.2pt;
+  line-height: 1.55;
+  padding: 4mm;
+}
+
+.code-head {
+  font-size: 7.4pt;
+  padding: 2mm 3mm;
+}
+
+/* guide */
+.steps {
+  margin: 0;
+}
+
+.step {
+  padding: 0 0 8mm 11mm;
+}
+
+.step::before {
+  width: 7mm;
+  height: 7mm;
+  font-size: 9pt;
+}
+
+.step::after {
+  left: 3.4mm;
+  top: 9mm;
+}
+
+.step h2 {
+  font-size: 14pt;
+  margin: 0 0 2.5mm;
+}
+
+.step > p {
+  max-width: none;
+}
+
+.step .code {
+  margin-top: 3mm;
+}
+
+/* the agent prompt is a full page of its own */
+.chapter-body [id$="agents"] {
+  break-before: page;
+  padding-top: 0 !important;
+  border-top: 0 !important;
+}
+
+/* paper */
+.abstract {
+  font-size: 10pt;
+  line-height: 1.62;
+}
+
+.ct {
+  font-size: 10.5pt;
+}
+
+.hbars .r {
+  grid-template-columns: 68mm 1fr 10mm;
+  gap: 4mm;
+  font-size: 8.4pt;
+}
+
+.hbars .t {
+  height: 4.5mm;
+}
+
+.hbars .n {
+  font-size: 8.4pt;
+}
+
+.table-wrap {
+  overflow: visible;
+}
+
+table {
+  font-size: 8pt;
+}
+
+th,
+td {
+  padding: 1.8mm 2.2mm;
+}
+
+caption {
+  font-size: 7.8pt;
+}
+
+.prose p {
+  font-size: 10pt;
+}
+
+/* page-break guards */
+pre,
+table,
+figure,
+.meter,
+.trade > div,
+.fig,
+.note {
+  break-inside: avoid;
+}
+
+h2 + p,
+h3 + p {
+  break-before: avoid;
+}
+
+/* ---------- colophon ---------- */
+.colophon {
+  break-before: page;
+  padding-top: 30mm;
+}
+
+.colophon h2 {
+  font-size: 20pt;
+  margin-bottom: 4mm;
+}
+
+.colophon p {
+  max-width: 120mm;
+  color: var(--ink-2);
+  font-size: 10pt;
+}
+
+.colophon dl {
+  display: grid;
+  grid-template-columns: 34mm 1fr;
+  gap: 2mm 4mm;
+  margin-top: 10mm;
+  font-size: 9pt;
+}
+
+.colophon dt {
+  color: var(--muted);
+}
+
+.colophon dd {
+  margin: 0;
+}
