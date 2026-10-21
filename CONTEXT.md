@@ -52,7 +52,7 @@ The custom Solidity verifier exporter (`lib/solidity/`) that supports proofs wit
 _Avoid_: gnark's generator (that means the single-commitment one)
 
 **ppprt**:
-The frozen gnark fork the paper's numbers were measured on ([mistcash/ppprt](https://github.com/mistcash/ppprt)). Predates gnark's carry range-check and on-twist fixes, so not sound; kept only to reproduce the paper. See `ARTIFACT.md`.
+The frozen gnark fork the paper's numbers were measured on ([mistcash/ppprt](https://github.com/mistcash/ppprt)). Predates gnark's carry range-check and on-twist fixes, so not sound; kept only to reproduce the paper. See `paper/ARTIFACT.md`.
 _Avoid_: "the old repo", "the paper code" without saying which
 
 **tiny-gnark**:

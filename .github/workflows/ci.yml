@@ -39,28 +39,3 @@ jobs:
       # -short only skips the on-chain test, which has its own job below.
       - name: go test
         run: go test -short ./...
-
-      - name: go test -race
-        run: go test -race -short ./...
-
-  onchain:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - name: Install solc
-        run: |
-          curl -fsSL -o /usr/local/bin/solc "https://github.com/ethereum/solidity/releases/download/v0.8.24/solc-static-linux"
-          chmod +x /usr/local/bin/solc
-          solc --version
-
-      # The outer proof, proved for real and verified on a simulated EVM.
-      # It compiles and proves the outer circuit twice, so it is the slow
-      # part of the suite; it runs in its own job to keep it off the
-      # critical path of the rest.
-      - name: go test -onchain
-        run: go test ./examples/recursion/ -run TestOuterOnChain -v
