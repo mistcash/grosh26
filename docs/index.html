@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>polyring: recursive Groth16 verification in gnark | Pairing Proofs (TCHES 2027)</title>
+<meta name="description" content="polyring verifies BN254 and BLS12-381 Groth16 proofs inside a gnark circuit with 38% fewer constraints, and on-chain with a Solidity verifier. Code and TCHES 2027 paper.">
+<link rel="canonical" href="https://mistcash.github.io/polyring/">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="author" content="Shramee Srivastav">
+<meta name="theme-color" content="#e3edf5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#081019" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="assets/mist-mark.svg" type="image/svg+xml">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="polyring by MIST.cash">
+<meta property="og:title" content="polyring: recursive Groth16 verification in gnark, 38% fewer constraints">
+<meta property="og:description" content="Verify a BN254 or BLS12-381 Groth16 proof inside a gnark circuit, then on-chain. Implementation of Pairing Proofs and Polynomial Ring Toolkit (IACR TCHES 2027).">
+<meta property="og:url" content="https://mistcash.github.io/polyring/">
+<meta property="og:image" content="https://mistcash.github.io/polyring/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="polyring: 38.0% fewer constraints to verify a Groth16 proof inside a BN254 circuit">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="polyring: recursive Groth16 verification in gnark">
+<meta name="twitter:description" content="38% fewer constraints to verify a Groth16 proof inside a circuit. Code, step-by-step guide and the TCHES 2027 paper.">
+<meta name="twitter:image" content="https://mistcash.github.io/polyring/og.png">
+
+<!-- Google Scholar -->
+<meta name="citation_title" content="Pairing Proofs and Polynomial Ring Toolkit">
+<meta name="citation_author" content="Srivastav, Shramee">
+<meta name="citation_author_institution" content="MIST.cash">
+<meta name="citation_journal_title" content="IACR Transactions on Cryptographic Hardware and Embedded Systems">
+<meta name="citation_publisher" content="International Association for Cryptologic Research">
+<meta name="citation_publication_date" content="2027">
+<meta name="citation_pdf_url" content="https://mistcash.github.io/polyring/paper.pdf">
+
+<link rel="alternate" type="text/plain" href="llms.txt" title="Instructions for AI coding agents">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@600;700&family=Sen:wght@400;600;800&display=swap">
+<link rel="stylesheet" href="assets/site.css">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Person",
+      "@id": "https://mistcash.github.io/polyring/#author",
+      "name": "Shramee Srivastav",
+      "affiliation": { "@type": "Organization", "name": "MIST.cash", "url": "https://mist.cash" }
+    },
+    {
+      "@type": "ScholarlyArticle",
+      "@id": "https://mistcash.github.io/polyring/#paper",
+      "headline": "Pairing Proofs and Polynomial Ring Toolkit",
+      "author": { "@id": "https://mistcash.github.io/polyring/#author" },
+      "isPartOf": { "@type": "Periodical", "name": "IACR Transactions on Cryptographic Hardware and Embedded Systems" },
+      "abstract": "A public-coin interactive proof system that consolidates the Miller loop iterations and final exponentiation of a pairing into a single polynomial relation, verified as polynomial identities. Implemented in gnark as a reusable polynomial ring toolkit; on a 3-pairing product check it reduces constraints by over 32% and committed elements by over 50% for BN254 and BLS12-381.",
+      "keywords": ["elliptic curve pairings", "zero-knowledge proofs", "polynomial identity testing", "recursive proofs", "blockchain verification", "Groth16", "gnark"],
+      "license": "https://creativecommons.org/licenses/by/4.0/",
+      "url": "https://mistcash.github.io/polyring/#paper",
+      "encoding": { "@type": "MediaObject", "contentUrl": "https://mistcash.github.io/polyring/paper.pdf", "encodingFormat": "application/pdf" }
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "@id": "https://mistcash.github.io/polyring/#software",
+      "name": "polyring",
+      "description": "Groth16-in-Groth16 recursion for gnark: verify a BN254 or BLS12-381 Groth16 proof inside a BN254 Groth16 circuit with a polynomial-ring pairing check, and on-chain with a multi-commitment Solidity verifier.",
+      "codeRepository": "https://github.com/mistcash/polyring",
+      "programmingLanguage": "Go",
+      "runtimePlatform": "gnark",
+      "license": "https://www.apache.org/licenses/LICENSE-2.0",
+      "author": { "@id": "https://mistcash.github.io/polyring/#author" },
+      "citation": { "@id": "https://mistcash.github.io/polyring/#paper" },
+      "keywords": ["recursive SNARK", "Groth16 recursion", "in-circuit pairing", "BN254", "BLS12-381", "gnark", "Solidity verifier", "on-chain verification"]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How do I verify a Groth16 proof inside a gnark circuit?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Add polyring and its gnark replace directive to go.mod, turn the inner verifying key into constants with recursion.NewVerifyingKey, call recursion.NewVerifier as the first statement of your circuit's Define, then AssertProof on the inner proof and public inputs. The outer circuit compiles over BN254 and proves with stock gnark Groth16." }
+        },
+        {
+          "@type": "Question",
+          "name": "Does polyring make on-chain verification cheaper?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Where the chain computes the pairing in its own VM, yes: the technique cut CairoVM steps by 37.1% for a BN254 Groth16 pairing check in Garaga on Starknet. On the EVM the pairing runs in a precompile, so polyring's outer verifier costs more gas than gnark's (about 460k against 359k, +28%); the saving there is on the prover, 38% fewer constraints per recursive proof." }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I verify a BLS12-381 Groth16 proof on Ethereum with polyring?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes, through recursion. polyring verifies the BLS12-381 proof inside a BN254 Groth16 circuit, and the resulting BN254 proof is checked on-chain by the generated Solidity verifier through the EVM's BN254 pairing precompile." }
+        },
+        {
+          "@type": "Question",
+          "name": "Is polyring audited?",
+          "acceptedAnswer": { "@type": "Answer", "text": "No. polyring is unaudited research software at v0.1. Use it on testnets and for research, not to secure funds." }
+        }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="mist-mark" viewBox="0 0 1080 1080"><g transform="translate(0,1080) scale(0.1,-0.1)"><path d="M0 5402 l0 -5402 4408 1 c4382 1 4406 1 4297 20 -169 29 -408 93 -567 150 -251 90 -577 258 -793 407 -689 478 -1176 1198 -1360 2014 -59 260 -69 368 -70 713 0 345 6 417 56 666 293 1466 1553 2568 3063 2680 146 11 504 7 629 -7 l57 -7 0 2084 0 2084 -2430 -2430 -2430 -2430 -2430 2430 -2430 2430 0 -5403z"/><circle cx="9330" cy="3300" r="1460"/></g></symbol>
+</svg>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="polyring by MIST.cash, back to top">
+      <svg aria-hidden="true" fill="currentColor"><use href="#mist-mark"/></svg>
+      <b>polyring</b><span>by MIST.cash</span>
+    </a>
+    <nav aria-label="Sections">
+      <ul>
+        <li><a href="#results">Results</a></li>
+        <li><a href="#recursion">Recursion</a></li>
+        <li><a href="#onchain">On-chain</a></li>
+        <li><a href="#guide">Guide</a></li>
+        <li><a href="#agents">For agents</a></li>
+        <li><a href="#paper">Paper</a></li>
+        <li><a href="https://github.com/mistcash/polyring">GitHub</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+<div class="hero" id="top">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <span class="eyebrow">IACR TCHES <span class="num">2027</span> · Open-source Go library for gnark</span>
+        <h1>Pairing Proofs and Polynomial Ring Toolkit</h1>
+        <p class="lead"><strong>polyring</strong> verifies a Groth16 proof inside another Groth16 proof, the building block of recursive SNARKs, and then on-chain. It checks each Miller loop step as one polynomial identity instead of a chain of 𝔽<sub>p</sub><sup>12</sup> multiplications, so the recursive verifier needs <strong>38% fewer constraints</strong> than gnark's own pairing and the outer proof is cheaper to produce.</p>
+        <p class="byline"><a href="https://github.com/shramee">Shramee Srivastav</a>, <a href="https://mist.cash">MIST.cash</a></p>
+        <div class="btns">
+          <a class="btn primary" href="#guide">Step-by-step guide</a>
+          <a class="btn" href="paper.pdf">Paper (PDF)</a>
+          <a class="btn" href="https://github.com/mistcash/polyring">Code on GitHub</a>
+          <a class="btn" href="#cite">Cite</a>
+        </div>
+        <span class="badge">Unaudited research software, v0.1. Use on testnets, not to secure funds.</span>
+      </div>
+
+      <figure class="card hero-figure" style="margin:0">
+        <span class="eyebrow">Recursive Groth16 verifier, BN254 inner proof</span>
+        <div class="value" style="margin-top:14px">38.0%</div>
+        <div class="what">fewer R1CS constraints to verify a Groth16 proof inside a BN254 circuit</div>
+        <div class="legend" aria-hidden="true"><span><i class="k-base"></i>gnark's emulated pairing</span><span><i class="k-accent"></i>polyring ring pairing</span></div>
+        <div class="bars" style="--max:800">
+          <div class="row"><span class="lab">gnark</span><div class="track" style="--ticks:4"><span class="fill base" style="--v:791.4" data-tip="791,400 R1CS constraints|gnark's in-circuit pairing (sw_bn254)"></span></div><span class="val">791,400</span></div>
+          <div class="row"><span class="lab">polyring</span><div class="track" style="--ticks:4"><span class="fill" style="--v:491.043" data-tip="491,043 R1CS constraints|polyring ring pairing, −300,357"></span></div><span class="val">491,043</span></div>
+        </div>
+        <figcaption class="small" style="margin-top:14px">Same circuit, same statement, only the pairing check differs. Exact counts that reproduce to the digit, see <a href="#results">Results</a> for the command.</figcaption>
+      </figure>
+    </div>
+
+    <div class="stats">
+      <div class="card stat"><div class="v">52.8%</div><div class="l">fewer committed elements on a 3-pairing check</div><div class="s">Paper, Table 7, BN254</div></div>
+      <div class="card stat"><div class="v">37.1%</div><div class="l">fewer CairoVM steps for a Groth16 pairing check on Starknet</div><div class="s">In production in Garaga, paper Table 6</div></div>
+      <div class="card stat"><div class="v">46.2%</div><div class="l">smaller Miller loop and final exponentiation inside the recursive verifier</div><div class="s">polyring, BN254 inner proof</div></div>
+      <div class="card stat"><div class="v">≈460k gas</div><div class="l">to verify the recursive proof on any EVM chain with the BN254 precompile</div><div class="s">512-byte proof, simulated EVM</div></div>
+    </div>
+  </div>
+</div>
+
+<section id="results" aria-labelledby="results-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Impact</span>
+      <h2 id="results-h">The paper's saving holds in the real implementation</h2>
+      <p>The paper measured a 3-pairing product check on a gnark fork. The library runs the same technique on patched gnark, inside a complete recursive Groth16 verifier. Across both, and in production on Starknet, polyring removes about a third of the cost of a pairing check.</p>
+    </div>
+
+    <div class="filters" data-filter="results-charts" role="group" aria-label="Inner curve">
+      <span class="eyebrow">Curve</span>
+      <span class="seg">
+        <button type="button" data-value="bn254" aria-pressed="true">BN254</button>
+        <button type="button" data-value="bls12381" aria-pressed="false">BLS12-381</button>
+      </span>
+    </div>
+
+    <div id="results-charts" data-show="bn254">
+      <figure class="card chart" style="margin:0">
+        <h3>Reduction against gnark's pairing, paper to production</h3>
+        <p class="sub">Each bar is one measurement: how much smaller polyring's number is than the baseline's. Hover or focus a bar for the absolute counts.</p>
+        <div class="bars" style="--max:60">
+          <div class="bar-group">
+            <div class="gh">Paper (TCHES 2027) <small>3-pairing product check, gnark fork <a href="https://github.com/mistcash/ppprt">ppprt</a></small></div>
+            <div class="row" data-curve="bn254"><span class="lab">R1CS constraints</span><div class="track"><span class="fill" style="--v:35.7" data-tip="35.7% fewer|491,447 → 316,167 R1CS constraints|Paper, Table 7, BN254"></span></div><span class="val">35.7%</span></div>
+            <div class="row" data-curve="bn254"><span class="lab">PLONK (SCS) constraints</span><div class="track"><span class="fill" style="--v:35.0" data-tip="35.0% fewer|1,592,440 → 1,035,550 SCS constraints|Paper, Table 7, BN254"></span></div><span class="val">35.0%</span></div>
+            <div class="row" data-curve="bn254"><span class="lab">Committed 𝔽<sub>q</sub> elements</span><div class="track"><span class="fill" style="--v:52.8" data-tip="52.8% fewer|571,125 → 269,616 committed elements|Paper, Table 7, BN254"></span></div><span class="val">52.8%</span></div>
+            <div class="row" data-curve="bls12381"><span class="lab">R1CS constraints</span><div class="track"><span class="fill" style="--v:32.5" data-tip="32.5% fewer|545,510 → 368,434 R1CS constraints|Paper, Table 7, BLS12-381"></span></div><span class="val">32.5%</span></div>
+            <div class="row" data-curve="bls12381"><span class="lab">PLONK (SCS) constraints</span><div class="track"><span class="fill" style="--v:33.2" data-tip="33.2% fewer|1,784,247 → 1,191,105 SCS constraints|Paper, Table 7, BLS12-381"></span></div><span class="val">33.2%</span></div>
+            <div class="row" data-curve="bls12381"><span class="lab">Committed 𝔽<sub>q</sub> elements</span><div class="track"><span class="fill" style="--v:54.5" data-tip="54.5% fewer|660,160 → 300,104 committed elements|Paper, Table 7, BLS12-381"></span></div><span class="val">54.5%</span></div>
+          </div>
+          <div class="bar-group">
+            <div class="gh">Same circuit on patched gnark <small>preliminary, the benchmark lands in a follow-up</small></div>
+            <div class="row" data-curve="bn254"><span class="lab">R1CS constraints</span><div class="track"><span class="fill" style="--v:38.6" data-tip="38.6% fewer (preliminary)|774,987 → 476,200 R1CS constraints|Table 7 circuit, gnark v0.16.4 with the soundness fixes"></span></div><span class="val">38.6%*</span></div>
+            <div class="row" data-curve="bn254"><span class="lab">PLONK (SCS) constraints</span><div class="track"><span class="fill" style="--v:39.6" data-tip="39.6% fewer (preliminary)|2,774,037 → 1,674,447 SCS constraints|Table 7 circuit, gnark v0.16.4 with the soundness fixes"></span></div><span class="val">39.6%*</span></div>
+            <div class="row" data-curve="bls12381"><span class="lab">R1CS constraints</span><div class="track"><span class="fill" style="--v:34.8" data-tip="34.8% fewer (preliminary)|868,422 → 566,083 R1CS constraints|Table 7 circuit, gnark v0.16.4 with the soundness fixes"></span></div><span class="val">34.8%*</span></div>
+            <div class="row" data-curve="bls12381"><span class="lab">PLONK (SCS) constraints</span><div class="track"><span class="fill" style="--v:36.4" data-tip="36.4% fewer (preliminary)|3,123,182 → 1,987,105 SCS constraints|Table 7 circuit, gnark v0.16.4 with the soundness fixes"></span></div><span class="val">36.4%*</span></div>
+          </div>
+          <div class="bar-group">
+            <div class="gh">polyring library <small>patched gnark, measured in this repository</small></div>
+            <div class="row" data-curve="bn254"><span class="lab">Groth16 verifier in a BN254 circuit</span><div class="track"><span class="fill" style="--v:38.0" data-tip="38.0% fewer|791,400 → 491,043 R1CS constraints|Full recursive verifier, BN254 inner proof"></span></div><span class="val">38.0%</span></div>
+            <div class="row" data-curve="bn254"><span class="lab">Two-pair check, both G2 points from the witness</span><div class="track"><span class="fill" style="--v:30.7" data-tip="30.7% fewer|736,686 → 510,588 R1CS constraints|std/ringpairing, BN254"></span></div><span class="val">30.7%</span></div>
+            <div class="row" data-curve="bls12381"><span class="lab">Groth16 verifier in a BN254 circuit</span><div class="track"><span class="fill" style="--v:30.9" data-tip="30.9% fewer|979,700 → 677,317 R1CS constraints|Full recursive verifier, BLS12-381 inner proof"></span></div><span class="val">30.9%</span></div>
+            <div class="row" data-curve="bls12381"><span class="lab">Two-pair check, both G2 points from the witness</span><div class="track"><span class="fill" style="--v:21.5" data-tip="21.5% fewer|917,190 → 720,136 R1CS constraints|std/ringpairing, BLS12-381"></span></div><span class="val">21.5%</span></div>
+          </div>
+          <div class="bar-group">
+            <div class="gh">In production on Starknet <small>Garaga, Cairo, paper Table 6</small></div>
+            <div class="row" data-curve="bn254"><span class="lab">CairoVM steps</span><div class="track"><span class="fill" style="--v:37.1" data-tip="37.1% fewer|338,678 → 212,902 VM steps|3-pairing check with final exponentiation, BN254"></span></div><span class="val">37.1%</span></div>
+            <div class="row" data-curve="bn254"><span class="lab">Committed elements</span><div class="track"><span class="fill" style="--v:50.7" data-tip="50.7% fewer|5,689 → 2,807 Poseidon-committed elements|Garaga, BN254"></span></div><span class="val">50.7%</span></div>
+            <div class="row" data-curve="bls12381"><span class="lab">CairoVM steps</span><div class="track"><span class="fill" style="--v:32.7" data-tip="32.7% fewer|325,757 → 219,155 VM steps|3-pairing check with final exponentiation, BLS12-381"></span></div><span class="val">32.7%</span></div>
+            <div class="row" data-curve="bls12381"><span class="lab">Committed elements</span><div class="track"><span class="fill" style="--v:41.6" data-tip="41.6% fewer|5,421 → 3,167 Poseidon-committed elements|Garaga, BLS12-381"></span></div><span class="val">41.6%</span></div>
+          </div>
+        </div>
+        <div class="axis" aria-hidden="true"><span></span><span class="ticks"><span>0%</span><span>10%</span><span>20%</span><span>30%</span><span>40%</span><span>50%</span><span>60%</span></span><span></span></div>
+        <p class="small" style="margin:14px 0 0">* Preliminary: measured, but the benchmark is not in the tree yet. Constraint and step counts are exact; the paper's committed-element count (values passed to <code>api.Commit</code>) is not re-measured on patched gnark yet.</p>
+      </figure>
+
+      <figure class="card chart" style="margin:16px 0 0">
+        <h3>Why the absolute numbers grew, and the ratio held</h3>
+        <p class="sub">Two gnark security advisories published after the paper's measurements added range checks to every emulated multiplication. That grew both columns, gnark's pairing as much as polyring's, so the full recursive verifier costs more than the paper's bare 3-pairing check while the saving stays at a third.</p>
+        <div class="legend"><span><i class="k-base"></i>gnark's emulated pairing</span><span><i class="k-accent"></i>polyring</span></div>
+        <div class="bars pair" style="--max:1000">
+          <div class="row" data-curve="bn254"><span class="lab">Paper, 3-pairing check, R1CS</span><div class="track" style="--ticks:5"><span class="fill base" style="--v:491.447" data-tip="gnark: 491,447|Paper, Table 7, BN254, before the advisories"></span><span class="fill" style="--v:316.167" data-tip="polyring: 316,167|35.7% fewer"></span></div><span class="val"><span>491k</span><span>316k</span></span></div>
+          <div class="row" data-curve="bn254"><span class="lab">Same circuit, patched gnark*</span><div class="track" style="--ticks:5"><span class="fill base" style="--v:774.987" data-tip="gnark: 774,987|Patched gnark, BN254 (preliminary)"></span><span class="fill" style="--v:476.2" data-tip="polyring: 476,200|38.6% fewer"></span></div><span class="val"><span>775k</span><span>476k</span></span></div>
+          <div class="row" data-curve="bn254"><span class="lab">Full Groth16 verifier, patched gnark</span><div class="track" style="--ticks:5"><span class="fill base" style="--v:791.4" data-tip="gnark: 791,400|Recursive verifier, BN254 inner proof"></span><span class="fill" style="--v:491.043" data-tip="polyring: 491,043|38.0% fewer"></span></div><span class="val"><span>791k</span><span>491k</span></span></div>
+          <div class="row" data-curve="bls12381"><span class="lab">Paper, 3-pairing check, R1CS</span><div class="track" style="--ticks:5"><span class="fill base" style="--v:545.51" data-tip="gnark: 545,510|Paper, Table 7, BLS12-381, before the advisories"></span><span class="fill" style="--v:368.434" data-tip="polyring: 368,434|32.5% fewer"></span></div><span class="val"><span>546k</span><span>368k</span></span></div>
+          <div class="row" data-curve="bls12381"><span class="lab">Same circuit, patched gnark*</span><div class="track" style="--ticks:5"><span class="fill base" style="--v:868.422" data-tip="gnark: 868,422|Patched gnark, BLS12-381 (preliminary)"></span><span class="fill" style="--v:566.083" data-tip="polyring: 566,083|34.8% fewer"></span></div><span class="val"><span>868k</span><span>566k</span></span></div>
+          <div class="row" data-curve="bls12381"><span class="lab">Full Groth16 verifier, patched gnark</span><div class="track" style="--ticks:5"><span class="fill base" style="--v:979.7" data-tip="gnark: 979,700|Recursive verifier, BLS12-381 inner proof"></span><span class="fill" style="--v:677.317" data-tip="polyring: 677,317|30.9% fewer"></span></div><span class="val"><span>980k</span><span>677k</span></span></div>
+        </div>
+        <div class="axis" aria-hidden="true"><span></span><span class="ticks"><span>0</span><span>200k</span><span>400k</span><span>600k</span><span>800k</span><span>1M</span></span><span></span></div>
+        <p class="small" style="margin:14px 0 0">The advisories: <a href="https://github.com/Consensys/gnark/security/advisories/GHSA-3mvx-pp85-pm65">GHSA-3mvx-pp85-pm65</a> (unchecked carry in emulated multiplication) and <a href="https://github.com/Consensys/gnark/security/advisories/GHSA-fwf3-jmp7-gmrj">GHSA-fwf3-jmp7-gmrj</a> (G2 on-twist check discarded). The paper's fork predates both and is kept frozen only to reproduce its tables; polyring builds on the fixed gnark. <a href="https://github.com/mistcash/polyring/blob/main/ARTIFACT.md">The artifact guide</a> maps every number to its source.</p>
+      </figure>
+
+      <details class="card" style="padding:16px 22px">
+        <summary>All numbers as tables, with the paper's Table 7 in full</summary>
+        <div class="table-wrap">
+          <table>
+            <caption class="small" style="text-align:left;padding-bottom:6px">Paper, Table 7: 3-pairing product check, gnark baseline against this work. Apple M3 Pro.</caption>
+            <thead><tr><th>Metric</th><th class="n">BN254 gnark</th><th class="n">BN254 this work</th><th class="n">Reduction</th><th class="n">BLS12-381 gnark</th><th class="n">BLS12-381 this work</th><th class="n">Reduction</th></tr></thead>
+            <tbody>
+              <tr><td colspan="7"><strong>SCS (PLONK) constraint system</strong></td></tr>
+              <tr><td>Constraints</td><td class="n">1,592,440</td><td class="n">1,035,550</td><td class="n">35.0%</td><td class="n">1,784,247</td><td class="n">1,191,105</td><td class="n">33.2%</td></tr>
+              <tr><td>Committed 𝔽<sub>q</sub> elements</td><td class="n">571,125</td><td class="n">269,616</td><td class="n">52.8%</td><td class="n">660,160</td><td class="n">300,104</td><td class="n">54.5%</td></tr>
+              <tr><td>Compile time</td><td class="n">615.04 ms</td><td class="n">347.13 ms</td><td class="n">43.6%</td><td class="n">650.02 ms</td><td class="n">410.48 ms</td><td class="n">36.9%</td></tr>
+              <tr><td>Compile memory</td><td class="n">1.33 GB</td><td class="n">0.82 GB</td><td class="n">38.3%</td><td class="n">1.48 GB</td><td class="n">0.97 GB</td><td class="n">34.5%</td></tr>
+              <tr><td>Solve time</td><td class="n">167.57 ms</td><td class="n">97.30 ms</td><td class="n">41.9%</td><td class="n">180.05 ms</td><td class="n">111.60 ms</td><td class="n">38.0%</td></tr>
+              <tr><td>Solve memory</td><td class="n">348.73 MB</td><td class="n">181.24 MB</td><td class="n">48.0%</td><td class="n">362.14 MB</td><td class="n">284.30 MB</td><td class="n">21.5%</td></tr>
+              <tr><td colspan="7"><strong>R1CS constraint system</strong></td></tr>
+              <tr><td>Constraints</td><td class="n">491,447</td><td class="n">316,167</td><td class="n">35.7%</td><td class="n">545,510</td><td class="n">368,434</td><td class="n">32.5%</td></tr>
+              <tr><td>Committed 𝔽<sub>q</sub> elements</td><td class="n">571,125</td><td class="n">269,616</td><td class="n">52.8%</td><td class="n">660,160</td><td class="n">300,104</td><td class="n">54.5%</td></tr>
+              <tr><td>Compile time</td><td class="n">617.63 ms</td><td class="n">367.25 ms</td><td class="n">40.5%</td><td class="n">686.95 ms</td><td class="n">424.01 ms</td><td class="n">38.3%</td></tr>
+              <tr><td>Compile memory</td><td class="n">1.60 GB</td><td class="n">0.98 GB</td><td class="n">38.8%</td><td class="n">1.74 GB</td><td class="n">1.13 GB</td><td class="n">35.1%</td></tr>
+              <tr><td>Solve time</td><td class="n">175.42 ms</td><td class="n">106.36 ms</td><td class="n">39.4%</td><td class="n">182.72 ms</td><td class="n">121.15 ms</td><td class="n">33.7%</td></tr>
+              <tr><td>Solve memory</td><td class="n">173.26 MB</td><td class="n">112.72 MB</td><td class="n">34.9%</td><td class="n">231.77 MB</td><td class="n">118.61 MB</td><td class="n">48.8%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <caption class="small" style="text-align:left;padding:14px 0 6px">polyring on patched gnark: R1CS constraints, exact. Outer circuit is BN254 in every row.</caption>
+            <thead><tr><th>Circuit</th><th>Inner curve</th><th class="n">gnark</th><th class="n">polyring</th><th class="n">Reduction</th></tr></thead>
+            <tbody>
+              <tr><td>Groth16 verifier (<code>std/recursion</code>)</td><td>BN254</td><td class="n">791,400</td><td class="n">491,043</td><td class="n">38.0%</td></tr>
+              <tr><td></td><td>BLS12-381</td><td class="n">979,700</td><td class="n">677,317</td><td class="n">30.9%</td></tr>
+              <tr><td>Two-pair check (<code>std/ringpairing</code>)</td><td>BN254</td><td class="n">736,686</td><td class="n">510,588</td><td class="n">30.7%</td></tr>
+              <tr><td></td><td>BLS12-381</td><td class="n">917,190</td><td class="n">720,136</td><td class="n">21.5%</td></tr>
+              <tr><td>Table 7 circuit, preliminary</td><td>BN254</td><td class="n">774,987</td><td class="n">476,200</td><td class="n">38.6%</td></tr>
+              <tr><td></td><td>BLS12-381</td><td class="n">868,422</td><td class="n">566,083</td><td class="n">34.8%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+
+    <div class="code" style="margin-top:20px">
+      <div class="code-head"><span>Reproduce the constraint counts (about 1 minute)</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="lang-sh">git clone https://github.com/mistcash/polyring &amp;&amp; cd polyring
+go test ./... -run='^$' -bench=. -benchtime=1x -v | grep BENCH</code></pre>
+    </div>
+  </div>
+</section>
+
+<section id="recursion" aria-labelledby="recursion-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Recursive proofs</span>
+      <h2 id="recursion-h">Verify a Groth16 proof inside your circuit</h2>
+      <p>A recursive SNARK checks one proof inside another. In a Groth16 verifier circuit that check is dominated by the pairing: with gnark's pairing, the Miller loop and final exponentiation are 83% of the constraints for a BN254 inner proof. polyring rewrites exactly that part, so every recursive step is cheaper to prove, and the result is still one ordinary Groth16 proof that a chain can verify.</p>
+    </div>
+
+    <ol class="pipeline" aria-label="The recursion pipeline">
+      <li class="card pipe"><span class="eyebrow"><span class="num">1</span> · Inner</span><h3>Your statement</h3><p>Any gnark circuit, compiled over BN254 or BLS12-381, proved with stock Groth16.</p></li>
+      <li class="card pipe"><span class="eyebrow"><span class="num">2</span> · Inner proof</span><h3>π and its key</h3><p>The proof, its public inputs and the verifying key, which becomes circuit constants.</p></li>
+      <li class="card pipe hot"><span class="eyebrow"><span class="num">3</span> · Outer, BN254</span><h3>Ring pairing</h3><p><code>recursion.NewVerifier</code> checks π inside your circuit, next to your own constraints.</p></li>
+      <li class="card pipe"><span class="eyebrow"><span class="num">4</span> · Outer proof</span><h3>One proof, 512 bytes</h3><p>A BN254 Groth16 proof with three BSB22 commitments, proved with stock gnark.</p></li>
+      <li class="card pipe"><span class="eyebrow"><span class="num">5</span> · On-chain</span><h3>Solidity verifier</h3><p><code>lib/solidity</code> generates the contract; <code>verifyProof</code> costs about 460k gas.</p></li>
+    </ol>
+
+    <div class="filters" data-filter="phase-chart" role="group" aria-label="Inner curve">
+      <span class="eyebrow">Inner curve</span>
+      <span class="seg">
+        <button type="button" data-value="bn254" aria-pressed="true">BN254</button>
+        <button type="button" data-value="bls12381" aria-pressed="false">BLS12-381</button>
+      </span>
+    </div>
+    <figure class="card chart" id="phase-chart" data-show="bn254" style="margin:0">
+      <h3>Where the saving comes from</h3>
+      <p class="sub">R1CS constraints of the recursive Groth16 verifier, split by phase. The public-input MSM and the G1 and G2 point checks are unchanged; the whole saving is in the Miller loop and final exponentiation, which shrink by <span data-curve="bn254">46.2%</span><span data-curve="bls12381">43.6%</span>.</p>
+      <div class="legend"><span><i class="k-accent"></i>Miller loop and final exponentiation</span><span><i class="k-base"></i>Everything else: public-input MSM, G1 checks, G2 ladder and subgroup check</span></div>
+      <div class="bars" style="--max:1000">
+        <div class="row" data-curve="bn254"><span class="lab">gnark's pairing</span><div class="track" style="--ticks:5"><span class="stack" style="--v:791.4"><span class="seg-part hot" style="--p:656420" data-tip="656,420 constraints|Miller loop, final exponentiation, folded e(α,β)"></span><span class="seg-part" style="--p:134980" data-tip="134,980 constraints|MSM 17,352 · G1 checks 1,276 · G2 ladder and subgroup 116,352"></span></span></div><span class="val">791k</span></div>
+        <div class="row" data-curve="bn254"><span class="lab">polyring</span><div class="track" style="--ticks:5"><span class="stack" style="--v:491.043"><span class="seg-part hot" style="--p:353411" data-tip="353,411 constraints|46.2% fewer than gnark's 656,420"></span><span class="seg-part" style="--p:137632" data-tip="137,632 constraints|MSM 17,352 · G1 checks 1,276 · G2 ladder and subgroup 119,004"></span></span></div><span class="val">491k</span></div>
+        <div class="row" data-curve="bls12381"><span class="lab">gnark's pairing</span><div class="track" style="--ticks:5"><span class="stack" style="--v:979.7"><span class="seg-part hot" style="--p:693884" data-tip="693,884 constraints|Miller loop, final exponentiation, folded e(α,β)"></span><span class="seg-part" style="--p:285816" data-tip="285,816 constraints|MSM 23,486 · G1 checks 117,871 · G2 ladder and subgroup 144,459"></span></span></div><span class="val">980k</span></div>
+        <div class="row" data-curve="bls12381"><span class="lab">polyring</span><div class="track" style="--ticks:5"><span class="stack" style="--v:677.317"><span class="seg-part hot" style="--p:391451" data-tip="391,451 constraints|43.6% fewer than gnark's 693,884"></span><span class="seg-part" style="--p:285866" data-tip="285,866 constraints|MSM 23,486 · G1 checks 117,871 · G2 ladder and subgroup 144,509"></span></span></div><span class="val">677k</span></div>
+      </div>
+      <div class="axis" aria-hidden="true"><span></span><span class="ticks"><span>0</span><span>200k</span><span>400k</span><span>600k</span><span>800k</span><span>1M</span></span><span></span></div>
+      <p class="small" style="margin:14px 0 0">Phases are measured with small isolating circuits; the Miller loop row is the remainder, so phases sum to the total. Only e(A, B) runs a full Miller loop: e(α, β) is folded in as a constant, and e(L, γ), e(C, δ) use lines precomputed from the verifying key.</p>
+    </figure>
+
+    <div class="grid-3" style="margin-top:24px">
+      <div class="card"><h3>Wrap and aggregate</h3><p>Fold a proof, plus whatever you check about it, into one BN254 Groth16 proof. The outer prover does 38% less work than with gnark's pairing for the same statement.</p></div>
+      <div class="card"><h3>Switch curves for Ethereum</h3><p>Verify a BLS12-381 Groth16 proof inside a BN254 circuit. The outer proof is checked by the BN254 pairing precompile (EIP-197) that Ethereum and most EVM chains provide.</p></div>
+      <div class="card"><h3>Any pairing check</h3><p>The ring pairing's <code>PairingCheck</code> is not tied to Groth16. A bare two-pair check with both G2 points from the witness, the most general case, costs 30.7% (BN254) and 21.5% (BLS12-381) fewer constraints.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="onchain" aria-labelledby="onchain-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">On-chain verification</span>
+      <h2 id="onchain-h">Cheaper pairing checks on-chain, and what they cost on the EVM</h2>
+      <p>How much polyring saves on chain depends on who computes the pairing. Where a VM executes it step by step, the technique makes verification itself cheaper. Where a precompile computes it at a fixed price, the saving moves to the prover.</p>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <span class="eyebrow">Starknet, CairoVM, zkVMs</span>
+        <h3 style="margin:8px 0 10px">When the VM computes the pairing</h3>
+        <p>Starknet has no pairing precompile: the CairoVM runs the pairing check, metered by steps, and the prover's hints arrive as calldata. Garaga verifies Groth16 proofs with this paper's consolidated relations. They cut VM steps by <strong>37.1%</strong> and committed elements by <strong>50.7%</strong> for BN254, which fit a Groth16 verification within Starknet's transaction limits for the first time.</p>
+        <div class="table-wrap">
+          <table>
+            <caption class="small" style="text-align:left;padding-bottom:6px">Paper, Table 6: Garaga, 3-pairing check with final exponentiation, before and after the consolidated relations.</caption>
+            <thead><tr><th>Metric</th><th class="n">Before</th><th class="n">After</th><th class="n">Reduction</th></tr></thead>
+            <tbody>
+              <tr><td colspan="4"><strong>BN254</strong></td></tr>
+              <tr class="em"><td>VM steps</td><td class="n">338,678</td><td class="n">212,902</td><td class="n">37.1%</td></tr>
+              <tr><td>Committed elements</td><td class="n">5,689</td><td class="n">2,807</td><td class="n">50.7%</td></tr>
+              <tr><td>MULMOD</td><td class="n">19,142</td><td class="n">12,656</td><td class="n">33.9%</td></tr>
+              <tr><td>ADDMOD</td><td class="n">21,686</td><td class="n">15,142</td><td class="n">30.2%</td></tr>
+              <tr><td colspan="4"><strong>BLS12-381</strong></td></tr>
+              <tr class="em"><td>VM steps</td><td class="n">325,757</td><td class="n">219,155</td><td class="n">32.7%</td></tr>
+              <tr><td>Committed elements</td><td class="n">5,421</td><td class="n">3,167</td><td class="n">41.6%</td></tr>
+              <tr><td>MULMOD</td><td class="n">16,484</td><td class="n">11,287</td><td class="n">31.5%</td></tr>
+              <tr><td>ADDMOD</td><td class="n">20,669</td><td class="n">15,420</td><td class="n">25.4%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="small" style="margin-top:12px">Fewer committed elements means less to hash and less hint calldata per verification. The paper names gnark's <code>ecpair</code> precompile circuit, which zkEVMs use to prove the EVM's pairing precompile, as the next place the toolkit applies.</p>
+      </div>
+
+      <div class="card">
+        <span class="eyebrow">Ethereum and EVM chains</span>
+        <h3 style="margin:8px 0 10px">When a precompile computes the pairing</h3>
+        <p>On the EVM the BN254 pairing runs in a precompile at a fixed price, so no circuit technique makes that call cheaper. What polyring changes is what you can verify for that price: a BN254 or BLS12-381 proof, plus any logic you add, becomes one BN254 Groth16 proof, and <code>lib/solidity</code> generates the contract that checks it.</p>
+        <p>The ring checks draw three BSB22 commitments instead of gnark's one, and the contract checks each of them. That is the trade: a cheaper prover for a more expensive verifier.</p>
+        <ul class="clean">
+          <li><strong>polyring pays off</strong> when proving dominates: you produce many outer proofs, prove on limited hardware, or pay a proving service by the constraint.</li>
+          <li><strong>gnark's pairing pays off</strong> when one proof is verified many times on chain.</li>
+        </ul>
+      </div>
+    </div>
+
+    <figure class="card chart" style="margin:16px 0 0">
+      <h3>The EVM trade, measured</h3>
+      <p class="sub">Outer verifier over a real BN254 inner proof: polyring against the same circuit with gnark's pairing, proved for real and verified on a simulated EVM.</p>
+      <div class="legend"><span><i class="k-accent"></i>Cheaper with polyring</span><span><i class="k-warm"></i>Costlier with polyring</span></div>
+      <div class="bars">
+        <div class="bar-group">
+          <div class="gh">Prover</div>
+          <div class="row div-row"><span class="lab">R1CS constraints</span><div class="div-track"><span class="fill neg" style="--v:38.0" data-tip="38.0% fewer|791,400 → 491,043 constraints"></span></div><span class="val">−38.0%</span></div>
+          <div class="row div-row"><span class="lab">Committed wires</span><div class="div-track"><span class="fill neg" style="--v:32.3" data-tip="32.3% fewer|589,535 → 398,959 wires the Groth16 prover commits to"></span></div><span class="val">−32.3%</span></div>
+        </div>
+        <div class="bar-group">
+          <div class="gh">Verifier</div>
+          <div class="row div-row"><span class="lab"><code>verifyProof</code> gas</span><div class="div-track"><span class="fill posv" style="--v:28.3" data-tip="28.3% more|≈358.6k → ≈460.0k gas, about 101k more"></span></div><span class="val">+28.3%</span></div>
+          <div class="row div-row"><span class="lab">Proof size</span><div class="div-track"><span class="fill posv" style="--v:33.3" data-tip="33.3% larger|384 → 512 bytes: two more commitments, 64 bytes each"></span></div><span class="val">+33.3%</span></div>
+          <div class="row div-row"><span class="lab">Contract bytecode</span><div class="div-track"><span class="fill posv" style="--v:40.3" data-tip="40.3% larger|≈7.4 KB → ≈10.4 KB"></span></div><span class="val">+40.3%</span></div>
+        </div>
+      </div>
+      <div class="axis" aria-hidden="true" style="grid-template-columns:minmax(130px,30%) 1fr 72px"><span></span><span class="div-axis"><span>50% cheaper</span><span>0</span><span>50% costlier</span></span><span></span></div>
+      <details>
+        <summary>Show as a table</summary>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Metric</th><th class="n">gnark's pairing</th><th class="n">polyring</th><th class="n">Change</th></tr></thead>
+            <tbody>
+              <tr><td>R1CS constraints</td><td class="n">791,400</td><td class="n">491,043</td><td class="n">−38.0%</td></tr>
+              <tr><td>Committed wires</td><td class="n">589,535</td><td class="n">398,959</td><td class="n">−32.3%</td></tr>
+              <tr><td>BSB22 commitments</td><td class="n">1</td><td class="n">3</td><td class="n">+2</td></tr>
+              <tr><td>Proof size</td><td class="n">384 B</td><td class="n">512 B</td><td class="n">+128 B</td></tr>
+              <tr><td>Contract bytecode</td><td class="n">≈7.4 KB</td><td class="n">≈10.4 KB</td><td class="n">+40.3%</td></tr>
+              <tr><td><code>verifyProof</code> gas</td><td class="n">≈358.6k</td><td class="n">≈460.0k</td><td class="n">+28.3%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <p class="small" style="margin:14px 0 0">Measured with <code>go test ./examples/recursion -run TestOuterOnChain -v</code>, which also checks that every tampered commitment and a wrong public input are rejected on chain. Gas moves by about a dozen units and bytecode by a few bytes between runs, because the Groth16 setup is randomized; constraint counts are exact.</p>
+    </figure>
+  </div>
+</section>
+
+<section id="guide" aria-labelledby="guide-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Step-by-step guide</span>
+      <h2 id="guide-h">Add a Groth16 verifier circuit inside your circuit</h2>
+      <p>Eight steps from an inner proof to a contract that verifies the recursive proof. Every code block below is taken from a module that runs the whole flow, inner proof to on-chain verification, in about a minute on an Apple M3 Pro. Requirements: Go 1.26.8, and <code>solc</code> on your <code>PATH</code> for step 7.</p>
+    </div>
+
+    <div class="callout" style="margin-bottom:28px">
+      <p><strong>Only wrapping a proof, with no logic of your own?</strong> Skip step 4: <code>recursion.NewBN254Circuit(vk)</code> (or <code>NewBLS12381Circuit</code>) is a complete outer circuit, and its <code>Assign(proof, public)</code> method fills the witness.</p>
+    </div>
+
+    <ol class="steps">
+      <li class="step">
+        <h3>Add polyring and its gnark pin</h3>
+        <p>polyring needs a gnark builder fix that is not upstream yet. Go ignores <code>replace</code> directives in dependencies, so your module has to repeat polyring's.</p>
+        <div class="code"><div class="code-head"><span>shell</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="lang-sh">go get github.com/mistcash/polyring</code></pre></div>
+        <div class="code"><div class="code-head"><span>go.mod</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="lang-go">// Copy this line from polyring's go.mod; it moves with polyring.
+replace github.com/consensys/gnark v0.16.4 => github.com/mistcash/tiny-gnark v0.0.0-20261018205550-0a3abd2ee477</code></pre></div>
+        <p>Then run <code>go mod tidy</code>. Check <a href="https://github.com/mistcash/polyring/blob/main/go.mod">polyring's go.mod</a> for the current line before you copy it.</p>
+      </li>
+
+      <li class="step">
+        <h3>Prove your inner statement</h3>
+        <p>Any gnark circuit over BN254 or BLS12-381, proved with stock Groth16. You need three things from it: the verifying key, the proof and the public witness.</p>
+        <div class="code"><div class="code-head"><span>inner.go</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="lang-go">// Error handling omitted. For a BLS12-381 inner proof use ecc.BLS12_381.
+ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &amp;InnerCircuit{})
+pk, innerVK, err := groth16.Setup(ccs)
+full, err := frontend.NewWitness(innerAssignment, ecc.BN254.ScalarField())
+innerProof, err := groth16.Prove(ccs, pk, full)
+innerPublic, err := full.Public()</code></pre></div>
+        <p>To try the flow first, <code>mimc.Prove(ecc.BN254)</code> from <a href="https://github.com/mistcash/polyring/tree/main/examples/mimc">polyring's examples</a> does all of this for a MiMC preimage circuit.</p>
+        <div class="callout warn"><p><strong>No BSB22 commitments in the inner circuit.</strong> It must not call <code>api.Commit</code>, directly or through a gnark gadget that commits internally (range checks, lookup tables and emulated arithmetic can). Step 3 returns an error if the key has commitments.</p></div>
+      </li>
+
+      <li class="step">
+        <h3>Turn the inner verifying key into circuit constants</h3>
+        <p>The inner key is baked into the outer circuit. <code>NewVerifyingKey</code> checks that α, β, γ and δ are valid subgroup points, precomputes e(α, β) and the line evaluations for γ and δ, and rejects keys with commitments.</p>
+        <div class="code"><div class="code-head"><span>outer.go</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="lang-go">vk, err := recursion.NewVerifyingKey(innerVK)</code></pre></div>
+      </li>
+
+      <li class="step">
+        <h3>Put the verifier inside your circuit</h3>
+        <p>Add the inner proof and its public inputs as fields, keep the key in an unexported field, and verify the proof as the first thing in <code>Define</code>. Your own constraints follow.</p>
+        <div class="code"><div class="code-head"><span>outer.go</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="lang-go">// The inner proof's curve. For BLS12-381 inner proofs use
+// emparams.BLS12381Fp / BLS12381Fr and sw_bls12381.G2Affine / GTEl.
+type (
+	Fp   = emparams.BN254Fp // inner curve base field
+	Fr   = emparams.BN254Fr // inner curve scalar field
+	G2   = sw_bn254.G2Affine
+	GTEl = sw_bn254.GTEl
+)
+
+// Outer is your own circuit. It verifies one inner Groth16 proof, then
+// adds constraints of its own.
+type Outer struct {
+	InnerProof  recursion.Proof[Fp, G2]     `gnark:",secret"`
+	InnerPublic recursion.PublicWitness[Fr] `gnark:",public"`
+	Nonce       frontend.Variable           `gnark:",public"` // your own inputs
+
+	vk *recursion.VerifyingKey // the inner key, baked in as constants
+}
+
+// NewOuter returns the circuit with the inner key set and the inner public
+// inputs sized. Use it for both compiling and assigning.
+func NewOuter(vk *recursion.VerifyingKey) *Outer {
+	return &amp;Outer{InnerPublic: recursion.NewBN254Circuit(vk).PublicWitness, vk: vk}
+}
+
+func (c *Outer) Define(api frontend.API) error {
+	// First line of Define: the ring checker must exist before anything
+	// else in the circuit creates an emulated field.
+	v, err := recursion.NewVerifier[Fp, Fr, G2, GTEl](api, c.vk)
+	if err != nil {
+		return err
+	}
+	if err := v.AssertProof(c.InnerProof, c.InnerPublic); err != nil {
+		return err
+	}
+	// Your own constraints go here.
+	api.AssertIsDifferent(c.Nonce, 0)
+	return nil
+}</code></pre></div>
+        <div class="callout"><p><strong>Why first:</strong> the ring checks emit range checks of their own, and gnark runs deferred checks in registration order, so the ring checker has to be registered before any other emulated field.</p></div>
+      </li>
+
+      <li class="step">
+        <h3>Compile the outer circuit and run setup</h3>
+        <p>The outer circuit is always over BN254, whichever curve the inner proof uses. Compile with the same <code>vk</code> you will assign with.</p>
+        <div class="code"><div class="code-head"><span>main.go</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="lang-go">ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, NewOuter(vk))
+pk, outerVK, err := groth16.Setup(ccs) // about 491k constraints</code></pre></div>
+        <p class="small"><code>groth16.Setup</code> is a local trusted setup, fine for tests. Keys that secure anything need a setup ceremony.</p>
+      </li>
+
+      <li class="step">
+        <h3>Assign the witness and prove</h3>
+        <p>The outer circuit helper converts the native proof and public witness into circuit values; copy them into your assignment.</p>
+        <div class="code"><div class="code-head"><span>main.go</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="lang-go">tmp := recursion.NewBN254Circuit(vk)
+if err := tmp.Assign(innerProof, innerPublic); err != nil {
+	return err
+}
+assignment := NewOuter(vk)
+assignment.InnerProof, assignment.InnerPublic = tmp.Proof, tmp.PublicWitness
+assignment.Nonce = 7 // your own inputs
+
+full, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
+public, err := full.Public()
+proof, err := groth16.Prove(ccs, pk, full,
+	gnarksolidity.WithProverTargetSolidityVerifier(backend.GROTH16))
+err = groth16.Verify(proof, outerVK, public,
+	gnarksolidity.WithVerifierTargetSolidityVerifier(backend.GROTH16))</code></pre></div>
+        <p class="small">The Solidity target makes the prover derive its commitment challenges with Keccak, as the contract does. Leave it out if the proof is only verified off chain.</p>
+      </li>
+
+      <li class="step">
+        <h3>Export the Solidity verifier and call it</h3>
+        <p>Use polyring's exporter: gnark's own generator supports one commitment, and polyring proofs carry three.</p>
+        <div class="code"><div class="code-head"><span>main.go</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="lang-go">bnVK := outerVK.(*groth16bn254.VerifyingKey)
+bnProof := proof.(*groth16bn254.Proof)
+
+f, err := os.Create("Verifier.sol")
+err = solidity.ExportSolidity(bnVK, f)          // polyring's lib/solidity
+proofBytes := solidity.MarshalSolidity(bnProof) // 512 bytes
+
+// Public inputs: the outer public witness, minus the values the
+// contract derives from the commitments itself.
+vec := public.Vector().(fr.Vector)
+n := len(bnVK.G1.K) - 1 - len(bnVK.PublicAndCommitmentCommitted)
+inputs := make([]*big.Int, n)
+for i := range inputs {
+	inputs[i] = vec[i].BigInt(new(big.Int))
+}
+// On chain: Verifier.verifyProof(proofBytes, inputs) reverts unless the proof is valid.</code></pre></div>
+        <p class="small">Each inner public input enters as four 64-bit limbs, so this example, with one inner public input and a nonce, passes five inputs.</p>
+      </li>
+
+      <li class="step">
+        <h3>Test it</h3>
+        <p>Check the assignment against the circuit before paying for setup, then run polyring's own end-to-end tests as a reference.</p>
+        <div class="code"><div class="code-head"><span>outer_test.go</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="lang-go">// Seconds, no setup: does the assignment satisfy the circuit?
+err := test.IsSolved(NewOuter(vk), assignment, ecc.BN254.ScalarField())</code></pre></div>
+        <div class="code"><div class="code-head"><span>shell, in a polyring checkout</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="lang-sh">go test ./examples/recursion/ -run TestGroth16Verifier -v   # both inner curves, tampered proofs rejected
+go test ./examples/recursion/ -run TestOuterOnChain -v      # prove, deploy, verify on a simulated EVM (needs solc)</code></pre></div>
+      </li>
+    </ol>
+
+    <details class="card" style="padding:16px 22px">
+      <summary>Imports used in this guide</summary>
+      <div class="code"><div class="code-head"><span>imports</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="lang-go">import (
+	"math/big"
+	"os"
+
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/groth16"
+	groth16bn254 "github.com/consensys/gnark/backend/groth16/bn254"
+	gnarksolidity "github.com/consensys/gnark/backend/solidity"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
+	"github.com/consensys/gnark/test"
+
+	"github.com/mistcash/polyring/lib/solidity"
+	"github.com/mistcash/polyring/std/recursion"
+)</code></pre></div>
+    </details>
+  </div>
+</section>
+
+<section id="agents" aria-labelledby="agents-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">For AI coding agents</span>
+      <h2 id="agents-h">Instructions for LLMs and coding agents</h2>
+      <p>Paste the block below into your agent, or point it at <a href="llms.txt"><code>llms.txt</code></a>, which carries the same rules plus the full tested code from the guide. The rules are the ones agents get wrong without them.</p>
+    </div>
+    <div class="code agent">
+      <div class="code-head"><span>prompt for your coding agent</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="lang-text">You are adding recursive Groth16 verification to a Go project with polyring
+(github.com/mistcash/polyring), a gnark library. Read
+https://mistcash.github.io/polyring/llms.txt first, then follow these rules.
+
+1. go.mod: require github.com/mistcash/polyring and copy polyring's gnark
+   replace directive verbatim from its go.mod. Go ignores replace directives
+   in dependencies, and polyring's circuits need that gnark fork.
+2. The inner circuit (BN254 or BLS12-381, Groth16) must draw no BSB22
+   commitments: no api.Commit, directly or through a gadget.
+   recursion.NewVerifyingKey(innerVK) returns an error if it does.
+3. In the outer circuit struct use recursion.Proof[Fp, G2] (secret) and
+   recursion.PublicWitness[Fr] (public), and keep the
+   *recursion.VerifyingKey in an unexported field.
+   BN254 inner:     emparams.BN254Fp, emparams.BN254Fr,
+                    sw_bn254.G2Affine, sw_bn254.GTEl
+   BLS12-381 inner: emparams.BLS12381Fp, emparams.BLS12381Fr,
+                    sw_bls12381.G2Affine, sw_bls12381.GTEl
+4. recursion.NewVerifier[Fp, Fr, G2, GTEl](api, vk) must be the first
+   statement in Define, before anything creates an emulated field. Then
+   call AssertProof, then add the project's own constraints.
+5. Build the compile placeholder and the assignment from the same vk. Size
+   the public inputs with recursion.NewBN254Circuit(vk).PublicWitness (or
+   NewBLS12381Circuit) and fill the assignment through that helper's Assign.
+6. Compile over ecc.BN254.ScalarField() with r1cs.NewBuilder. When the proof
+   goes on chain, prove with gnark's
+   solidity.WithProverTargetSolidityVerifier(backend.GROTH16).
+7. Export the contract with polyring's lib/solidity.ExportSolidity and pack
+   the proof with lib/solidity.MarshalSolidity. Never gnark's own exporter:
+   it supports one commitment and polyring proofs carry three.
+8. Check the assignment with test.IsSolved before running setup.
+
+Do not claim the EVM verifier is cheaper than gnark's: it costs about 460k
+gas against 359k; the saving is 38% fewer prover constraints. Do not
+attempt nested recursion, inner proofs with commitments, or a verifying key
+that varies at runtime: v0.1 does not support them. polyring is unaudited.</code></pre>
+    </div>
+  </div>
+</section>
+
+<section id="how" aria-labelledby="how-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">How it works</span>
+      <h2 id="how-h">One polynomial identity per Miller loop step</h2>
+      <p>A pairing check is a Miller loop over 𝔽<sub>p</sub><sup>12</sup> followed by a final exponentiation. Earlier work checks every 𝔽<sub>p</sub><sup>12</sup> multiplication on its own, as a polynomial identity A·B = Q·P<sub>12</sub> + R tested at a random point, and commits every intermediate remainder. The paper checks a whole Miller loop step at once, so the intermediate products are never committed:</p>
+    </div>
+    <div class="eq" role="math" aria-label="F of x squared times L1 of x times L2 of x times L3 of x equals Q of x times P12 of x plus R of x">F(x)<sup>2</sup> · L<sub>1</sub>(x) · L<sub>2</sub>(x) · L<sub>3</sub>(x) = Q(x) · P<sub>12</sub>(x) + R(x)</div>
+    <div class="prose">
+      <p>F is the Miller loop accumulator, L<sub>1</sub> to L<sub>3</sub> are the sparse line functions of three pairs, and P<sub>12</sub> is the modulus of the extension, x<sup>12</sup> − 18x<sup>6</sup> + 82 for BN254. All step identities, the final exponentiation's residue-witness check included, are batched with a random linear combination into one check at a random point. The circuit pays for one evaluation of each polynomial and a single equality, and the soundness error stays below 2<sup>−244</sup> for BN254 after Fiat–Shamir.</p>
+    </div>
+
+    <figure class="card chart" style="margin:20px 0 0">
+      <h3>Cost of one Miller loop step, three pairs, zero bit</h3>
+      <p class="sub">Constraints per step, from the paper's Table 1. Commitment counts in the labels: fewer remainders to commit means less to hash and, on chain, less calldata.</p>
+      <div class="bars" style="--max:140">
+        <div class="row"><span class="lab">𝔽<sub>p</sub><sup>12</sup> arithmetic in R1CS (El Housni)</span><div class="track" style="--ticks:7"><span class="fill base" style="--v:132" data-tip="132 constraints|1 square (36) + 3 sparse multiplications (3 × 30)"></span></div><span class="val">132</span></div>
+        <div class="row"><span class="lab">One identity per multiplication (Feltroidprime), 48 commitments</span><div class="track" style="--ticks:7"><span class="fill base" style="--v:76" data-tip="76 constraints, 48 committed elements|5 evaluations + 3 line evaluations + 4 multiplications"></span></div><span class="val">76</span></div>
+        <div class="row"><span class="lab">One identity per step (this work), 12 commitments</span><div class="track" style="--ticks:7"><span class="fill" style="--v:41" data-tip="41 constraints, 12 committed elements|2 evaluations + 3 line evaluations + 5 for products and batching"></span></div><span class="val">41</span></div>
+      </div>
+      <div class="axis" aria-hidden="true"><span></span><span class="ticks"><span>0</span><span>20</span><span>40</span><span>60</span><span>80</span><span>100</span><span>120</span><span>140</span></span><span></span></div>
+    </figure>
+
+    <div style="margin-top:28px">
+      <div class="prose">
+        <h3 style="margin:8px 0 10px">A polynomial ring toolkit for gnark</h3>
+        <p>The protocol is packaged as a reusable toolkit for any emulated field and any monic modulus, not just pairings: register a ring, submit products, and the checker proves them all with two commitments when <code>Define</code> returns. The paper names lattice schemes such as ML-KEM and ML-DSA, which work in rings like ℤ<sub>q</sub>[x]/(x<sup>n</sup> + 1), as a next application.</p>
+        <p class="small">Builds on Youssef El Housni's <em>Pairings in Rank-1 Constraint Systems</em>, Feltroidprime's polynomial identity testing for 𝔽<sub>p</sub><sup>12</sup>, and Novakovic and Eagen's <a href="https://eprint.iacr.org/2024/640">On Proving Pairings</a>, whose residue witness replaces the final exponentiation.</p>
+      </div>
+      <div class="code">
+        <div class="code-head"><span>std/polyring</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="lang-go">prc := polyring.NewPolyRingChecker[emulated.BN254Fp](api) // before any other emulated field
+modPoly := prc.MakePoly(82, 0, 0, 0, 0, 0, -18, 0, 0, 0, 0, 0, 1)
+ring := prc.NewPolyRingCheck(modPoly, nil)
+res, _ := prc.MulPolyRings(ring, A, B, C) // (A·B·C) mod modPoly, checked when Define returns
+acc := prc.NewPolyRingAccumulator(ring, targetDeg)
+acc.Mul(A).Mul(B).Sqr() // enqueue (A·B)², nothing multiplied yet
+rem := acc.Eval()        // one deferred check for the whole chain</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="limits" aria-labelledby="limits-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Scope</span>
+      <h2 id="limits-h">What polyring does not do yet</h2>
+      <p>v0.1 verifies one Groth16 proof of one fixed inner circuit inside a BN254 Groth16 circuit. These are scope decisions for the first release, each with a reason.</p>
+    </div>
+    <div class="grid-3">
+      <div class="card"><h3>No nested recursion</h3><p>An outer proof carries three BSB22 commitments, and the verifier does not check inner commitments, so an outer proof cannot itself be the inner proof. Supporting it means verifying commitments and their proof of knowledge in-circuit.</p></div>
+      <div class="card"><h3>A fixed verifying key</h3><p>The inner key is a compile-time constant. That is what lets γ and δ use precomputed lines and e(α, β) fold into a constant; a runtime key would give those savings back.</p></div>
+      <div class="card"><h3>One proof per outer proof</h3><p>Aggregating several inner proofs with a shared Miller loop would save more per proof. It is not implemented yet.</p></div>
+      <div class="card"><h3>Unaudited</h3><p>A bug in an in-circuit pairing is a soundness break, not a crash. Use polyring for research and on testnets until it has been audited.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="faq" aria-labelledby="faq-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">FAQ</span>
+      <h2 id="faq-h">Questions</h2>
+    </div>
+    <div class="faq">
+      <details open>
+        <summary>How do I verify a Groth16 proof inside a gnark circuit?</summary>
+        <div><p>Add polyring and its gnark replace directive to go.mod, turn the inner verifying key into constants with <code>recursion.NewVerifyingKey</code>, call <code>recursion.NewVerifier</code> as the first statement of your circuit's <code>Define</code>, then <code>AssertProof</code> on the inner proof and public inputs. The outer circuit compiles over BN254 and proves with stock gnark Groth16. The <a href="#guide">step-by-step guide</a> has the tested code.</p></div>
+      </details>
+      <details>
+        <summary>Does polyring make on-chain verification cheaper?</summary>
+        <div><p>Where the chain computes the pairing in its own VM, yes: the technique cut CairoVM steps by 37.1% for a BN254 Groth16 pairing check in Garaga on Starknet. On the EVM the pairing runs in a precompile, so polyring's outer verifier costs more gas than gnark's (about 460k against 359k, +28%); the saving there is on the prover, 38% fewer constraints per recursive proof.</p></div>
+      </details>
+      <details>
+        <summary>Can I verify a BLS12-381 Groth16 proof on Ethereum with polyring?</summary>
+        <div><p>Yes, through recursion. polyring verifies the BLS12-381 proof inside a BN254 Groth16 circuit, and the resulting BN254 proof is checked on-chain by the generated Solidity verifier through the EVM's BN254 pairing precompile.</p></div>
+      </details>
+      <details>
+        <summary>How is this different from gnark's own recursive Groth16 verifier?</summary>
+        <div><p>gnark's verifier checks the pairing with gnark's emulated pairing over 𝔽<sub>p</sub><sup>12</sup>. polyring's baseline is the same outer circuit with that pairing; only the pairing check differs. The ring pairing costs 38.0% fewer constraints for a BN254 inner proof and 30.9% for BLS12-381, and draws two more BSB22 commitments, which is why polyring ships its own Solidity exporter.</p></div>
+      </details>
+      <details>
+        <summary>Why do the paper's numbers differ from the library's?</summary>
+        <div><p>The paper measured a bare 3-pairing check on a gnark fork that predates two gnark soundness fixes. The fixes add range checks to every emulated multiplication, which grows gnark's pairing and polyring's alike, and the library measures a complete Groth16 verifier, not just the pairings. The relative saving holds: 35.7% in the paper, 38.6% on the same circuit after the fixes (preliminary), 38.0% for the full verifier. <a href="https://github.com/mistcash/polyring/blob/main/ARTIFACT.md">ARTIFACT.md</a> maps each number to its source.</p></div>
+      </details>
+      <details>
+        <summary>Is polyring audited?</summary>
+        <div><p>No. polyring is unaudited research software at v0.1. Use it on testnets and for research, not to secure funds.</p></div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section id="paper" aria-labelledby="paper-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">The paper</span>
+      <h2 id="paper-h">Pairing Proofs and Polynomial Ring Toolkit</h2>
+      <p>Shramee Srivastav, MIST.cash. <em>IACR Transactions on Cryptographic Hardware and Embedded Systems</em> (TCHES), 2027, to appear. Open access under CC BY 4.0.</p>
+    </div>
+    <div class="grid-2">
+      <div class="prose">
+        <h3 style="margin-bottom:10px">Abstract</h3>
+        <p>Elliptic curve pairings are fundamental to modern zero-knowledge proof systems, including Groth16, PLONK, and KZG polynomial commitments. In resource-constrained execution environments (Ethereum VM, BitVM, blockchain smart contracts), where computation is metered by gas fees, and in arithmetized computation systems (R1CS, Plonkish, Cairo AIR), where each computational step imposes significant prover overhead, the cost of pairing computation remains a practical bottleneck. We present a public-coin interactive proof system that consolidates the Miller loop iterations and final exponentiation into a single polynomial relation. The relation can then be verified as polynomial identities, greatly reducing the pairing costs. We present a full implementation in gnark (the industry-standard framework for arithmetized circuit development) as a reusable polynomial ring toolkit in the emulated package. Benchmarked on a 3-pairing product check (the pairing workload of a Groth16 verification), our gnark implementation achieves over 32% reduction in constraints, over 50% reduction in committed elements, and reductions in both compile-time and solver memory for both BN254 and BLS12-381 curves. This enables practical pairing verification in recursive proof systems and resource-constrained environments.</p>
+        <div class="btns">
+          <a class="btn" href="paper.pdf">Paper (PDF)</a>
+          <a class="btn" href="https://github.com/mistcash/polyring/blob/main/ARTIFACT.md">Artifact guide</a>
+          <a class="btn" href="https://github.com/mistcash/ppprt">Reproduce Table 7 (ppprt)</a>
+        </div>
+        <p class="small" style="margin-top:16px">Acknowledgements from the paper: Youssef El Housni and Ivo Kubjas (Linea, Consensys) for discussions and encouragement, Feltroidprime for discussions on his technique, and StarkWare and the Starknet Foundation for supporting an earlier version of the technique.</p>
+      </div>
+      <div id="cite">
+        <h3 style="margin-bottom:10px">Cite</h3>
+        <div class="code" style="margin-top:0"><div class="code-head"><span>BibTeX, paper</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="lang-text">@article{srivastav2027pairing,
+  author  = {Shramee Srivastav},
+  title   = {Pairing Proofs and Polynomial Ring Toolkit},
+  journal = {IACR Transactions on Cryptographic Hardware
+             and Embedded Systems},
+  year    = {2027},
+  note    = {To appear},
+}</code></pre></div>
+        <div class="code"><div class="code-head"><span>BibTeX, software</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="lang-text">@software{polyring,
+  author  = {Shramee Srivastav},
+  title   = {polyring: Groth16-in-Groth16 recursion for gnark},
+  url     = {https://github.com/mistcash/polyring},
+  license = {Apache-2.0},
+}</code></pre></div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="wordmark" href="https://mist.cash" aria-label="MIST.cash"><svg viewBox="0 0 2013 337" fill="currentColor" role="img" aria-hidden="true" focusable="false" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2"><g transform="matrix(1,0,0,1,-196.98683,-3032.414131)"><g id="Logo-MIST.cash" transform="matrix(1.174313,0,0,1.174313,-595.156102,2944.033861)"><g id="Logo" transform="matrix(0.060667,0,0,0.060667,811.058403,222.609261)"><g transform="matrix(1,0,0,1,-2250,-2250)"><g><g transform="matrix(0.416667,0,0,-0.416667,0,4500)"><path d="M0,10805L0,0L4408,1C8790,2 8814,2 8705,21C8536,50 8297,114 8138,171C7887,261 7561,429 7345,578C6656,1056 6169,1776 5985,2592C5926,2852 5916,2960 5915,3305C5915,3650 5921,3722 5971,3971C6264,5437 7524,6539 9034,6651C9180,6662 9538,6658 9663,6644L9720,6637L9720,10805L4860,5945L0,10805Z" style="fill-rule:nonzero;"/><circle cx="9330" cy="3300" r="1460"/></g></g></g></g><g id="MIST.cash" transform="matrix(1.124899,0,0,1.124899,-112.328441,-1673.290746)"><g transform="matrix(0.990666,0,0,1.058601,1603.697451,1804.978529)"><g transform="matrix(300,0,0,300,0,0)"><path d="M0.015,-0.072C0.015,-0.093 0.023,-0.11 0.037,-0.124C0.052,-0.138 0.069,-0.145 0.087,-0.145C0.104,-0.145 0.12,-0.138 0.135,-0.124C0.149,-0.11 0.157,-0.093 0.157,-0.072C0.157,-0.05 0.149,-0.033 0.135,-0.019C0.12,-0.006 0.104,-0 0.087,-0C0.069,-0 0.052,-0.006 0.037,-0.019C0.023,-0.033 0.015,-0.05 0.015,-0.072Z" style="fill-rule:nonzero;"/></g><g transform="matrix(300,0,0,300,45.6,0)"><path d="M0.443,-0.039C0.424,-0.024 0.4,-0.011 0.37,-0.002C0.341,0.007 0.313,0.012 0.285,0.012C0.235,0.012 0.192,0.003 0.154,-0.015C0.118,-0.034 0.089,-0.06 0.069,-0.095C0.048,-0.129 0.038,-0.17 0.038,-0.219C0.038,-0.268 0.049,-0.309 0.071,-0.344C0.093,-0.378 0.122,-0.404 0.158,-0.422C0.193,-0.44 0.231,-0.449 0.27,-0.449C0.309,-0.449 0.343,-0.444 0.372,-0.433C0.402,-0.422 0.426,-0.408 0.447,-0.391L0.379,-0.301C0.37,-0.308 0.357,-0.316 0.341,-0.324C0.324,-0.331 0.305,-0.335 0.283,-0.335C0.264,-0.335 0.246,-0.33 0.23,-0.32C0.214,-0.31 0.201,-0.296 0.192,-0.279C0.183,-0.262 0.178,-0.242 0.178,-0.219C0.178,-0.198 0.183,-0.178 0.193,-0.16C0.203,-0.142 0.217,-0.128 0.235,-0.118C0.252,-0.107 0.273,-0.102 0.297,-0.102C0.312,-0.102 0.327,-0.104 0.34,-0.108C0.353,-0.113 0.364,-0.119 0.373,-0.127L0.443,-0.039Z" style="fill-rule:nonzero;"/></g><g transform="matrix(300,0,0,300,183.3,0)"><path d="M0.256,0.012C0.215,0.012 0.178,0.004 0.145,-0.013C0.113,-0.029 0.086,-0.054 0.067,-0.088C0.048,-0.122 0.038,-0.165 0.038,-0.218C0.038,-0.267 0.048,-0.31 0.068,-0.346C0.088,-0.382 0.114,-0.41 0.147,-0.429C0.18,-0.449 0.214,-0.459 0.251,-0.459C0.294,-0.459 0.327,-0.452 0.35,-0.438C0.372,-0.423 0.39,-0.407 0.405,-0.39L0.399,-0.373L0.412,-0.437L0.542,-0.437L0.542,-0L0.402,-0L0.402,-0.095L0.413,-0.065C0.412,-0.065 0.408,-0.061 0.401,-0.053C0.394,-0.046 0.385,-0.037 0.371,-0.026C0.358,-0.016 0.342,-0.007 0.324,0.001C0.304,0.008 0.282,0.012 0.256,0.012ZM0.296,-0.102C0.313,-0.102 0.328,-0.104 0.341,-0.11C0.354,-0.115 0.366,-0.122 0.376,-0.132C0.386,-0.141 0.395,-0.153 0.402,-0.168L0.402,-0.275C0.397,-0.29 0.389,-0.302 0.378,-0.312C0.367,-0.323 0.355,-0.331 0.34,-0.337C0.325,-0.342 0.309,-0.345 0.291,-0.345C0.271,-0.345 0.253,-0.34 0.236,-0.33C0.218,-0.319 0.205,-0.305 0.195,-0.287C0.185,-0.269 0.18,-0.248 0.18,-0.225C0.18,-0.202 0.185,-0.181 0.196,-0.162C0.207,-0.143 0.221,-0.129 0.239,-0.118C0.256,-0.107 0.275,-0.102 0.296,-0.102Z" style="fill-rule:nonzero;"/></g><g transform="matrix(300,0,0,300,352.5,0)"><path d="M0.214,0.009C0.178,0.009 0.144,0.003 0.114,-0.01C0.083,-0.023 0.056,-0.04 0.035,-0.063L0.093,-0.14C0.114,-0.121 0.134,-0.107 0.152,-0.099C0.171,-0.09 0.187,-0.086 0.202,-0.086C0.213,-0.086 0.224,-0.087 0.233,-0.089C0.242,-0.092 0.249,-0.095 0.254,-0.101C0.259,-0.105 0.262,-0.112 0.262,-0.12C0.262,-0.131 0.258,-0.14 0.248,-0.147C0.24,-0.154 0.228,-0.159 0.214,-0.164C0.2,-0.168 0.185,-0.172 0.169,-0.177C0.129,-0.19 0.1,-0.208 0.083,-0.233C0.065,-0.257 0.056,-0.283 0.056,-0.312C0.056,-0.334 0.062,-0.356 0.073,-0.379C0.085,-0.401 0.104,-0.42 0.13,-0.434C0.155,-0.45 0.188,-0.457 0.229,-0.457C0.266,-0.457 0.297,-0.453 0.322,-0.446C0.347,-0.439 0.371,-0.427 0.394,-0.41L0.341,-0.328C0.328,-0.338 0.314,-0.347 0.298,-0.353C0.283,-0.36 0.268,-0.364 0.255,-0.365C0.243,-0.366 0.233,-0.364 0.225,-0.361C0.216,-0.358 0.21,-0.353 0.205,-0.348C0.2,-0.343 0.198,-0.337 0.198,-0.331C0.197,-0.318 0.202,-0.308 0.212,-0.301C0.223,-0.294 0.236,-0.288 0.252,-0.284C0.268,-0.28 0.284,-0.275 0.299,-0.27C0.32,-0.263 0.339,-0.254 0.354,-0.243C0.369,-0.232 0.381,-0.218 0.39,-0.203C0.398,-0.187 0.402,-0.168 0.402,-0.146C0.402,-0.119 0.395,-0.094 0.382,-0.071C0.368,-0.047 0.347,-0.028 0.32,-0.013C0.292,0.002 0.257,0.009 0.214,0.009Z" style="fill-rule:nonzero;"/></g><g transform="matrix(300,0,0,300,468.6,0)"><path d="M0.072,-0L0.072,-0.789L0.209,-0.789L0.209,-0.349L0.208,-0.366C0.223,-0.393 0.245,-0.416 0.273,-0.432C0.301,-0.45 0.335,-0.458 0.376,-0.458C0.417,-0.458 0.452,-0.446 0.48,-0.421C0.507,-0.397 0.521,-0.366 0.522,-0.327L0.522,-0L0.382,-0L0.382,-0.275C0.381,-0.294 0.376,-0.31 0.366,-0.322C0.357,-0.333 0.341,-0.339 0.318,-0.339C0.297,-0.339 0.278,-0.332 0.262,-0.318C0.246,-0.304 0.234,-0.285 0.225,-0.261C0.216,-0.237 0.212,-0.209 0.212,-0.178L0.212,-0L0.072,-0Z" style="fill-rule:nonzero;"/></g></g><g transform="matrix(0.990666,0,0,1.058601,1222.786476,1806.30178)"><g transform="matrix(300,0,0,300,0,0)"><rect x="0.095" y="-0.736" width="0.145" height="0.736" style="fill-rule:nonzero;"/></g><g transform="matrix(300,0,0,300,90.3,0)"><path d="M0.488,-0.558C0.46,-0.573 0.431,-0.586 0.403,-0.596C0.373,-0.606 0.346,-0.611 0.321,-0.611C0.29,-0.611 0.265,-0.605 0.247,-0.592C0.229,-0.579 0.22,-0.56 0.22,-0.535C0.22,-0.518 0.227,-0.502 0.24,-0.488C0.254,-0.475 0.272,-0.463 0.293,-0.452C0.315,-0.441 0.338,-0.432 0.361,-0.423C0.382,-0.415 0.404,-0.406 0.424,-0.395C0.446,-0.384 0.464,-0.37 0.481,-0.353C0.498,-0.337 0.511,-0.317 0.521,-0.292C0.531,-0.268 0.536,-0.238 0.536,-0.203C0.536,-0.166 0.526,-0.131 0.507,-0.099C0.488,-0.067 0.459,-0.041 0.422,-0.022C0.385,-0.002 0.339,0.008 0.284,0.008C0.256,0.008 0.228,0.005 0.199,-0.001C0.169,-0.006 0.141,-0.015 0.113,-0.026C0.085,-0.038 0.058,-0.053 0.032,-0.071L0.096,-0.184C0.113,-0.171 0.132,-0.16 0.152,-0.15C0.173,-0.141 0.193,-0.133 0.214,-0.128C0.235,-0.123 0.254,-0.12 0.271,-0.12C0.288,-0.12 0.306,-0.122 0.324,-0.128C0.341,-0.133 0.356,-0.141 0.367,-0.153C0.379,-0.165 0.385,-0.182 0.385,-0.203C0.385,-0.218 0.38,-0.231 0.37,-0.243C0.361,-0.255 0.348,-0.266 0.332,-0.276C0.315,-0.286 0.297,-0.295 0.278,-0.302C0.255,-0.311 0.232,-0.321 0.208,-0.332C0.184,-0.343 0.162,-0.357 0.141,-0.373C0.12,-0.39 0.102,-0.41 0.089,-0.434C0.076,-0.459 0.07,-0.489 0.07,-0.524C0.07,-0.567 0.08,-0.604 0.099,-0.635C0.118,-0.666 0.144,-0.691 0.179,-0.71C0.214,-0.728 0.254,-0.738 0.299,-0.74C0.358,-0.74 0.407,-0.733 0.444,-0.719C0.48,-0.705 0.514,-0.688 0.543,-0.669L0.488,-0.558Z" style="fill-rule:nonzero;"/></g><g transform="matrix(300,0,0,300,261,0)"><path d="M0.045,-0.736L0.541,-0.736L0.541,-0.596L0.362,-0.596L0.362,-0L0.217,-0L0.217,-0.596L0.045,-0.596L0.045,-0.736Z" style="fill-rule:nonzero;"/></g></g><g transform="matrix(0.990666,0,0,1.058601,51.176081,1148.831732)"><g transform="matrix(300,0,0,300,913.294576,621.108915)"><path d="M0.095,-0L0.095,-0.766L0.096,-0.766L0.505,-0.186L0.443,-0.2L0.851,-0.766L0.853,-0.766L0.853,-0L0.708,-0L0.708,-0.439L0.717,-0.364L0.468,-0.01L0.466,-0.01L0.21,-0.364L0.235,-0.433L0.235,-0L0.095,-0Z" style="fill-rule:nonzero;"/></g><g transform="matrix(300,0,0,300,1197.694576,621.108915)"></g></g></g></g></g></svg></a>
+    <nav aria-label="Footer">
+      <a href="https://github.com/mistcash/polyring">GitHub</a>
+      <a href="paper.pdf">Paper</a>
+      <a href="https://github.com/mistcash/polyring/blob/main/ARTIFACT.md">Artifact guide</a>
+      <a href="llms.txt">llms.txt</a>
+      <a href="https://github.com/mistcash/polyring/security">Security</a>
+      <a href="https://github.com/mistcash/polyring/blob/main/LICENSE">Apache-2.0</a>
+    </nav>
+    <p style="margin:0;flex-basis:100%">polyring is built by <a href="https://mist.cash">MIST.cash</a>. Code under Apache-2.0, paper under CC BY 4.0. Unaudited research software.</p>
+  </div>
+</footer>
+
+<script src="assets/site.js" defer></script>
+</body>
+</html>
