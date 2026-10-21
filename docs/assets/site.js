@@ -1,6 +1,6 @@
 // polyring site: curve toggles, copy buttons, a small Go / shell highlighter,
-// the guide's table of contents, and the hero's Miller loop ring. Every page
-// reads without it.
+// the guide's table of contents, the mailing list form, and the hero's Miller
+// loop ring. Every page reads without it.
 (function () {
   "use strict";
 
@@ -115,6 +115,37 @@
       if (el) io.observe(el);
     });
   }
+
+  // Mailing list: the form posts to Loops on its own; with JS it submits in
+  // place and reports the result under the field.
+  document.querySelectorAll("form.signup").forEach(function (form) {
+    var btn = form.querySelector("button"), msg = form.querySelector(".msg");
+    function say(text, cls) { msg.textContent = text; msg.className = "msg" + (cls ? " " + cls : ""); }
+    form.addEventListener("submit", function (e) {
+      if (!window.fetch) return;
+      e.preventDefault();
+      btn.disabled = true;
+      say("Subscribing…");
+      fetch(form.action, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "email=" + encodeURIComponent(form.elements.email.value)
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (res.ok && data.success) {
+            form.reset();
+            say("Thanks, you're on the list.", "ok");
+          } else if (res.status === 429) {
+            say("Too many signups from here. Try again in a minute.", "err");
+          } else {
+            say(data.message || "Something went wrong. Please try again.", "err");
+          }
+        });
+      }, function () {
+        say("Couldn't reach the mailing list. Please try again.", "err");
+      }).then(function () { btn.disabled = false; });
+    });
+  });
 
   // Hero ring: the 66 signed digits of BN254's Miller loop parameter 6x+2,
   // one tick per loop step (+1 outward, -1 inward, 0 a dot). A sweep walks the
