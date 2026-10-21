@@ -1,64 +1,56 @@
 # Artifact guide
 
-This repository is the maintained implementation for:
+Implementation for:
 
 > Shramee Srivastav. *Pairing Proofs and Polynomial Ring Toolkit.*
 > IACR Transactions on Cryptographic Hardware and Embedded Systems (TCHES), 2027.
 
-This guide maps the paper to the code, says where each of its results is
-reproduced, and explains why numbers measured here differ from the published
-ones. Usage and layout are in the [README](../README.md).
+Maps the paper to the code and explains why numbers here differ from the
+published ones. Usage and layout: [README](../README.md).
 
 ## Two repositories
 
-The paper's numbers were measured on a gnark fork that predates two gnark
-security fixes. That fork is kept frozen so the published numbers stay
-reproducible; this repository carries the same technique on patched gnark.
+The paper was measured on a gnark fork that predates two security fixes. That
+fork is frozen so the published numbers stay reproducible.
 
 | | [`ppprt`](https://github.com/mistcash/ppprt) | `polyring` (this repo) |
 |---|---|---|
-| Use it to | reproduce Table 7 as published | use, extend and evaluate the technique |
-| gnark | fork, upstream merged up to `c05c6a8` (3 Aug 2026) | v0.16.4 with the fixes, via the pinned [`tiny-gnark`](https://github.com/mistcash/tiny-gnark) fork |
-| Sound | **no** — see [below](#why-the-numbers-move) | yes, unaudited |
-| Shape | toolkit inside gnark's `std/math/emulated` | standalone Go module |
-| Beyond the paper | — | recursive Groth16 verifier for BN254 and BLS12-381 inner proofs, multi-commitment Solidity verifier, on-chain test |
+| Use it to | reproduce Table 7 as published | use and extend the technique |
+| gnark | fork, upstream merged to `c05c6a8` (3 Aug 2026) | v0.16.4 via pinned [`tiny-gnark`](https://github.com/mistcash/tiny-gnark) |
+| Sound | **no** ([why](#why-the-numbers-move)) | yes, unaudited |
+| Shape | inside gnark's `std/math/emulated` | standalone Go module |
+| Extras | — | recursive Groth16 verifier (BN254, BLS12-381 inner), multi-commitment Solidity verifier, on-chain test |
 
 ## Requirements
 
-- Go 1.26.8 (from `go.mod`)
-- `solc` on `PATH` for the on-chain test only; CI uses 0.8.24, 0.8.36 also works.
-  Without it the on-chain test is skipped.
-- Optional: graphviz `dot`, only for `lib/profile/pprof-groth16.sh`
-
-gnark and every other dependency come through `go.mod`; nothing else to set up.
+- Go 1.26.8
+- `solc` (0.8.24+) for the on-chain test; skipped without it
+- Optional: graphviz `dot` for `lib/profile/pprof-groth16.sh`
 
 ## Running it
 
-Times are wall-clock on an Apple M3 Pro (36 GB).
+Wall-clock on an Apple M3 Pro (36 GB).
 
-| Command | What it does | Time |
+| Command | What | Time |
 |---|---|---|
-| `go test -short ./...` | all tests except the on-chain one | ~25 s |
-| `go test ./examples/recursion/ -run TestOuterOnChain -v` | proves the outer circuit for real with both pairings, deploys the generated verifier to a simulated EVM, verifies, and rejects tampered commitments; prints the on-chain cost table | ~2 min |
-| `go test ./paper/ -run TestTable7 -v` | Table 7 on patched gnark, gnark vs polyring: prints the table with its reduction column, fails if a count moved; see [below](#table-7-on-patched-gnark-paper) | ~45 s |
-| `go test ./... -run='^$' -bench=. -benchtime=1x -v` | constraint counts for the Groth16 verifier and the two-pair check, gnark vs polyring, both curves | ~1 min |
+| `go test -short ./...` | all but the on-chain test | ~25 s |
+| `go test ./examples/recursion/ -run TestOuterOnChain -v` | real outer proof, deployed and verified on a simulated EVM; prints gas | ~2 min |
+| `go test ./paper/ -run TestTable7 -v` | [Table 7 on patched gnark](#table-7-on-patched-gnark) | ~45 s |
+| `go test ./... -run='^$' -bench=. -benchtime=1x -v` | constraint counts, gnark vs polyring, both curves | ~1 min |
 
 ## Paper to code
 
 | Paper | Code |
 |---|---|
-| Operation polynomials, Miller loop steps (Section 4) | `std/ringpairing/pairing.go` (`millerLoopLines`, `PairingCheck`) |
-| Per-curve lines, twist and loop counter | `std/ring_bn254/pairing.go`, `std/ring_bls12381/pairing.go` |
-| Residue witness and final exponentiation (Section 4.2.4) | `std/ringpairing/pairing.go`, with gnark's residue hints in `std/ring_*/hints.go` |
-| Two-round protocol, quotient batching (Section 5) | `std/polyring/field_polyring.go`: `performDeferredRingChecks` |
-| `NewPolyRingCheck`, `MulPolyRings`, `ToCommit`, `PolyRingAccumulator` (Section 6.3.1) | `std/polyring/field_polyring.go` |
-| `polyRingMulHint`, `quotientsRLCHint` (Section 6.2) | `std/polyring/field_polyring.go` |
-| `InnerProductNoReduce`, deferred reduction (Section 6.5) | `std/polyring/field_polyring.go` |
-| BN254 modulus `x¹² − 18x⁶ + 82` with `modEvalFn` (Section 6.1) | `std/ringpairing/ring.go`: `newRing` |
+| Operation polynomials, Miller loop (§4) | `std/ringpairing/pairing.go` (`millerLoopLines`, `PairingCheck`) |
+| Per-curve lines, twist, loop counter | `std/ring_bn254/pairing.go`, `std/ring_bls12381/pairing.go` |
+| Residue witness, final exponentiation (§4.2.4) | `std/ringpairing/pairing.go`, hints in `std/ring_*/hints.go` |
+| Two-round protocol, quotient batching (§5) | `std/polyring/field_polyring.go`: `performDeferredRingChecks` |
+| API, hints, deferred reduction (§6.2, 6.3.1, 6.5) | `std/polyring/field_polyring.go` |
+| BN254 modulus `x¹² − 18x⁶ + 82`, `modEvalFn` (§6.1) | `std/ringpairing/ring.go`: `newRing` |
 
-The API is the paper's, but it hangs off a `PolyRingChecker` instead of gnark's
-`emulated.Field`, because this repository is a module of its own rather than a
-patch to gnark. The Section 6.4 example reads:
+The API hangs off a `PolyRingChecker` rather than gnark's `emulated.Field`.
+The §6.4 example:
 
 ```go
 prc := polyring.NewPolyRingChecker[emulated.BN254Fp](api) // before any other emulated field
@@ -66,22 +58,18 @@ modPoly := prc.MakePoly(82, 0, 0, 0, 0, 0, -18, 0, 0, 0, 0, 0, 1)
 ring := prc.NewPolyRingCheck(modPoly, nil)
 res, _ := prc.MulPolyRings(ring, A, B, C) // (A·B·C) mod modPoly, checked when Define returns
 acc := prc.NewPolyRingAccumulator(ring, targetDeg)
-acc.Mul(A).Mul(B).Sqr() // enqueue (A·B)², nothing multiplied yet
-rem := acc.Eval()        // one deferred check for the whole chain
+acc.Mul(A).Mul(B).Sqr() // enqueue (A·B)²
+rem := acc.Eval()        // one deferred check for the chain
 ```
 
-The checker has to be created before anything else in the circuit creates an
-emulated field: its checks emit range checks, and gnark runs deferred callbacks
-in registration order.
+Create the checker first: gnark runs deferred callbacks in registration order,
+and its checks emit range checks.
 
 ## Results
 
-### Table 7 (gnark, 3-pairing product check): reproduced in `ppprt`
+### Table 7 as published: `ppprt`
 
-Follow [ppprt's README](https://github.com/mistcash/ppprt#reproducing-table-7).
-It gives the commands for both columns, how each benchmark line maps to a table
-row, and what a re-run gives. In short, against the upstream gnark that `ppprt`
-is merged on:
+See [ppprt's README](https://github.com/mistcash/ppprt#reproducing-table-7).
 
 | | Paper | Re-run |
 |---|---|---|
@@ -92,56 +80,30 @@ is merged on:
 | BLS12-381 Fq committed | 660,160 → 300,104 (54.5%) | 673,107 → 300,166 (55.4%) |
 | BLS12-381 R1CS constraints | 545,510 → 368,434 (32.5%) | 542,925 → 368,461 (32.1%) |
 
-The "This Work" column reproduces to within 0.02%; the baseline to within 1% on
-constraints, because upstream gnark moved between the paper's run and the commit
-`ppprt` merged.
+"This Work" reproduces within 0.02%; the baseline within 1%, since upstream
+gnark moved before `ppprt`'s merge.
 
 ### Why the numbers move
 
-Two gnark advisories were published after `ppprt`'s last upstream merge:
+Two gnark advisories landed after `ppprt`'s last merge:
 
 - [GHSA-3mvx-pp85-pm65](https://github.com/Consensys/gnark/security/advisories/GHSA-3mvx-pp85-pm65)
-  (critical, fixed in v0.16.2): the carry polynomial in emulated-field deferred
-  checks came from a hint and was never range-checked, so a malicious prover
-  could satisfy a false multiplication. Every emulated pairing sits on those
-  checks.
+  (critical, fixed v0.16.2): unchecked carry polynomial in emulated deferred
+  checks let a prover satisfy a false multiplication.
 - [GHSA-fwf3-jmp7-gmrj](https://github.com/Consensys/gnark/security/advisories/GHSA-fwf3-jmp7-gmrj)
-  (medium): the on-twist check on G2 inputs to the Miller loop was computed and
-  discarded.
+  (medium): G2 on-twist check in the Miller loop was discarded.
 
-The carry range checks add constraints to every emulated multiplication, so they
-grow **both** columns: gnark's own pairing as much as the ring pairing. On the
-Table 7 circuit, gnark's pairing on gnark v0.16.4 costs 1.61–1.78× what it did
-in the paper:
+The carry range checks grow **both** columns. gnark's own Table 7 pairing costs
+1.61–1.78× more on v0.16.4 (gnark column below; ppprt on upstream v0.16.4
+matches to the digit).
 
-| Table 7 circuit, gnark's pairing | Paper | gnark v0.16.4 |
-|---|---|---|
-| BN254 SCS constraints | 1,592,440 | 2,834,581 |
-| BN254 R1CS constraints | 491,447 | 791,907 |
-| BLS12-381 SCS constraints | 1,784,247 | 3,164,858 |
-| BLS12-381 R1CS constraints | 545,510 | 881,274 |
+### Table 7 on patched gnark
 
-Two independent runs give the v0.16.4 column to the digit: ppprt's own benchmark
-file on upstream v0.16.4 ([ppprt's baseline steps](https://github.com/mistcash/ppprt#baseline-column)
-with `git checkout v0.16.4`), and the gnark column of `paper/` below.
-
-### Table 7 on patched gnark: `paper/`
-
-```sh
-go test ./paper/ -run TestTable7 -v
-```
-
-[`paper/table7_test.go`](table7_test.go) builds ppprt's Table 7 circuit
-field for field: the 3-pairing check e(P₁,Q₁)·e(P₂,Q₂)·e(P₃,Q₃) = 1, with Q₁
-and Q₂ fixed (precomputed lines) and Q₃ from the witness, compiled over the
-curve's own scalar field. It runs it with gnark's pairing and with polyring's,
-on both curves and both constraint systems, all on the gnark this module builds
-with. For each it checks that the instance solves, benchmarks compile and
-solve, and prints Table 7 with a reduction column. It fails if any constraint
-or committed-variable count differs from the one recorded in the test.
-
-Counts are exact. Times and memory are one run on an Apple M3 Pro; repeated
-runs move the time reductions by a few points.
+[`paper/table7_test.go`](table7_test.go) rebuilds ppprt's circuit
+(e(P₁,Q₁)·e(P₂,Q₂)·e(P₃,Q₃) = 1, Q₁ and Q₂ fixed, Q₃ from the witness) and runs
+gnark's and polyring's pairing on both curves and constraint systems. It fails
+if any count drifts. Counts are exact; times and memory are one run and move a
+few points between runs.
 
 | Metric | gnark | polyring | Reduction | Paper |
 | :--- | ---: | ---: | ---: | ---: |
@@ -174,40 +136,29 @@ runs move the time reductions by a few points.
 | Solve time | 326 ms | 197 ms | 39.5% | 33.7% |
 | Solve memory | 282 MiB | 196 MiB | 30.5% | 48.8% |
 
-Every constraint reduction is 2.0–3.6 points larger than the paper's.
+Constraint reductions beat the paper's by 2.0–3.6 points.
 
-¹ Read from gnark's compiled commitment info (`bench.NbCommittedVars`), the
-same count as the [README benchmark](../README.md#benchmark). The paper's "Nb Fq
-Committed" is a different count: the values passed to `api.Commit`, from a
-counter `ppprt` adds to gnark, so it is reproduced there, not here.
+¹ Variables gnark's Groth16 backend commits to (`bench.NbCommittedVars`). The
+paper's "Fq committed" counts values passed to `api.Commit` via a counter only
+`ppprt` has, so it is reproduced there.
 
-### What this repository measures
+### This repository's benchmarks
 
-The benchmarks in this tree measure what polyring is for: a full Groth16
-verifier inside a BN254 Groth16 circuit, over a real MiMC inner proof. These are
-R1CS counts; see the [README](../README.md#benchmark) for the per-phase breakdown.
+Full Groth16 verifier inside a BN254 Groth16 circuit, over a real MiMC inner
+proof. R1CS counts, exact; times jitter 20%+. Per-phase breakdown in the
+[README](../README.md#benchmark).
 
 | Circuit | Inner curve | gnark | polyring | Reduction |
 |---|---|---|---|---|
 | Groth16 verifier (`lib/profile`) | BN254 | 791,400 | 491,043 | 38.0% |
 | | BLS12-381 | 979,700 | 677,317 | 30.9% |
-| Two-pair check, both G2 from the witness (`std/ringpairing`) | BN254 | 736,686 | 510,588 | 30.7% |
+| Two-pair check, witness G2 (`std/ringpairing`) | BN254 | 736,686 | 510,588 | 30.7% |
 | | BLS12-381 | 917,190 | 720,136 | 21.5% |
 
-The on-chain test adds the cost on the verifier's side: polyring's proofs carry
-three BSB22 commitments instead of one, so `verifyProof` costs ~460k gas
-against ~359k for gnark's.
-
-Reading the benchmark output:
-
-- `[BENCH] <name> <n> r1cs constraints <m> vars over <k> commitments`:
-  constraint counts are exact and reproduce to the digit. `vars` counts the
-  variables gnark's Groth16 backend commits to, range checker included. That is not
-  the paper's "Fq committed", which counts the values passed to `api.Commit`.
-- Compile and solve times jitter by 20% or more from run to run.
+On-chain, polyring proofs carry three BSB22 commitments instead of one:
+`verifyProof` costs ~460k gas vs ~359k for gnark.
 
 ### Table 6 (Cairo)
 
-Table 6 was measured in [Garaga](https://github.com/keep-starknet-strange/garaga),
-which deploys the technique for CairoVM on Starknet. It is not part of this
-artifact.
+Measured in [Garaga](https://github.com/keep-starknet-strange/garaga); not part
+of this artifact.
