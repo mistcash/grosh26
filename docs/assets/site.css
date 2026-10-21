@@ -1169,6 +1169,10 @@ pre {
   color: var(--ink-2);
 }
 
+.subscribe p + p {
+  margin-top: 10px;
+}
+
 .signup .row {
   display: flex;
   flex-wrap: wrap;
