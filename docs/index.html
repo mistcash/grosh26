@@ -1,39 +1,44 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>polyring: recursive Groth16 verification for gnark</title>
-<meta name="description" content="Verify a BN254 or BLS12-381 Groth16 proof inside your gnark circuit with 38% fewer constraints, then verify the result on any EVM chain.">
-<link rel="canonical" href="https://polyring.mist.cash/">
-<meta name="robots" content="index, follow, max-image-preview:large">
-<meta name="author" content="Shramee Srivastav">
-<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#081019" media="(prefers-color-scheme: dark)">
-<script>try{var t=localStorage.getItem("polyring-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
-<link rel="icon" href="assets/mist-mark.svg" type="image/svg+xml">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>polyring toolkit: fast polyring multiplications in gnark</title>
+  <meta name="description"
+    content="polyring is the Polynomial Ring Toolkit for gnark: fast polyring multiplications, used to verify Groth16 proofs in-circuit with up to 38% fewer constraints.">
+  <link rel="canonical" href="https://polyring.mist.cash/">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="author" content="Shramee Srivastav">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#081019" media="(prefers-color-scheme: dark)">
+  <script>try { var t = localStorage.getItem("polyring-theme"); if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t) } catch (e) { }</script>
+  <link rel="icon" href="assets/mist-mark.svg" type="image/svg+xml">
 
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="polyring by MIST.cash">
-<meta property="og:title" content="polyring: Groth16 inside Groth16, 38% cheaper to prove">
-<meta property="og:description" content="Verify a BN254 or BLS12-381 Groth16 proof inside a gnark circuit, then on-chain. Go library and TCHES 2027 paper.">
-<meta property="og:url" content="https://polyring.mist.cash/">
-<meta property="og:image" content="https://polyring.mist.cash/og.png">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Groth16 inside Groth16, 38% cheaper to prove: polyring, a gnark library, with a diagram of the Miller loop steps">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="polyring: Groth16 inside Groth16, 38% cheaper to prove">
-<meta name="twitter:description" content="Verify a Groth16 proof inside your gnark circuit with 38% fewer constraints.">
-<meta name="twitter:image" content="https://polyring.mist.cash/og.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="polyring by MIST.cash">
+  <meta property="og:title" content="polyring toolkit for gnark">
+  <meta property="og:description"
+    content="The Polynomial Ring Toolkit for gnark: fast polyring multiplications, and Groth16 recursion with up to 38% fewer constraints.">
+  <meta property="og:url" content="https://polyring.mist.cash/">
+  <meta property="og:image" content="https://polyring.mist.cash/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="polyring toolkit: fast polyring multiplications in gnark">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="polyring toolkit for gnark">
+  <meta name="twitter:description"
+    content="The Polynomial Ring Toolkit for gnark: fast polyring multiplications, and Groth16 recursion with up to 38% fewer constraints.">
+  <meta name="twitter:image" content="https://polyring.mist.cash/og.png">
 
-<link rel="alternate" type="text/plain" href="llms.txt" title="Instructions for AI coding agents">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Josefin+Sans:wght@600;700&family=Sen:wght@400;600;700;800&display=swap">
-<link rel="stylesheet" href="assets/site.css">
+  <link rel="alternate" type="text/plain" href="llms.txt" title="Instructions for AI coding agents">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Josefin+Sans:wght@600;700&family=Sen:wght@400;600;700;800&display=swap">
+  <link rel="stylesheet" href="assets/site.css">
 
-<script type="application/ld+json">
+  <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@graph": [
@@ -42,7 +47,7 @@
       "@id": "https://polyring.mist.cash/#website",
       "url": "https://polyring.mist.cash/",
       "name": "polyring",
-      "description": "Recursive Groth16 verification for gnark."
+      "description": "polyring is the Polynomial Ring Toolkit for gnark."
     },
     {
       "@type": "SoftwareSourceCode",
@@ -50,198 +55,285 @@
       "name": "polyring",
       "url": "https://polyring.mist.cash/",
       "image": "https://polyring.mist.cash/og.png",
-      "description": "Groth16-in-Groth16 recursion for gnark: verify a BN254 or BLS12-381 Groth16 proof inside a BN254 Groth16 circuit with a polynomial-ring pairing check, and on-chain with a multi-commitment Solidity verifier.",
+      "description": "Polynomial Ring Toolkit for gnark: fast polynomial ring multiplications, and the Groth16-in-Groth16 recursion built on it. Verify a BN254 or BLS12-381 Groth16 proof inside a BN254 Groth16 circuit with a polynomial-ring pairing check, and on-chain with a multi-commitment Solidity verifier.",
       "codeRepository": "https://github.com/mistcash/polyring",
       "programmingLanguage": "Go",
       "runtimePlatform": "gnark",
       "license": "https://www.apache.org/licenses/LICENSE-2.0",
       "author": { "@type": "Person", "name": "Shramee Srivastav", "affiliation": { "@type": "Organization", "name": "MIST.cash", "url": "https://mist.cash" } },
       "isPartOf": { "@id": "https://polyring.mist.cash/#website" },
-      "keywords": ["recursive SNARK", "Groth16 recursion", "in-circuit pairing", "BN254", "BLS12-381", "gnark", "Solidity verifier"]
+      "keywords": ["polynomial ring", "polyring multiplication", "recursive SNARK", "Groth16 recursion", "in-circuit pairing", "BN254", "BLS12-381", "gnark", "Solidity verifier"]
     }
   ]
 }
 </script>
 </head>
+
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
-  <symbol id="mist-mark" viewBox="0 0 1080 1080"><g transform="translate(0,1080) scale(0.1,-0.1)"><path d="M0 5402 l0 -5402 4408 1 c4382 1 4406 1 4297 20 -169 29 -408 93 -567 150 -251 90 -577 258 -793 407 -689 478 -1176 1198 -1360 2014 -59 260 -69 368 -70 713 0 345 6 417 56 666 293 1466 1553 2568 3063 2680 146 11 504 7 629 -7 l57 -7 0 2084 0 2084 -2430 -2430 -2430 -2430 -2430 2430 -2430 2430 0 -5403z"/><circle cx="9330" cy="3300" r="1460"/></g></symbol>
-</svg>
-<a class="skip" href="#main">Skip to content</a>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="mist-mark" viewBox="0 0 1080 1080">
+      <g transform="translate(0,1080) scale(0.1,-0.1)">
+        <path
+          d="M0 5402 l0 -5402 4408 1 c4382 1 4406 1 4297 20 -169 29 -408 93 -567 150 -251 90 -577 258 -793 407 -689 478 -1176 1198 -1360 2014 -59 260 -69 368 -70 713 0 345 6 417 56 666 293 1466 1553 2568 3063 2680 146 11 504 7 629 -7 l57 -7 0 2084 0 2084 -2430 -2430 -2430 -2430 -2430 2430 -2430 2430 0 -5403z" />
+        <circle cx="9330" cy="3300" r="1460" />
+      </g>
+    </symbol>
+  </svg>
+  <a class="skip" href="#main">Skip to content</a>
 
-<header class="nav">
-  <div class="wrap">
-    <a class="brand" href="./" aria-label="polyring home"><svg aria-hidden="true" fill="currentColor"><use href="#mist-mark"/></svg><b>polyring</b></a>
-    <nav aria-label="Site">
-      <ul>
-        <li><a href="./" aria-current="page">Overview</a></li>
-        <li><a href="guide.html">Guide</a></li>
-        <li><a href="paper.html">Paper</a></li>
-        <li><a href="https://github.com/mistcash/polyring">GitHub</a></li>
-      </ul>
-    </nav>
-    <div class="theme" role="group" aria-label="Colour theme">
-      <button type="button" data-theme-set="system" aria-pressed="true" aria-label="Match system" title="Match system"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg></button>
-      <button type="button" data-theme-set="light" aria-pressed="false" aria-label="Light" title="Light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
-      <button type="button" data-theme-set="dark" aria-pressed="false" aria-label="Dark" title="Dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
-    </div>
-  </div>
-</header>
-
-<main id="main">
-
-<div class="hero">
-  <div class="wrap">
-    <div>
-      <span class="eyebrow">Go library for gnark · IACR TCHES 2027</span>
-      <h1>Groth16 inside Groth16, <span class="num">38%</span> cheaper to prove.</h1>
-      <p class="lead">polyring verifies a BN254 or BLS12-381 Groth16 proof inside your gnark circuit. What comes out is an ordinary Groth16 proof that any EVM chain can verify.</p>
-      <div class="btns">
-        <a class="btn primary" href="guide.html">Start building <span class="arr" aria-hidden="true">→</span></a>
-        <a class="btn" href="paper.html">Read the paper</a>
+  <header class="nav">
+    <div class="wrap">
+      <a class="brand" href="./" aria-label="polyring home"><svg aria-hidden="true" fill="currentColor">
+          <use href="#mist-mark" />
+        </svg><b>polyring</b></a>
+      <nav aria-label="Site">
+        <ul>
+          <li><a href="./" aria-current="page">Overview</a></li>
+          <li><a href="guide.html">Guide</a></li>
+          <li><a href="paper.html">Paper</a></li>
+          <li><a href="https://github.com/mistcash/polyring">GitHub</a></li>
+        </ul>
+      </nav>
+      <div class="theme" role="group" aria-label="Colour theme">
+        <button type="button" data-theme-set="system" aria-pressed="true" aria-label="Match system"
+          title="Match system"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="12" rx="1" />
+            <path d="M8 20h8M12 16v4" />
+          </svg></button>
+        <button type="button" data-theme-set="light" aria-pressed="false" aria-label="Light" title="Light"><svg
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" />
+            <path
+              d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+          </svg></button>
+        <button type="button" data-theme-set="dark" aria-pressed="false" aria-label="Dark" title="Dark"><svg
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+          </svg></button>
       </div>
-      <div class="install"><span class="p" aria-hidden="true">$</span><code>go get github.com/mistcash/polyring</code><button type="button">Copy</button></div>
-      <p class="hero-note"><b>v0.1, unaudited.</b> Use it for research and on testnets.</p>
     </div>
-    <figure style="margin:0">
-      <div class="ring">
-        <canvas id="ring" aria-hidden="true"></canvas>
-        <div class="core">
-          <div class="id">F² · L<sub>1</sub>L<sub>2</sub>L<sub>3</sub> = Q · P<sub>12</sub> + R</div>
-          <div class="cap">every loop step,<br>one batched check</div>
+  </header>
+
+  <main id="main">
+
+    <div class="hero">
+      <div class="wrap">
+        <div>
+          <span class="eyebrow">Go library for gnark · IACR TCHES 2027</span>
+          <h1>polyring toolkit</h1>
+          <p class="lead tag">Fast polynomial ring multiplications in gnark.</p>
+          <p class="lead">polyring is the Polynomial Ring Toolkit for gnark. Its first use is recursion: verify a
+            Groth16 proof inside your circuit with up to 38% fewer constraints than gnark's own pairing.</p>
+          <div class="btns">
+            <a class="btn primary" href="guide.html">Start building <span class="arr" aria-hidden="true">→</span></a>
+            <a class="btn" href="paper.html">Read the paper</a>
+          </div>
+          <div class="install"><span class="p"
+              aria-hidden="true">$</span><code>go get github.com/mistcash/polyring</code><button
+              type="button">Copy</button></div>
+          <p class="hero-note"><b>v0.1, unaudited.</b> Use it for research and on testnets.</p>
+        </div>
+        <figure style="margin:0">
+          <div class="ring">
+            <canvas id="ring" aria-hidden="true"></canvas>
+            <div class="core">
+              <div class="id">F² · L<sub>1</sub>L<sub>2</sub>L<sub>3</sub> = Q · P<sub>12</sub> + R</div>
+              <div class="cap">every loop step,<br>one batched check</div>
+            </div>
+          </div>
+          <figcaption class="ring-cap">The signed digits of BN254's Miller loop. polyring turns each step into one
+            polynomial identity, then checks them all at once.</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <section class="band" aria-labelledby="problem-h">
+      <div class="wrap spread">
+        <div>
+          <span class="eyebrow">The problem</span>
+          <h2 id="problem-h">A recursive verifier is mostly pairing.</h2>
+          <p class="lead">To check a Groth16 proof inside a circuit, you compute a pairing in emulated field arithmetic.
+            With gnark's pairing, that is 83% of the whole verifier.</p>
+        </div>
+        <div class="meter">
+          <div class="row">
+            <div class="top"><b>gnark's verifier, BN254 inner proof</b><span>791,400 constraints</span></div>
+            <div class="bar"><span class="seg gnark" style="--n:656420;--max:791400">Pairing · 656,420</span><span
+                class="seg" style="--n:134980;--max:791400">Rest</span></div>
+          </div>
+          <div class="key"><span><i class="gnark"></i>gnark's Miller loop and final
+              exponentiation</span><span><i></i>Inputs, point checks</span></div>
         </div>
       </div>
-      <figcaption class="ring-cap">The signed digits of BN254's Miller loop. polyring turns each step into one polynomial identity, then checks them all at once.</figcaption>
-    </figure>
-  </div>
-</div>
+    </section>
 
-<section class="band" aria-labelledby="problem-h">
-  <div class="wrap spread">
-    <div>
-      <span class="eyebrow">The problem</span>
-      <h2 id="problem-h">A recursive verifier is mostly pairing.</h2>
-      <p class="lead">To check a Groth16 proof inside a circuit, you compute a pairing in emulated field arithmetic. With gnark's pairing, that is 83% of the whole verifier.</p>
-    </div>
-    <div class="meter">
-      <div class="row">
-        <div class="top"><b>gnark's verifier, BN254 inner proof</b><span>791,400 constraints</span></div>
-        <div class="bar"><span class="seg gnark" style="--n:656420;--max:791400">Pairing · 656,420</span><span class="seg" style="--n:134980;--max:791400">Rest</span></div>
+    <section class="band tint" aria-labelledby="idea-h">
+      <div class="wrap spread flip">
+        <div>
+          <span class="eyebrow">The idea</span>
+          <h2 id="idea-h">Check the whole step, not every multiplication.</h2>
+          <p class="lead">A pairing loops over dozens of steps, each a handful of multiplications in a degree-12 field.
+            gnark proves every multiplication. polyring writes each step as one polynomial identity and checks all of
+            them together at a single random point.</p>
+          <p style="margin-top:20px"><a href="paper.html#method">How it works, in the paper →</a></p>
+        </div>
+        <div>
+          <div class="eq" role="math" aria-label="F squared times L1 L2 L3 equals Q times P12 plus R">F² · L<sub>1</sub>
+            L<sub>2</sub> L<sub>3</sub> = Q · P<sub>12</sub> + R</div>
+          <div class="figs" style="margin-top:32px">
+            <div class="fig">
+              <div class="v gn">132</div>
+              <div class="l">constraints per loop step, field multiplication by multiplication</div>
+            </div>
+            <div class="fig">
+              <div class="v cool">41</div>
+              <div class="l">constraints per loop step as one identity</div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="key"><span><i class="gnark"></i>gnark's Miller loop and final exponentiation</span><span><i></i>Inputs, point checks</span></div>
-    </div>
-  </div>
-</section>
+    </section>
 
-<section class="band tint" aria-labelledby="idea-h">
-  <div class="wrap spread flip">
-    <div>
-      <span class="eyebrow">The idea</span>
-      <h2 id="idea-h">Check the whole step, not every multiplication.</h2>
-      <p class="lead">A pairing loops over dozens of steps, each a handful of multiplications in a degree-12 field. gnark proves every multiplication. polyring writes each step as one polynomial identity and checks all of them together at a single random point.</p>
-      <p style="margin-top:20px"><a href="paper.html#method">How it works, in the paper →</a></p>
-    </div>
-    <div>
-      <div class="eq" role="math" aria-label="F squared times L1 L2 L3 equals Q times P12 plus R">F² · L<sub>1</sub> L<sub>2</sub> L<sub>3</sub> = Q · P<sub>12</sub> + R</div>
-      <div class="figs" style="margin-top:32px">
-        <div class="fig"><div class="v gn">132</div><div class="l">constraints per loop step, field multiplication by multiplication</div></div>
-        <div class="fig"><div class="v cool">41</div><div class="l">constraints per loop step as one identity</div></div>
+    <section class="band" aria-labelledby="result-h">
+      <div class="wrap spread">
+        <div id="result" data-show="bn254">
+          <span class="eyebrow">The result</span>
+          <h2 id="result-h">A third less work for the prover.</h2>
+          <p class="lead" style="margin-bottom:28px">Same circuit, same statement. Only the pairing check changes, and
+            the rest of the verifier stays as it was.</p>
+          <div class="toggle" data-filter="result" role="group" aria-label="Inner proof curve">
+            <button type="button" data-value="bn254" aria-pressed="true">BN254 inner proof</button>
+            <button type="button" data-value="bls12381" aria-pressed="false">BLS12-381</button>
+          </div>
+          <div class="figs">
+            <div class="fig" data-curve="bn254">
+              <div class="v good">−38%</div>
+              <div class="l">constraints</div>
+              <div class="s">791,400 → 491,043</div>
+            </div>
+            <div class="fig" data-curve="bn254">
+              <div class="v good">−34%</div>
+              <div class="l">witness solve time</div>
+              <div class="s">340 → 223 ms, M3 Pro</div>
+            </div>
+            <div class="fig" data-curve="bls12381">
+              <div class="v good">−31%</div>
+              <div class="l">constraints</div>
+              <div class="s">979,700 → 677,317</div>
+            </div>
+            <div class="fig" data-curve="bls12381">
+              <div class="v good">−44%</div>
+              <div class="l">witness solve time</div>
+              <div class="s">462 → 258 ms, M3 Pro</div>
+            </div>
+          </div>
+        </div>
+        <div class="meter" id="result-bars" data-show="bn254">
+          <div class="row" data-curve="bn254">
+            <div class="top"><b>gnark</b><span>791,400</span></div>
+            <div class="bar"><span class="seg gnark" style="--n:656420;--max:791400">656,420</span><span class="seg"
+                style="--n:134980;--max:791400"></span></div>
+          </div>
+          <div class="row" data-curve="bn254">
+            <div class="top"><b>polyring</b><span>491,043</span></div>
+            <div class="bar"><span class="seg hot" style="--n:353411;--max:791400">353,411</span><span class="seg"
+                style="--n:137632;--max:791400"></span><span class="seg ghost" style="--n:300357;--max:791400">300k
+                saved</span></div>
+          </div>
+          <div class="row" data-curve="bls12381">
+            <div class="top"><b>gnark</b><span>979,700</span></div>
+            <div class="bar"><span class="seg gnark" style="--n:693884;--max:979700">693,884</span><span class="seg"
+                style="--n:285816;--max:979700"></span></div>
+          </div>
+          <div class="row" data-curve="bls12381">
+            <div class="top"><b>polyring</b><span>677,317</span></div>
+            <div class="bar"><span class="seg hot" style="--n:391451;--max:979700">391,451</span><span class="seg"
+                style="--n:285866;--max:979700"></span><span class="seg ghost" style="--n:302383;--max:979700">302k
+                saved</span></div>
+          </div>
+          <div class="key"><span><i class="gnark"></i>gnark pairing</span><span><i class="hot"></i>polyring
+              pairing</span><span><i></i>Rest of the verifier, unchanged</span><span><i class="good"></i>Saved</span>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
-</section>
+    </section>
 
-<section class="band" aria-labelledby="result-h">
-  <div class="wrap spread">
-    <div id="result" data-show="bn254">
-      <span class="eyebrow">The result</span>
-      <h2 id="result-h">A third less work for the prover.</h2>
-      <p class="lead" style="margin-bottom:28px">Same circuit, same statement. Only the pairing check changes, and the rest of the verifier stays as it was.</p>
-      <div class="toggle" data-filter="result" role="group" aria-label="Inner proof curve">
-        <button type="button" data-value="bn254" aria-pressed="true">BN254 inner proof</button>
-        <button type="button" data-value="bls12381" aria-pressed="false">BLS12-381</button>
+    <section class="band tint" aria-labelledby="uses-h">
+      <div class="wrap">
+        <span class="eyebrow">What it's for</span>
+        <h2 id="uses-h">One proof that carries another.</h2>
+        <div class="uses">
+          <div class="use">
+            <h3>Wrap and compress</h3>
+            <p>Fold a proof, plus your own checks on it, into one BN254 Groth16 proof.</p>
+          </div>
+          <div class="use">
+            <h3>BLS12-381 on Ethereum</h3>
+            <p>Verify a BLS12-381 proof inside a BN254 circuit. The EVM's pairing precompile checks the result.</p>
+          </div>
+          <div class="use">
+            <h3>Any pairing check</h3>
+            <p>The ring pairing isn't tied to Groth16. A general two-pair check costs 31% fewer constraints on BN254.
+            </p>
+          </div>
+        </div>
       </div>
-      <div class="figs">
-        <div class="fig" data-curve="bn254"><div class="v good">−38%</div><div class="l">constraints</div><div class="s">791,400 → 491,043</div></div>
-        <div class="fig" data-curve="bn254"><div class="v good">−34%</div><div class="l">witness solve time</div><div class="s">340 → 223 ms, M3 Pro</div></div>
-        <div class="fig" data-curve="bls12381"><div class="v good">−31%</div><div class="l">constraints</div><div class="s">979,700 → 677,317</div></div>
-        <div class="fig" data-curve="bls12381"><div class="v good">−44%</div><div class="l">witness solve time</div><div class="s">462 → 258 ms, M3 Pro</div></div>
-      </div>
-    </div>
-    <div class="meter" id="result-bars" data-show="bn254">
-      <div class="row" data-curve="bn254">
-        <div class="top"><b>gnark</b><span>791,400</span></div>
-        <div class="bar"><span class="seg gnark" style="--n:656420;--max:791400">656,420</span><span class="seg" style="--n:134980;--max:791400"></span></div>
-      </div>
-      <div class="row" data-curve="bn254">
-        <div class="top"><b>polyring</b><span>491,043</span></div>
-        <div class="bar"><span class="seg hot" style="--n:353411;--max:791400">353,411</span><span class="seg" style="--n:137632;--max:791400"></span><span class="seg ghost" style="--n:300357;--max:791400">300k saved</span></div>
-      </div>
-      <div class="row" data-curve="bls12381">
-        <div class="top"><b>gnark</b><span>979,700</span></div>
-        <div class="bar"><span class="seg gnark" style="--n:693884;--max:979700">693,884</span><span class="seg" style="--n:285816;--max:979700"></span></div>
-      </div>
-      <div class="row" data-curve="bls12381">
-        <div class="top"><b>polyring</b><span>677,317</span></div>
-        <div class="bar"><span class="seg hot" style="--n:391451;--max:979700">391,451</span><span class="seg" style="--n:285866;--max:979700"></span><span class="seg ghost" style="--n:302383;--max:979700">302k saved</span></div>
-      </div>
-      <div class="key"><span><i class="gnark"></i>gnark pairing</span><span><i class="hot"></i>polyring pairing</span><span><i></i>Rest of the verifier, unchanged</span><span><i class="good"></i>Saved</span></div>
-    </div>
-  </div>
-</section>
+    </section>
 
-<section class="band tint" aria-labelledby="uses-h">
-  <div class="wrap">
-    <span class="eyebrow">What it's for</span>
-    <h2 id="uses-h">One proof that carries another.</h2>
-    <div class="uses">
-      <div class="use"><h3>Wrap and compress</h3><p>Fold a proof, plus your own checks on it, into one BN254 Groth16 proof.</p></div>
-      <div class="use"><h3>BLS12-381 on Ethereum</h3><p>Verify a BLS12-381 proof inside a BN254 circuit. The EVM's pairing precompile checks the result.</p></div>
-      <div class="use"><h3>Any pairing check</h3><p>The ring pairing isn't tied to Groth16. A general two-pair check costs 31% fewer constraints on BN254.</p></div>
-    </div>
-  </div>
-</section>
-
-<section class="band" aria-labelledby="trade-h">
-  <div class="wrap spread">
-    <div>
-      <span class="eyebrow">The trade</span>
-      <h2 id="trade-h">Cheaper to prove, dearer to verify on the EVM.</h2>
-      <p class="lead">polyring's proof carries three commitments instead of one, so the Solidity verifier does more work: about 460k gas per <code>verifyProof</code> call, against 359k with gnark's pairing. Pick it when proving is your main cost: many proofs, modest hardware, or a proving service that bills by the constraint.</p>
-      <p class="lead">Where a VM runs the pairing itself, verifying gets cheaper too. Garaga on Starknet uses the paper's technique and needs <strong style="color:var(--good)">37%</strong> fewer VM steps.</p>
-    </div>
-    <div class="trade">
-      <div>
-        <span class="eyebrow">Prover</span>
-        <h3>Less to prove</h3>
-        <dl>
-          <dt>Constraints<small>791,400 → 491,043</small></dt><dd class="good">−38%</dd>
-          <dt>Committed wires<small>589,535 → 398,959</small></dt><dd class="good">−32%</dd>
-        </dl>
+    <section class="band" aria-labelledby="trade-h">
+      <div class="wrap spread">
+        <div>
+          <span class="eyebrow">The trade</span>
+          <h2 id="trade-h">Cheaper to prove, dearer to verify on the EVM.</h2>
+          <p class="lead">polyring's proof carries three commitments instead of one, so the Solidity verifier does more
+            work: about 460k gas per <code>verifyProof</code> call, against 359k with gnark's pairing. Pick it when
+            proving is your main cost: many proofs, modest hardware, or a proving service that bills by the constraint.
+          </p>
+          <p class="lead">Where a VM runs the pairing itself, verifying gets cheaper too. Garaga on Starknet uses the
+            paper's technique and needs <strong style="color:var(--good)">37%</strong> fewer VM steps.</p>
+        </div>
+        <div class="trade">
+          <div>
+            <span class="eyebrow">Prover</span>
+            <h3>Less to prove</h3>
+            <dl>
+              <dt>Constraints<small>791,400 → 491,043</small></dt>
+              <dd class="good">−38%</dd>
+              <dt>Committed wires<small>589,535 → 398,959</small></dt>
+              <dd class="good">−32%</dd>
+            </dl>
+          </div>
+          <div>
+            <span class="eyebrow">EVM verifier</span>
+            <h3>More to check</h3>
+            <dl>
+              <dt>Verification gas<small>≈359k → ≈460k per <code>verifyProof</code> call</small></dt>
+              <dd class="bad">+28%</dd>
+              <dt>Proof size<small>384 → 512 bytes</small></dt>
+              <dd class="bad">+33%</dd>
+            </dl>
+          </div>
+        </div>
       </div>
-      <div>
-        <span class="eyebrow">EVM verifier</span>
-        <h3>More to check</h3>
-        <dl>
-          <dt>Verification gas<small>≈359k → ≈460k per <code>verifyProof</code> call</small></dt><dd class="bad">+28%</dd>
-          <dt>Proof size<small>384 → 512 bytes</small></dt><dd class="bad">+33%</dd>
-        </dl>
-      </div>
-    </div>
-  </div>
-</section>
+    </section>
 
-<section class="band tint" aria-labelledby="code-h">
-  <div class="wrap spread">
-    <div>
-      <span class="eyebrow">In your circuit</span>
-      <h2 id="code-h">A few lines in <code style="font-size:.8em;background:none;padding:0">Define</code>.</h2>
-      <p class="lead">Bake the inner verifying key into your circuit, verify the inner proof first, then add your own constraints. polyring also generates the Solidity verifier for the outer proof.</p>
-      <div class="btns" style="margin-top:28px"><a class="btn primary" href="guide.html">Follow the guide <span class="arr" aria-hidden="true">→</span></a><a class="btn" href="guide.html#agents">Using a coding agent?</a></div>
-    </div>
-    <div class="code">
-      <div class="code-head"><span>outer.go</span><button class="copy" type="button">Copy</button></div>
-<pre><code class="lang-go">type Outer struct {
+    <section class="band tint" aria-labelledby="code-h">
+      <div class="wrap spread">
+        <div>
+          <span class="eyebrow">In your circuit</span>
+          <h2 id="code-h">A few lines in <code style="font-size:.8em;background:none;padding:0">Define</code>.</h2>
+          <p class="lead">Bake the inner verifying key into your circuit, verify the inner proof first, then add your
+            own constraints. polyring also generates the Solidity verifier for the outer proof.</p>
+          <div class="btns" style="margin-top:28px"><a class="btn primary" href="guide.html">Follow the guide <span
+                class="arr" aria-hidden="true">→</span></a><a class="btn" href="guide.html#agents">Using a coding
+              agent?</a></div>
+        </div>
+        <div class="code">
+          <div class="code-head"><span>outer.go</span><button class="copy" type="button">Copy</button></div>
+          <pre><code class="lang-go">type Outer struct {
 	InnerProof  recursion.Proof[Fp, G2]     `gnark:",secret"`
 	InnerPublic recursion.PublicWitness[Fr] `gnark:",public"`
 	vk          *recursion.VerifyingKey
@@ -258,49 +350,128 @@ func (c *Outer) Define(api frontend.API) error {
 	// your own constraints
 	return nil
 }</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" aria-labelledby="limits-h">
+      <div class="wrap spread" style="align-items:start">
+        <div>
+          <span class="eyebrow">Scope of v0.1</span>
+          <h2 id="limits-h">Before you ship.</h2>
+        </div>
+        <ul class="limits">
+          <li><b>Unaudited</b><span>A bug in an in-circuit pairing breaks soundness. Use it for research and on
+              testnets.</span></li>
+          <li><b>One fixed inner key</b><span>The inner verifying key is baked in when the circuit compiles.</span></li>
+          <li><b>One proof at a time</b><span>Each outer proof verifies one inner proof. Batching several is
+              planned.</span></li>
+          <li><b>No nested recursion</b><span>An outer polyring proof can't be an inner proof yet, and inner circuits
+              can't use <code>api.Commit</code>.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="band tint" aria-label="Next">
+      <div class="wrap next">
+        <a href="guide.html"><span class="eyebrow">Build</span><b>Step-by-step guide</b><span>From an inner proof to a
+            deployed verifier, in eight steps.</span><span class="go">Open the guide →</span></a>
+        <a href="paper.html"><span class="eyebrow">Research</span><b>The paper</b><span>The method and the full
+            benchmark tables.</span><span class="go">Read the paper →</span></a>
+        <a href="https://github.com/mistcash/polyring"><span class="eyebrow">Source</span><b>GitHub</b><span>Apache-2.0.
+            Benchmarks reproduce in about a minute.</span><span class="go">View the code →</span></a>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <a class="wordmark" href="https://mist.cash" aria-label="MIST.cash"><svg viewBox="0 0 2013 337"
+          fill="currentColor" role="img" aria-hidden="true" focusable="false"
+          style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2">
+          <g transform="matrix(1,0,0,1,-196.98683,-3032.414131)">
+            <g id="Logo-MIST.cash" transform="matrix(1.174313,0,0,1.174313,-595.156102,2944.033861)">
+              <g id="Logo" transform="matrix(0.060667,0,0,0.060667,811.058403,222.609261)">
+                <g transform="matrix(1,0,0,1,-2250,-2250)">
+                  <g>
+                    <g transform="matrix(0.416667,0,0,-0.416667,0,4500)">
+                      <path
+                        d="M0,10805L0,0L4408,1C8790,2 8814,2 8705,21C8536,50 8297,114 8138,171C7887,261 7561,429 7345,578C6656,1056 6169,1776 5985,2592C5926,2852 5916,2960 5915,3305C5915,3650 5921,3722 5971,3971C6264,5437 7524,6539 9034,6651C9180,6662 9538,6658 9663,6644L9720,6637L9720,10805L4860,5945L0,10805Z"
+                        style="fill-rule:nonzero;" />
+                      <circle cx="9330" cy="3300" r="1460" />
+                    </g>
+                  </g>
+                </g>
+              </g>
+              <g id="MIST.cash" transform="matrix(1.124899,0,0,1.124899,-112.328441,-1673.290746)">
+                <g transform="matrix(0.990666,0,0,1.058601,1603.697451,1804.978529)">
+                  <g transform="matrix(300,0,0,300,0,0)">
+                    <path
+                      d="M0.015,-0.072C0.015,-0.093 0.023,-0.11 0.037,-0.124C0.052,-0.138 0.069,-0.145 0.087,-0.145C0.104,-0.145 0.12,-0.138 0.135,-0.124C0.149,-0.11 0.157,-0.093 0.157,-0.072C0.157,-0.05 0.149,-0.033 0.135,-0.019C0.12,-0.006 0.104,-0 0.087,-0C0.069,-0 0.052,-0.006 0.037,-0.019C0.023,-0.033 0.015,-0.05 0.015,-0.072Z"
+                      style="fill-rule:nonzero;" />
+                  </g>
+                  <g transform="matrix(300,0,0,300,45.6,0)">
+                    <path
+                      d="M0.443,-0.039C0.424,-0.024 0.4,-0.011 0.37,-0.002C0.341,0.007 0.313,0.012 0.285,0.012C0.235,0.012 0.192,0.003 0.154,-0.015C0.118,-0.034 0.089,-0.06 0.069,-0.095C0.048,-0.129 0.038,-0.17 0.038,-0.219C0.038,-0.268 0.049,-0.309 0.071,-0.344C0.093,-0.378 0.122,-0.404 0.158,-0.422C0.193,-0.44 0.231,-0.449 0.27,-0.449C0.309,-0.449 0.343,-0.444 0.372,-0.433C0.402,-0.422 0.426,-0.408 0.447,-0.391L0.379,-0.301C0.37,-0.308 0.357,-0.316 0.341,-0.324C0.324,-0.331 0.305,-0.335 0.283,-0.335C0.264,-0.335 0.246,-0.33 0.23,-0.32C0.214,-0.31 0.201,-0.296 0.192,-0.279C0.183,-0.262 0.178,-0.242 0.178,-0.219C0.178,-0.198 0.183,-0.178 0.193,-0.16C0.203,-0.142 0.217,-0.128 0.235,-0.118C0.252,-0.107 0.273,-0.102 0.297,-0.102C0.312,-0.102 0.327,-0.104 0.34,-0.108C0.353,-0.113 0.364,-0.119 0.373,-0.127L0.443,-0.039Z"
+                      style="fill-rule:nonzero;" />
+                  </g>
+                  <g transform="matrix(300,0,0,300,183.3,0)">
+                    <path
+                      d="M0.256,0.012C0.215,0.012 0.178,0.004 0.145,-0.013C0.113,-0.029 0.086,-0.054 0.067,-0.088C0.048,-0.122 0.038,-0.165 0.038,-0.218C0.038,-0.267 0.048,-0.31 0.068,-0.346C0.088,-0.382 0.114,-0.41 0.147,-0.429C0.18,-0.449 0.214,-0.459 0.251,-0.459C0.294,-0.459 0.327,-0.452 0.35,-0.438C0.372,-0.423 0.39,-0.407 0.405,-0.39L0.399,-0.373L0.412,-0.437L0.542,-0.437L0.542,-0L0.402,-0L0.402,-0.095L0.413,-0.065C0.412,-0.065 0.408,-0.061 0.401,-0.053C0.394,-0.046 0.385,-0.037 0.371,-0.026C0.358,-0.016 0.342,-0.007 0.324,0.001C0.304,0.008 0.282,0.012 0.256,0.012ZM0.296,-0.102C0.313,-0.102 0.328,-0.104 0.341,-0.11C0.354,-0.115 0.366,-0.122 0.376,-0.132C0.386,-0.141 0.395,-0.153 0.402,-0.168L0.402,-0.275C0.397,-0.29 0.389,-0.302 0.378,-0.312C0.367,-0.323 0.355,-0.331 0.34,-0.337C0.325,-0.342 0.309,-0.345 0.291,-0.345C0.271,-0.345 0.253,-0.34 0.236,-0.33C0.218,-0.319 0.205,-0.305 0.195,-0.287C0.185,-0.269 0.18,-0.248 0.18,-0.225C0.18,-0.202 0.185,-0.181 0.196,-0.162C0.207,-0.143 0.221,-0.129 0.239,-0.118C0.256,-0.107 0.275,-0.102 0.296,-0.102Z"
+                      style="fill-rule:nonzero;" />
+                  </g>
+                  <g transform="matrix(300,0,0,300,352.5,0)">
+                    <path
+                      d="M0.214,0.009C0.178,0.009 0.144,0.003 0.114,-0.01C0.083,-0.023 0.056,-0.04 0.035,-0.063L0.093,-0.14C0.114,-0.121 0.134,-0.107 0.152,-0.099C0.171,-0.09 0.187,-0.086 0.202,-0.086C0.213,-0.086 0.224,-0.087 0.233,-0.089C0.242,-0.092 0.249,-0.095 0.254,-0.101C0.259,-0.105 0.262,-0.112 0.262,-0.12C0.262,-0.131 0.258,-0.14 0.248,-0.147C0.24,-0.154 0.228,-0.159 0.214,-0.164C0.2,-0.168 0.185,-0.172 0.169,-0.177C0.129,-0.19 0.1,-0.208 0.083,-0.233C0.065,-0.257 0.056,-0.283 0.056,-0.312C0.056,-0.334 0.062,-0.356 0.073,-0.379C0.085,-0.401 0.104,-0.42 0.13,-0.434C0.155,-0.45 0.188,-0.457 0.229,-0.457C0.266,-0.457 0.297,-0.453 0.322,-0.446C0.347,-0.439 0.371,-0.427 0.394,-0.41L0.341,-0.328C0.328,-0.338 0.314,-0.347 0.298,-0.353C0.283,-0.36 0.268,-0.364 0.255,-0.365C0.243,-0.366 0.233,-0.364 0.225,-0.361C0.216,-0.358 0.21,-0.353 0.205,-0.348C0.2,-0.343 0.198,-0.337 0.198,-0.331C0.197,-0.318 0.202,-0.308 0.212,-0.301C0.223,-0.294 0.236,-0.288 0.252,-0.284C0.268,-0.28 0.284,-0.275 0.299,-0.27C0.32,-0.263 0.339,-0.254 0.354,-0.243C0.369,-0.232 0.381,-0.218 0.39,-0.203C0.398,-0.187 0.402,-0.168 0.402,-0.146C0.402,-0.119 0.395,-0.094 0.382,-0.071C0.368,-0.047 0.347,-0.028 0.32,-0.013C0.292,0.002 0.257,0.009 0.214,0.009Z"
+                      style="fill-rule:nonzero;" />
+                  </g>
+                  <g transform="matrix(300,0,0,300,468.6,0)">
+                    <path
+                      d="M0.072,-0L0.072,-0.789L0.209,-0.789L0.209,-0.349L0.208,-0.366C0.223,-0.393 0.245,-0.416 0.273,-0.432C0.301,-0.45 0.335,-0.458 0.376,-0.458C0.417,-0.458 0.452,-0.446 0.48,-0.421C0.507,-0.397 0.521,-0.366 0.522,-0.327L0.522,-0L0.382,-0L0.382,-0.275C0.381,-0.294 0.376,-0.31 0.366,-0.322C0.357,-0.333 0.341,-0.339 0.318,-0.339C0.297,-0.339 0.278,-0.332 0.262,-0.318C0.246,-0.304 0.234,-0.285 0.225,-0.261C0.216,-0.237 0.212,-0.209 0.212,-0.178L0.212,-0L0.072,-0Z"
+                      style="fill-rule:nonzero;" />
+                  </g>
+                </g>
+                <g transform="matrix(0.990666,0,0,1.058601,1222.786476,1806.30178)">
+                  <g transform="matrix(300,0,0,300,0,0)">
+                    <rect x="0.095" y="-0.736" width="0.145" height="0.736" style="fill-rule:nonzero;" />
+                  </g>
+                  <g transform="matrix(300,0,0,300,90.3,0)">
+                    <path
+                      d="M0.488,-0.558C0.46,-0.573 0.431,-0.586 0.403,-0.596C0.373,-0.606 0.346,-0.611 0.321,-0.611C0.29,-0.611 0.265,-0.605 0.247,-0.592C0.229,-0.579 0.22,-0.56 0.22,-0.535C0.22,-0.518 0.227,-0.502 0.24,-0.488C0.254,-0.475 0.272,-0.463 0.293,-0.452C0.315,-0.441 0.338,-0.432 0.361,-0.423C0.382,-0.415 0.404,-0.406 0.424,-0.395C0.446,-0.384 0.464,-0.37 0.481,-0.353C0.498,-0.337 0.511,-0.317 0.521,-0.292C0.531,-0.268 0.536,-0.238 0.536,-0.203C0.536,-0.166 0.526,-0.131 0.507,-0.099C0.488,-0.067 0.459,-0.041 0.422,-0.022C0.385,-0.002 0.339,0.008 0.284,0.008C0.256,0.008 0.228,0.005 0.199,-0.001C0.169,-0.006 0.141,-0.015 0.113,-0.026C0.085,-0.038 0.058,-0.053 0.032,-0.071L0.096,-0.184C0.113,-0.171 0.132,-0.16 0.152,-0.15C0.173,-0.141 0.193,-0.133 0.214,-0.128C0.235,-0.123 0.254,-0.12 0.271,-0.12C0.288,-0.12 0.306,-0.122 0.324,-0.128C0.341,-0.133 0.356,-0.141 0.367,-0.153C0.379,-0.165 0.385,-0.182 0.385,-0.203C0.385,-0.218 0.38,-0.231 0.37,-0.243C0.361,-0.255 0.348,-0.266 0.332,-0.276C0.315,-0.286 0.297,-0.295 0.278,-0.302C0.255,-0.311 0.232,-0.321 0.208,-0.332C0.184,-0.343 0.162,-0.357 0.141,-0.373C0.12,-0.39 0.102,-0.41 0.089,-0.434C0.076,-0.459 0.07,-0.489 0.07,-0.524C0.07,-0.567 0.08,-0.604 0.099,-0.635C0.118,-0.666 0.144,-0.691 0.179,-0.71C0.214,-0.728 0.254,-0.738 0.299,-0.74C0.358,-0.74 0.407,-0.733 0.444,-0.719C0.48,-0.705 0.514,-0.688 0.543,-0.669L0.488,-0.558Z"
+                      style="fill-rule:nonzero;" />
+                  </g>
+                  <g transform="matrix(300,0,0,300,261,0)">
+                    <path
+                      d="M0.045,-0.736L0.541,-0.736L0.541,-0.596L0.362,-0.596L0.362,-0L0.217,-0L0.217,-0.596L0.045,-0.596L0.045,-0.736Z"
+                      style="fill-rule:nonzero;" />
+                  </g>
+                </g>
+                <g transform="matrix(0.990666,0,0,1.058601,51.176081,1148.831732)">
+                  <g transform="matrix(300,0,0,300,913.294576,621.108915)">
+                    <path
+                      d="M0.095,-0L0.095,-0.766L0.096,-0.766L0.505,-0.186L0.443,-0.2L0.851,-0.766L0.853,-0.766L0.853,-0L0.708,-0L0.708,-0.439L0.717,-0.364L0.468,-0.01L0.466,-0.01L0.21,-0.364L0.235,-0.433L0.235,-0L0.095,-0Z"
+                      style="fill-rule:nonzero;" />
+                  </g>
+                  <g transform="matrix(300,0,0,300,1197.694576,621.108915)"></g>
+                </g>
+              </g>
+            </g>
+          </g>
+        </svg></a>
+      <nav aria-label="Footer">
+        <a href="guide.html">Guide</a>
+        <a href="paper.html">Paper</a>
+        <a href="https://github.com/mistcash/polyring">GitHub</a>
+        <a href="llms.txt">llms.txt</a>
+        <a href="https://github.com/mistcash/polyring/security">Security</a>
+      </nav>
+      <p>polyring is built by <a href="https://mist.cash">MIST.cash</a>. Code under Apache-2.0, paper under CC BY 4.0.
+        Unaudited research software.</p>
     </div>
-  </div>
-</section>
+  </footer>
 
-<section class="band" aria-labelledby="limits-h">
-  <div class="wrap spread" style="align-items:start">
-    <div>
-      <span class="eyebrow">Scope of v0.1</span>
-      <h2 id="limits-h">Before you ship.</h2>
-    </div>
-    <ul class="limits">
-      <li><b>Unaudited</b><span>A bug in an in-circuit pairing breaks soundness. Use it for research and on testnets.</span></li>
-      <li><b>One fixed inner key</b><span>The inner verifying key is baked in when the circuit compiles.</span></li>
-      <li><b>One proof at a time</b><span>Each outer proof verifies one inner proof. Batching several is planned.</span></li>
-      <li><b>No nested recursion</b><span>An outer polyring proof can't be an inner proof yet, and inner circuits can't use <code>api.Commit</code>.</span></li>
-    </ul>
-  </div>
-</section>
-
-<section class="band tint" aria-label="Next">
-  <div class="wrap next">
-    <a href="guide.html"><span class="eyebrow">Build</span><b>Step-by-step guide</b><span>From an inner proof to a deployed verifier, in eight steps.</span><span class="go">Open the guide →</span></a>
-    <a href="paper.html"><span class="eyebrow">Research</span><b>The paper</b><span>The method and the full benchmark tables.</span><span class="go">Read the paper →</span></a>
-    <a href="https://github.com/mistcash/polyring"><span class="eyebrow">Source</span><b>GitHub</b><span>Apache-2.0. Benchmarks reproduce in about a minute.</span><span class="go">View the code →</span></a>
-  </div>
-</section>
-
-</main>
-
-<footer>
-  <div class="wrap">
-    <a class="wordmark" href="https://mist.cash" aria-label="MIST.cash"><svg viewBox="0 0 2013 337" fill="currentColor" role="img" aria-hidden="true" focusable="false" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2"><g transform="matrix(1,0,0,1,-196.98683,-3032.414131)"><g id="Logo-MIST.cash" transform="matrix(1.174313,0,0,1.174313,-595.156102,2944.033861)"><g id="Logo" transform="matrix(0.060667,0,0,0.060667,811.058403,222.609261)"><g transform="matrix(1,0,0,1,-2250,-2250)"><g><g transform="matrix(0.416667,0,0,-0.416667,0,4500)"><path d="M0,10805L0,0L4408,1C8790,2 8814,2 8705,21C8536,50 8297,114 8138,171C7887,261 7561,429 7345,578C6656,1056 6169,1776 5985,2592C5926,2852 5916,2960 5915,3305C5915,3650 5921,3722 5971,3971C6264,5437 7524,6539 9034,6651C9180,6662 9538,6658 9663,6644L9720,6637L9720,10805L4860,5945L0,10805Z" style="fill-rule:nonzero;"/><circle cx="9330" cy="3300" r="1460"/></g></g></g></g><g id="MIST.cash" transform="matrix(1.124899,0,0,1.124899,-112.328441,-1673.290746)"><g transform="matrix(0.990666,0,0,1.058601,1603.697451,1804.978529)"><g transform="matrix(300,0,0,300,0,0)"><path d="M0.015,-0.072C0.015,-0.093 0.023,-0.11 0.037,-0.124C0.052,-0.138 0.069,-0.145 0.087,-0.145C0.104,-0.145 0.12,-0.138 0.135,-0.124C0.149,-0.11 0.157,-0.093 0.157,-0.072C0.157,-0.05 0.149,-0.033 0.135,-0.019C0.12,-0.006 0.104,-0 0.087,-0C0.069,-0 0.052,-0.006 0.037,-0.019C0.023,-0.033 0.015,-0.05 0.015,-0.072Z" style="fill-rule:nonzero;"/></g><g transform="matrix(300,0,0,300,45.6,0)"><path d="M0.443,-0.039C0.424,-0.024 0.4,-0.011 0.37,-0.002C0.341,0.007 0.313,0.012 0.285,0.012C0.235,0.012 0.192,0.003 0.154,-0.015C0.118,-0.034 0.089,-0.06 0.069,-0.095C0.048,-0.129 0.038,-0.17 0.038,-0.219C0.038,-0.268 0.049,-0.309 0.071,-0.344C0.093,-0.378 0.122,-0.404 0.158,-0.422C0.193,-0.44 0.231,-0.449 0.27,-0.449C0.309,-0.449 0.343,-0.444 0.372,-0.433C0.402,-0.422 0.426,-0.408 0.447,-0.391L0.379,-0.301C0.37,-0.308 0.357,-0.316 0.341,-0.324C0.324,-0.331 0.305,-0.335 0.283,-0.335C0.264,-0.335 0.246,-0.33 0.23,-0.32C0.214,-0.31 0.201,-0.296 0.192,-0.279C0.183,-0.262 0.178,-0.242 0.178,-0.219C0.178,-0.198 0.183,-0.178 0.193,-0.16C0.203,-0.142 0.217,-0.128 0.235,-0.118C0.252,-0.107 0.273,-0.102 0.297,-0.102C0.312,-0.102 0.327,-0.104 0.34,-0.108C0.353,-0.113 0.364,-0.119 0.373,-0.127L0.443,-0.039Z" style="fill-rule:nonzero;"/></g><g transform="matrix(300,0,0,300,183.3,0)"><path d="M0.256,0.012C0.215,0.012 0.178,0.004 0.145,-0.013C0.113,-0.029 0.086,-0.054 0.067,-0.088C0.048,-0.122 0.038,-0.165 0.038,-0.218C0.038,-0.267 0.048,-0.31 0.068,-0.346C0.088,-0.382 0.114,-0.41 0.147,-0.429C0.18,-0.449 0.214,-0.459 0.251,-0.459C0.294,-0.459 0.327,-0.452 0.35,-0.438C0.372,-0.423 0.39,-0.407 0.405,-0.39L0.399,-0.373L0.412,-0.437L0.542,-0.437L0.542,-0L0.402,-0L0.402,-0.095L0.413,-0.065C0.412,-0.065 0.408,-0.061 0.401,-0.053C0.394,-0.046 0.385,-0.037 0.371,-0.026C0.358,-0.016 0.342,-0.007 0.324,0.001C0.304,0.008 0.282,0.012 0.256,0.012ZM0.296,-0.102C0.313,-0.102 0.328,-0.104 0.341,-0.11C0.354,-0.115 0.366,-0.122 0.376,-0.132C0.386,-0.141 0.395,-0.153 0.402,-0.168L0.402,-0.275C0.397,-0.29 0.389,-0.302 0.378,-0.312C0.367,-0.323 0.355,-0.331 0.34,-0.337C0.325,-0.342 0.309,-0.345 0.291,-0.345C0.271,-0.345 0.253,-0.34 0.236,-0.33C0.218,-0.319 0.205,-0.305 0.195,-0.287C0.185,-0.269 0.18,-0.248 0.18,-0.225C0.18,-0.202 0.185,-0.181 0.196,-0.162C0.207,-0.143 0.221,-0.129 0.239,-0.118C0.256,-0.107 0.275,-0.102 0.296,-0.102Z" style="fill-rule:nonzero;"/></g><g transform="matrix(300,0,0,300,352.5,0)"><path d="M0.214,0.009C0.178,0.009 0.144,0.003 0.114,-0.01C0.083,-0.023 0.056,-0.04 0.035,-0.063L0.093,-0.14C0.114,-0.121 0.134,-0.107 0.152,-0.099C0.171,-0.09 0.187,-0.086 0.202,-0.086C0.213,-0.086 0.224,-0.087 0.233,-0.089C0.242,-0.092 0.249,-0.095 0.254,-0.101C0.259,-0.105 0.262,-0.112 0.262,-0.12C0.262,-0.131 0.258,-0.14 0.248,-0.147C0.24,-0.154 0.228,-0.159 0.214,-0.164C0.2,-0.168 0.185,-0.172 0.169,-0.177C0.129,-0.19 0.1,-0.208 0.083,-0.233C0.065,-0.257 0.056,-0.283 0.056,-0.312C0.056,-0.334 0.062,-0.356 0.073,-0.379C0.085,-0.401 0.104,-0.42 0.13,-0.434C0.155,-0.45 0.188,-0.457 0.229,-0.457C0.266,-0.457 0.297,-0.453 0.322,-0.446C0.347,-0.439 0.371,-0.427 0.394,-0.41L0.341,-0.328C0.328,-0.338 0.314,-0.347 0.298,-0.353C0.283,-0.36 0.268,-0.364 0.255,-0.365C0.243,-0.366 0.233,-0.364 0.225,-0.361C0.216,-0.358 0.21,-0.353 0.205,-0.348C0.2,-0.343 0.198,-0.337 0.198,-0.331C0.197,-0.318 0.202,-0.308 0.212,-0.301C0.223,-0.294 0.236,-0.288 0.252,-0.284C0.268,-0.28 0.284,-0.275 0.299,-0.27C0.32,-0.263 0.339,-0.254 0.354,-0.243C0.369,-0.232 0.381,-0.218 0.39,-0.203C0.398,-0.187 0.402,-0.168 0.402,-0.146C0.402,-0.119 0.395,-0.094 0.382,-0.071C0.368,-0.047 0.347,-0.028 0.32,-0.013C0.292,0.002 0.257,0.009 0.214,0.009Z" style="fill-rule:nonzero;"/></g><g transform="matrix(300,0,0,300,468.6,0)"><path d="M0.072,-0L0.072,-0.789L0.209,-0.789L0.209,-0.349L0.208,-0.366C0.223,-0.393 0.245,-0.416 0.273,-0.432C0.301,-0.45 0.335,-0.458 0.376,-0.458C0.417,-0.458 0.452,-0.446 0.48,-0.421C0.507,-0.397 0.521,-0.366 0.522,-0.327L0.522,-0L0.382,-0L0.382,-0.275C0.381,-0.294 0.376,-0.31 0.366,-0.322C0.357,-0.333 0.341,-0.339 0.318,-0.339C0.297,-0.339 0.278,-0.332 0.262,-0.318C0.246,-0.304 0.234,-0.285 0.225,-0.261C0.216,-0.237 0.212,-0.209 0.212,-0.178L0.212,-0L0.072,-0Z" style="fill-rule:nonzero;"/></g></g><g transform="matrix(0.990666,0,0,1.058601,1222.786476,1806.30178)"><g transform="matrix(300,0,0,300,0,0)"><rect x="0.095" y="-0.736" width="0.145" height="0.736" style="fill-rule:nonzero;"/></g><g transform="matrix(300,0,0,300,90.3,0)"><path d="M0.488,-0.558C0.46,-0.573 0.431,-0.586 0.403,-0.596C0.373,-0.606 0.346,-0.611 0.321,-0.611C0.29,-0.611 0.265,-0.605 0.247,-0.592C0.229,-0.579 0.22,-0.56 0.22,-0.535C0.22,-0.518 0.227,-0.502 0.24,-0.488C0.254,-0.475 0.272,-0.463 0.293,-0.452C0.315,-0.441 0.338,-0.432 0.361,-0.423C0.382,-0.415 0.404,-0.406 0.424,-0.395C0.446,-0.384 0.464,-0.37 0.481,-0.353C0.498,-0.337 0.511,-0.317 0.521,-0.292C0.531,-0.268 0.536,-0.238 0.536,-0.203C0.536,-0.166 0.526,-0.131 0.507,-0.099C0.488,-0.067 0.459,-0.041 0.422,-0.022C0.385,-0.002 0.339,0.008 0.284,0.008C0.256,0.008 0.228,0.005 0.199,-0.001C0.169,-0.006 0.141,-0.015 0.113,-0.026C0.085,-0.038 0.058,-0.053 0.032,-0.071L0.096,-0.184C0.113,-0.171 0.132,-0.16 0.152,-0.15C0.173,-0.141 0.193,-0.133 0.214,-0.128C0.235,-0.123 0.254,-0.12 0.271,-0.12C0.288,-0.12 0.306,-0.122 0.324,-0.128C0.341,-0.133 0.356,-0.141 0.367,-0.153C0.379,-0.165 0.385,-0.182 0.385,-0.203C0.385,-0.218 0.38,-0.231 0.37,-0.243C0.361,-0.255 0.348,-0.266 0.332,-0.276C0.315,-0.286 0.297,-0.295 0.278,-0.302C0.255,-0.311 0.232,-0.321 0.208,-0.332C0.184,-0.343 0.162,-0.357 0.141,-0.373C0.12,-0.39 0.102,-0.41 0.089,-0.434C0.076,-0.459 0.07,-0.489 0.07,-0.524C0.07,-0.567 0.08,-0.604 0.099,-0.635C0.118,-0.666 0.144,-0.691 0.179,-0.71C0.214,-0.728 0.254,-0.738 0.299,-0.74C0.358,-0.74 0.407,-0.733 0.444,-0.719C0.48,-0.705 0.514,-0.688 0.543,-0.669L0.488,-0.558Z" style="fill-rule:nonzero;"/></g><g transform="matrix(300,0,0,300,261,0)"><path d="M0.045,-0.736L0.541,-0.736L0.541,-0.596L0.362,-0.596L0.362,-0L0.217,-0L0.217,-0.596L0.045,-0.596L0.045,-0.736Z" style="fill-rule:nonzero;"/></g></g><g transform="matrix(0.990666,0,0,1.058601,51.176081,1148.831732)"><g transform="matrix(300,0,0,300,913.294576,621.108915)"><path d="M0.095,-0L0.095,-0.766L0.096,-0.766L0.505,-0.186L0.443,-0.2L0.851,-0.766L0.853,-0.766L0.853,-0L0.708,-0L0.708,-0.439L0.717,-0.364L0.468,-0.01L0.466,-0.01L0.21,-0.364L0.235,-0.433L0.235,-0L0.095,-0Z" style="fill-rule:nonzero;"/></g><g transform="matrix(300,0,0,300,1197.694576,621.108915)"></g></g></g></g></g></svg></a>
-    <nav aria-label="Footer">
-      <a href="guide.html">Guide</a>
-      <a href="paper.html">Paper</a>
-      <a href="https://github.com/mistcash/polyring">GitHub</a>
-      <a href="llms.txt">llms.txt</a>
-      <a href="https://github.com/mistcash/polyring/security">Security</a>
-    </nav>
-    <p>polyring is built by <a href="https://mist.cash">MIST.cash</a>. Code under Apache-2.0, paper under CC BY 4.0. Unaudited research software.</p>
-  </div>
-</footer>
-
-<script src="assets/site.js" defer></script>
+  <script src="assets/site.js" defer></script>
 </body>
+
 </html>

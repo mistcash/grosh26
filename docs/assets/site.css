@@ -500,6 +500,15 @@ pre {
   margin-bottom: 30px;
 }
 
+.hero .lead.tag {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(22px, 2.6vw, 30px);
+  line-height: 1.25;
+  color: var(--hero-head);
+  margin-bottom: 14px;
+}
+
 .hero .btn {
   background: var(--hero-btn);
   color: var(--hero-btn-label);

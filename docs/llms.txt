@@ -1,6 +1,6 @@
 # polyring
 
-> Groth16-in-Groth16 recursion for gnark (Go). polyring verifies a BN254 or BLS12-381 Groth16 proof inside a BN254 Groth16 circuit, using a polynomial-ring pairing check that costs 38.0% fewer R1CS constraints than gnark's emulated pairing (BN254 inner proof; 30.9% for BLS12-381), and exports a Solidity verifier for the outer proof. It implements "Pairing Proofs and Polynomial Ring Toolkit" (Shramee Srivastav, IACR TCHES 2027). Unaudited research software, v0.1.
+> Polynomial Ring Toolkit for gnark (Go): fast polynomial-ring multiplications in circuits, and the Groth16-in-Groth16 recursion built on it. polyring verifies a BN254 or BLS12-381 Groth16 proof inside a BN254 Groth16 circuit, using a polynomial-ring pairing check that costs 38.0% fewer R1CS constraints than gnark's emulated pairing (BN254 inner proof; 30.9% for BLS12-381), and exports a Solidity verifier for the outer proof. It implements "Pairing Proofs and Polynomial Ring Toolkit" (Shramee Srivastav, IACR TCHES 2027). Unaudited research software, v0.1.
 
 Repository: https://github.com/mistcash/polyring
 Landing page: https://polyring.mist.cash/
