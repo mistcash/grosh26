@@ -4,10 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pairing Proofs and Polynomial Ring Toolkit | IACR TCHES 2027</title>
-<meta name="description" content="Pairing Proofs and Polynomial Ring Toolkit (Shramee Srivastav, IACR TCHES 2027): one polynomial identity per Miller loop step, implemented in gnark. Abstract, method, results and citation.">
+<meta name="description" content="Pairing Proofs and Polynomial Ring Toolkit (Shramee Srivastav, IACR TCHES 2027): one polynomial identity per Miller loop step, implemented in gnark. Abstract, method and results.">
 <link rel="canonical" href="https://mistcash.github.io/polyring/paper.html">
 <meta name="author" content="Shramee Srivastav">
-<meta name="theme-color" content="#081019">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#081019" media="(prefers-color-scheme: dark)">
+<script>try{var t=localStorage.getItem("polyring-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
 <link rel="icon" href="assets/mist-mark.svg" type="image/svg+xml">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="polyring by MIST.cash">
@@ -17,35 +19,11 @@
 <meta property="og:image" content="https://mistcash.github.io/polyring/og.png">
 <meta name="twitter:card" content="summary_large_image">
 
-<!-- Google Scholar -->
-<meta name="citation_title" content="Pairing Proofs and Polynomial Ring Toolkit">
-<meta name="citation_author" content="Srivastav, Shramee">
-<meta name="citation_author_institution" content="MIST.cash">
-<meta name="citation_journal_title" content="IACR Transactions on Cryptographic Hardware and Embedded Systems">
-<meta name="citation_publisher" content="International Association for Cryptologic Research">
-<meta name="citation_publication_date" content="2027">
-<meta name="citation_pdf_url" content="https://mistcash.github.io/polyring/paper.pdf">
-
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Josefin+Sans:wght@600;700&family=Sen:wght@400;600;700;800&display=swap">
 <link rel="stylesheet" href="assets/site.css">
 
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "ScholarlyArticle",
-  "@id": "https://mistcash.github.io/polyring/paper.html#paper",
-  "headline": "Pairing Proofs and Polynomial Ring Toolkit",
-  "author": { "@type": "Person", "name": "Shramee Srivastav", "affiliation": { "@type": "Organization", "name": "MIST.cash", "url": "https://mist.cash" } },
-  "isPartOf": { "@type": "Periodical", "name": "IACR Transactions on Cryptographic Hardware and Embedded Systems" },
-  "abstract": "A public-coin interactive proof system that consolidates the Miller loop iterations and final exponentiation of a pairing into a single polynomial relation, verified as polynomial identities. Implemented in gnark as a reusable polynomial ring toolkit; on a 3-pairing product check it reduces constraints by over 32% and committed elements by over 50% for BN254 and BLS12-381.",
-  "keywords": ["elliptic curve pairings", "zero-knowledge proofs", "polynomial identity testing", "recursive proofs", "blockchain verification", "Groth16", "gnark"],
-  "license": "https://creativecommons.org/licenses/by/4.0/",
-  "url": "https://mistcash.github.io/polyring/paper.html",
-  "encoding": { "@type": "MediaObject", "contentUrl": "https://mistcash.github.io/polyring/paper.pdf", "encodingFormat": "application/pdf" }
-}
-</script>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -64,33 +42,32 @@
         <li><a href="https://github.com/mistcash/polyring">GitHub</a></li>
       </ul>
     </nav>
+    <div class="theme" role="group" aria-label="Colour theme">
+      <button type="button" data-theme-set="system" aria-pressed="true" aria-label="Match system" title="Match system"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg></button>
+      <button type="button" data-theme-set="light" aria-pressed="false" aria-label="Light" title="Light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+      <button type="button" data-theme-set="dark" aria-pressed="false" aria-label="Dark" title="Dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    </div>
   </div>
 </header>
 
 <main id="main">
 <div class="page-head">
   <div class="wrap">
-    <span class="eyebrow">IACR TCHES <span class="num" style="font-weight:600">2027</span> · Open access, CC BY 4.0</span>
+    <span class="eyebrow">To appear · IACR TCHES <span class="num" style="font-weight:600">2027</span></span>
     <h1>Pairing Proofs and Polynomial Ring Toolkit</h1>
     <p class="byline"><a href="https://github.com/shramee">Shramee Srivastav</a>, <a href="https://mist.cash">MIST.cash</a></p>
     <div class="btns">
-      <a class="btn primary" href="paper.pdf">Read the PDF</a>
-      <a class="btn" href="#cite">Cite</a>
-      <a class="btn" href="https://github.com/mistcash/polyring/blob/main/ARTIFACT.md">Artifact guide</a>
+      <a class="btn primary" href="guide.html">Build with polyring <span class="arr" aria-hidden="true">→</span></a>
+      <a class="btn" href="https://github.com/mistcash/polyring">Source on GitHub</a>
     </div>
   </div>
 </div>
 
 <div class="wrap paper">
 
-  <section aria-labelledby="abstract-h" class="two">
-    <div>
-      <span class="eyebrow">Abstract</span>
-      <h2 id="abstract-h">One relation for the whole pairing.</h2>
-    </div>
-    <div class="prose">
-      <p>Elliptic curve pairings are fundamental to modern zero-knowledge proof systems, including Groth16, PLONK, and KZG polynomial commitments. In resource-constrained execution environments (Ethereum VM, BitVM, blockchain smart contracts), where computation is metered by gas fees, and in arithmetized computation systems (R1CS, Plonkish, Cairo AIR), where each computational step imposes significant prover overhead, the cost of pairing computation remains a practical bottleneck. We present a public-coin interactive proof system that consolidates the Miller loop iterations and final exponentiation into a single polynomial relation. The relation can then be verified as polynomial identities, greatly reducing the pairing costs. We present a full implementation in gnark (the industry-standard framework for arithmetized circuit development) as a reusable polynomial ring toolkit in the emulated package. Benchmarked on a 3-pairing product check (the pairing workload of a Groth16 verification), our gnark implementation achieves over 32% reduction in constraints, over 50% reduction in committed elements, and reductions in both compile-time and solver memory for both BN254 and BLS12-381 curves. This enables practical pairing verification in recursive proof systems and resource-constrained environments.</p>
-    </div>
+  <section aria-labelledby="abstract-h">
+    <span class="eyebrow" id="abstract-h">Abstract</span>
+    <p class="abstract">Elliptic curve pairings are fundamental to modern zero-knowledge proof systems, including Groth16, PLONK, and KZG polynomial commitments. In resource-constrained execution environments (Ethereum VM, BitVM, blockchain smart contracts), where computation is metered by gas fees, and in arithmetized computation systems (R1CS, Plonkish, Cairo AIR), where each computational step imposes significant prover overhead, the cost of pairing computation remains a practical bottleneck. We present a public-coin interactive proof system that consolidates the Miller loop iterations and final exponentiation into a single polynomial relation. The relation can then be verified as polynomial identities, greatly reducing the pairing costs. We present a full implementation in gnark (the industry-standard framework for arithmetized circuit development) as a reusable polynomial ring toolkit in the emulated package. Benchmarked on a 3-pairing product check (the pairing workload of a Groth16 verification), our gnark implementation achieves over 32% reduction in constraints, over 50% reduction in committed elements, and reductions in both compile-time and solver memory for both BN254 and BLS12-381 curves. This enables practical pairing verification in recursive proof systems and resource-constrained environments.</p>
   </section>
 
   <section id="method" aria-labelledby="method-h">
@@ -99,9 +76,8 @@
     <div class="eq" style="margin-bottom:36px" role="math" aria-label="F of x squared times L1 L2 L3 of x equals Q of x times P12 of x plus R of x">F(x)² · L<sub>1</sub>(x) L<sub>2</sub>(x) L<sub>3</sub>(x) = Q(x) · P<sub>12</sub>(x) + R(x)</div>
     <div class="two">
       <div class="prose">
-        <p>A pairing check is a Miller loop over 𝔽<sub>p</sub><sup>12</sup> followed by a final exponentiation. Earlier work checks every 𝔽<sub>p</sub><sup>12</sup> multiplication on its own, as an identity A·B = Q·P<sub>12</sub> + R at a random point, and commits every intermediate remainder. This work checks a whole loop step at once, so intermediate products are never committed.</p>
-        <p>F is the loop accumulator, L<sub>1</sub> to L<sub>3</sub> are the sparse line functions of three pairs, and P<sub>12</sub> is the extension modulus, x<sup>12</sup> − 18x<sup>6</sup> + 82 for BN254. All step identities, with the final exponentiation's residue-witness check, are batched by a random linear combination into one check. Soundness error stays below 2<sup>−244</sup> for BN254 after Fiat–Shamir.</p>
-        <p class="small">Builds on El Housni's <em>Pairings in Rank-1 Constraint Systems</em>, Feltroidprime's polynomial identity testing for 𝔽<sub>p</sub><sup>12</sup>, and Novakovic and Eagen's <a href="https://eprint.iacr.org/2024/640">On Proving Pairings</a>.</p>
+        <p>Earlier work checks every 𝔽<sub>p</sub><sup>12</sup> multiplication as its own identity and commits each remainder. This work checks a whole loop step at once, then batches every step and the final exponentiation into one check at a random point. Soundness error stays below 2<sup>−244</sup> for BN254.</p>
+        <p class="small">F is the loop accumulator, L<sub>1</sub> to L<sub>3</sub> the line functions of three pairs, and P<sub>12</sub> = x<sup>12</sup> − 18x<sup>6</sup> + 82 the BN254 extension modulus. Builds on El Housni, Feltroidprime, and Novakovic and Eagen's <a href="https://eprint.iacr.org/2024/640">On Proving Pairings</a>.</p>
       </div>
       <div>
         <h3 style="font-size:18px">Constraints per loop step, three pairs</h3>
@@ -147,7 +123,7 @@
             <tr><td>ADDMOD</td><td class="n">−30.2%</td><td class="n">−25.4%</td></tr>
           </tbody>
         </table>
-        <p class="small" style="margin-top:14px">Fewer committed elements means less to hash and less hint calldata per verification. The absolute counts are in the PDF.</p>
+        <p class="small" style="margin-top:14px">Fewer committed elements means less to hash and less hint calldata per verification.</p>
       </div>
     </div>
     <details style="margin-top:28px">
@@ -182,7 +158,7 @@
       <h2 id="library-h">Bigger numbers, same ratio</h2>
       <div class="prose">
         <p>The paper measured a bare 3-pairing check on a gnark fork. Two gnark advisories published since then, <a href="https://github.com/Consensys/gnark/security/advisories/GHSA-3mvx-pp85-pm65">GHSA-3mvx-pp85-pm65</a> and <a href="https://github.com/Consensys/gnark/security/advisories/GHSA-fwf3-jmp7-gmrj">GHSA-fwf3-jmp7-gmrj</a>, added range checks to every emulated multiplication. Both columns grew, and the saving held.</p>
-        <p>The fork stays frozen at <a href="https://github.com/mistcash/ppprt">mistcash/ppprt</a> to reproduce the paper's tables. polyring builds on the fixed gnark, and the <a href="https://github.com/mistcash/polyring/blob/main/ARTIFACT.md">artifact guide</a> maps every number to its source.</p>
+        <p>The paper's fork stays frozen to reproduce its tables. polyring builds on the fixed gnark.</p>
       </div>
     </div>
     <div>
@@ -215,30 +191,9 @@ rem := acc.Eval()        // one deferred check for the whole chain</code></pre>
     </div>
   </section>
 
-  <section id="cite" aria-labelledby="cite-h" class="two">
-    <div>
-      <span class="eyebrow">Cite</span>
-      <h2 id="cite-h" style="margin:12px 0 18px">Citing this work</h2>
-      <p class="small">Acknowledgements from the paper: Youssef El Housni and Ivo Kubjas (Linea, Consensys) for discussions and encouragement, Feltroidprime for discussions on his technique, and StarkWare and the Starknet Foundation for supporting an earlier version of the technique.</p>
-    </div>
-    <div>
-      <div class="code" style="margin-top:0"><div class="code-head"><span>BibTeX, paper</span><button class="copy" type="button">Copy</button></div>
-<pre><code class="lang-text">@article{srivastav2027pairing,
-  author  = {Shramee Srivastav},
-  title   = {Pairing Proofs and Polynomial Ring Toolkit},
-  journal = {IACR Transactions on Cryptographic Hardware
-             and Embedded Systems},
-  year    = {2027},
-  note    = {To appear},
-}</code></pre></div>
-      <div class="code"><div class="code-head"><span>BibTeX, software</span><button class="copy" type="button">Copy</button></div>
-<pre><code class="lang-text">@software{polyring,
-  author  = {Shramee Srivastav},
-  title   = {polyring: Groth16-in-Groth16 recursion for gnark},
-  url     = {https://github.com/mistcash/polyring},
-  license = {Apache-2.0},
-}</code></pre></div>
-    </div>
+  <section aria-labelledby="ack-h">
+    <span class="eyebrow" id="ack-h">Acknowledgements</span>
+    <p class="small" style="margin-top:12px;max-width:68ch">Youssef El Housni and Ivo Kubjas (Linea, Consensys) for discussions and encouragement, Feltroidprime for discussions on his technique, and StarkWare and the Starknet Foundation for supporting an earlier version of the technique.</p>
   </section>
 
 </div>

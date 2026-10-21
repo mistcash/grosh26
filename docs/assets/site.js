@@ -18,6 +18,25 @@
     });
   });
 
+  // Theme toggle: system (default), light or dark. The choice is kept in
+  // localStorage and applied as data-theme before first paint (see <head>).
+  var root = document.documentElement, KEY = "polyring-theme";
+  var themeBtns = document.querySelectorAll("[data-theme-set]");
+  function markTheme(v) {
+    themeBtns.forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-theme-set") === v)); });
+  }
+  var saved = root.getAttribute("data-theme");
+  markTheme(saved === "light" || saved === "dark" ? saved : "system");
+  themeBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var v = btn.getAttribute("data-theme-set");
+      if (v === "system") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", v);
+      try { if (v === "system") localStorage.removeItem(KEY); else localStorage.setItem(KEY, v); } catch (e) {}
+      markTheme(v);
+      document.dispatchEvent(new Event("polyring:theme"));
+    });
+  });
+
   // Highlighting: comments, strings and a few keywords. Works on text nodes
   // only, so nothing in a code block is ever parsed as HTML.
   var GO = /(\/\/[^\n]*)|("(?:[^"\\\n]|\\.)*"|`[^`]*`)|\b(func|return|if|err|nil|type|struct|package|import|for|range|replace|require|module|go)\b/g;
@@ -74,7 +93,7 @@
   });
 
   // Guide: mark the step in view in the table of contents.
-  var toc = document.querySelectorAll(".toc a[href^='#']");
+  var toc = document.querySelectorAll(".toc ol a[href^='#']");
   if (toc.length && "IntersectionObserver" in window) {
     var byId = {};
     toc.forEach(function (a) { byId[a.getAttribute("href").slice(1)] = a; });
@@ -103,6 +122,16 @@
   var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var STEP_MS = 70, PAUSE = 26; // pause, in steps, after each lap
 
+  // Colours come from the theme tokens, re-read whenever the theme changes.
+  var C = { base: "172, 196, 214", glow: "92, 139, 255", head: "#ffffff" };
+  function readColors() {
+    var cs = getComputedStyle(root);
+    C.base = cs.getPropertyValue("--ring-base").trim() || C.base;
+    C.glow = cs.getPropertyValue("--ring-glow").trim() || C.glow;
+    C.head = cs.getPropertyValue("--ring-head").trim() || C.head;
+    if (still) draw(N);
+  }
+
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     size = canvas.clientWidth;
@@ -116,7 +145,7 @@
     ctx.clearRect(0, 0, size, size);
 
     // outer guide circle
-    ctx.strokeStyle = "rgba(143,166,186,0.18)";
+    ctx.strokeStyle = "rgba(" + C.base + ",0.16)";
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(c, c, R, 0, Math.PI * 2); ctx.stroke();
 
@@ -129,7 +158,7 @@
       if (still) glow = 0.35;
       var done = pos >= N || (age >= 0);
       var alpha = 0.22 + (done ? 0.18 : 0) + glow * 0.6;
-      var col = glow > 0.05 ? "rgba(92,139,255," + (0.35 + glow * 0.65) + ")" : "rgba(172,196,214," + alpha + ")";
+      var col = glow > 0.05 ? "rgba(" + C.glow + "," + (0.35 + glow * 0.65) + ")" : "rgba(" + C.base + "," + alpha + ")";
       var d = NAF[i];
       if (d === 0) {
         ctx.fillStyle = col;
@@ -146,23 +175,27 @@
     // inner ring: 12 coefficients of the remainder R(x)
     var flash = still ? 0.5 : closing >= 0 ? Math.sin(Math.min(1, closing * 1.6) * Math.PI) : 0;
     var r2 = size * 0.25;
-    ctx.strokeStyle = "rgba(92,139,255," + (0.18 + flash * 0.6) + ")";
+    ctx.strokeStyle = "rgba(" + C.glow + "," + (0.18 + flash * 0.6) + ")";
     ctx.lineWidth = 1 + flash * 1.5;
     ctx.beginPath(); ctx.arc(c, c, r2, 0, Math.PI * 2); ctx.stroke();
     for (var k = 0; k < 12; k++) {
       var b = -Math.PI / 2 + (k / 12) * Math.PI * 2;
-      ctx.fillStyle = flash > 0.05 ? "rgba(127,163,255," + (0.5 + flash * 0.5) + ")" : "rgba(172,196,214,0.45)";
+      ctx.fillStyle = flash > 0.05 ? "rgba(" + C.glow + "," + (0.5 + flash * 0.5) + ")" : "rgba(" + C.base + ",0.45)";
       ctx.beginPath(); ctx.arc(c + Math.cos(b) * r2, c + Math.sin(b) * r2, size * 0.008 + flash * 2, 0, Math.PI * 2); ctx.fill();
     }
 
     // head marker
     if (!still && pos < N) {
       var ah = -Math.PI / 2 + (pos / N) * Math.PI * 2;
-      ctx.fillStyle = "#ffffff";
+      ctx.fillStyle = C.head;
       ctx.beginPath(); ctx.arc(c + Math.cos(ah) * R, c + Math.sin(ah) * R, size * 0.011, 0, Math.PI * 2); ctx.fill();
     }
   }
 
+  readColors();
+  document.addEventListener("polyring:theme", readColors);
+  var mq = window.matchMedia("(prefers-color-scheme: dark)");
+  if (mq.addEventListener) mq.addEventListener("change", readColors);
   resize();
   if ("ResizeObserver" in window) new ResizeObserver(function () { resize(); if (still) draw(N); }).observe(canvas);
   if (still) { draw(N); return; }
