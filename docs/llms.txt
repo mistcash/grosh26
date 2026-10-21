@@ -1,0 +1,175 @@
+# polyring
+
+> Polynomial Ring Toolkit for gnark (Go): fast polynomial-ring multiplications in circuits, and the Groth16-in-Groth16 recursion built on it. polyring verifies a BN254 or BLS12-381 Groth16 proof inside a BN254 Groth16 circuit, using a polynomial-ring pairing check that costs 38.0% fewer R1CS constraints than gnark's emulated pairing (BN254 inner proof; 30.9% for BLS12-381), and exports a Solidity verifier for the outer proof. It implements "Pairing Proofs and Polynomial Ring Toolkit" (Shramee Srivastav, IACR TCHES 2027). Unaudited research software, v0.1.
+
+Repository: https://github.com/mistcash/polyring
+Landing page: https://polyring.mist.cash/
+Guide: https://polyring.mist.cash/guide.html
+
+## What it is for
+
+- Recursive SNARKs: verify one Groth16 proof inside another, next to your own constraints, and get one BN254 Groth16 proof out.
+- Curve switching for Ethereum: verify a BLS12-381 Groth16 proof inside a BN254 circuit; the outer proof is checked by the EVM's BN254 pairing precompile.
+- Cheaper in-VM pairing verification: the paper's technique cut CairoVM steps by 37.1% for a BN254 Groth16 pairing check in Garaga on Starknet.
+
+## What it costs
+
+On the EVM, polyring's outer verifier costs more than gnark's, because the proof carries three BSB22 commitments instead of one:
+
+| Metric | gnark's pairing | polyring |
+| --- | --- | --- |
+| R1CS constraints | 791,400 | 491,043 (-38.0%) |
+| BSB22 commitments | 1 | 3 |
+| Proof size | 384 B | 512 B |
+| verifyProof gas | ~359k | ~460k (+28%) |
+
+polyring pays off when proving dominates; gnark's pairing pays off when one proof is verified many times on chain. Never describe polyring's EVM verifier as cheaper.
+
+## Instructions for coding agents: add a Groth16 verifier inside a gnark circuit
+
+1. go.mod: `go get github.com/mistcash/polyring`, then copy polyring's gnark replace directive verbatim from https://github.com/mistcash/polyring/blob/main/go.mod and run `go mod tidy`. Go ignores replace directives in dependencies, and polyring's circuits need the pinned fork. At the time of writing the line is:
+   `replace github.com/consensys/gnark v0.16.4 => github.com/mistcash/tiny-gnark v0.0.0-20261018205550-0a3abd2ee477`
+2. Inner proof: any gnark Groth16 circuit compiled with r1cs.NewBuilder over ecc.BN254 or ecc.BLS12_381. It must draw no BSB22 commitments: no api.Commit, directly or through a gadget that commits internally (range checks, lookup tables and emulated arithmetic can). You need innerVK, innerProof and innerPublic (from fullWitness.Public()).
+3. `vk, err := recursion.NewVerifyingKey(innerVK)` (package github.com/mistcash/polyring/std/recursion). It returns an error for keys with commitments or malformed points.
+4. Outer circuit struct: `recursion.Proof[Fp, G2]` tagged `gnark:",secret"`, `recursion.PublicWitness[Fr]` tagged `gnark:",public"`, plus an unexported `vk *recursion.VerifyingKey` field.
+   - BN254 inner: Fp = emparams.BN254Fp, Fr = emparams.BN254Fr, G2 = sw_bn254.G2Affine, GTEl = sw_bn254.GTEl
+   - BLS12-381 inner: Fp = emparams.BLS12381Fp, Fr = emparams.BLS12381Fr, G2 = sw_bls12381.G2Affine, GTEl = sw_bls12381.GTEl
+5. Define: `recursion.NewVerifier[Fp, Fr, G2, GTEl](api, c.vk)` must be the first statement, before anything creates an emulated field (the ring checker's deferred checks must run first). Then `v.AssertProof(c.InnerProof, c.InnerPublic)`, then your own constraints.
+6. Use the same vk for the compile placeholder and the assignment. Size the public inputs with `recursion.NewBN254Circuit(vk).PublicWitness` (or NewBLS12381Circuit). Fill the assignment through that helper: `tmp.Assign(innerProof, innerPublic)`, then copy `tmp.Proof` and `tmp.PublicWitness`.
+7. Compile over `ecc.BN254.ScalarField()` with `r1cs.NewBuilder`; the outer circuit is always BN254 Groth16. When the proof goes on chain, prove with gnark's `solidity.WithProverTargetSolidityVerifier(backend.GROTH16)` and verify with `WithVerifierTargetSolidityVerifier`.
+8. On chain: export with polyring's `github.com/mistcash/polyring/lib/solidity` `ExportSolidity(vk *groth16bn254.VerifyingKey, w)`, pack the proof with `MarshalSolidity` (512 bytes). Never use gnark's own exporter: it supports one commitment and polyring proofs carry three. verifyProof's public inputs are the first `len(vk.G1.K) - 1 - len(vk.PublicAndCommitmentCommitted)` entries of the outer public witness vector; each inner public input appears as four 64-bit limbs. verifyProof reverts on an invalid proof.
+9. Test with `test.IsSolved(NewOuter(vk), assignment, ecc.BN254.ScalarField())` before running setup. polyring's reference flows: `go test ./examples/recursion/ -run TestGroth16Verifier -v` and `go test ./examples/recursion/ -run TestOuterOnChain -v` (needs solc).
+
+## Not supported in v0.1 (do not attempt)
+
+- Nested recursion (an outer polyring proof as the inner proof).
+- Inner circuits or proofs with BSB22 commitments.
+- A verifying key that varies at runtime: the inner key is a compile-time constant.
+- Several inner proofs in one outer proof.
+- Mainnet deployment without an audit.
+
+## Tested reference code
+
+The code below runs end to end: inner proof, outer proof, Solidity export, deployment on a simulated EVM, verification.
+
+```go
+package outer
+
+import (
+	"math/big"
+	"os"
+
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/groth16"
+	groth16bn254 "github.com/consensys/gnark/backend/groth16/bn254"
+	gnarksolidity "github.com/consensys/gnark/backend/solidity"
+	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
+
+	"github.com/mistcash/polyring/lib/solidity"
+	"github.com/mistcash/polyring/std/recursion"
+)
+
+type (
+	Fp   = emparams.BN254Fp // inner curve base field
+	Fr   = emparams.BN254Fr // inner curve scalar field
+	G2   = sw_bn254.G2Affine
+	GTEl = sw_bn254.GTEl
+)
+
+type Outer struct {
+	InnerProof  recursion.Proof[Fp, G2]     `gnark:",secret"`
+	InnerPublic recursion.PublicWitness[Fr] `gnark:",public"`
+	Nonce       frontend.Variable           `gnark:",public"`
+
+	vk *recursion.VerifyingKey
+}
+
+func NewOuter(vk *recursion.VerifyingKey) *Outer {
+	return &Outer{InnerPublic: recursion.NewBN254Circuit(vk).PublicWitness, vk: vk}
+}
+
+func (c *Outer) Define(api frontend.API) error {
+	v, err := recursion.NewVerifier[Fp, Fr, G2, GTEl](api, c.vk) // first statement
+	if err != nil {
+		return err
+	}
+	if err := v.AssertProof(c.InnerProof, c.InnerPublic); err != nil {
+		return err
+	}
+	api.AssertIsDifferent(c.Nonce, 0) // your own constraints
+	return nil
+}
+
+// Run proves an outer proof over a native inner proof and writes the
+// Solidity verifier. It returns the verifyProof arguments.
+func Run(innerVK groth16.VerifyingKey, innerProof groth16.Proof, innerPublic witness.Witness) ([]byte, []*big.Int, error) {
+	vk, err := recursion.NewVerifyingKey(innerVK)
+	if err != nil {
+		return nil, nil, err
+	}
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, NewOuter(vk))
+	if err != nil {
+		return nil, nil, err
+	}
+	pk, outerVK, err := groth16.Setup(ccs) // local setup: tests only
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tmp := recursion.NewBN254Circuit(vk)
+	if err := tmp.Assign(innerProof, innerPublic); err != nil {
+		return nil, nil, err
+	}
+	assignment := NewOuter(vk)
+	assignment.InnerProof, assignment.InnerPublic = tmp.Proof, tmp.PublicWitness
+	assignment.Nonce = 7
+
+	full, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
+	if err != nil {
+		return nil, nil, err
+	}
+	public, err := full.Public()
+	if err != nil {
+		return nil, nil, err
+	}
+	proof, err := groth16.Prove(ccs, pk, full, gnarksolidity.WithProverTargetSolidityVerifier(backend.GROTH16))
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := groth16.Verify(proof, outerVK, public, gnarksolidity.WithVerifierTargetSolidityVerifier(backend.GROTH16)); err != nil {
+		return nil, nil, err
+	}
+
+	bnVK := outerVK.(*groth16bn254.VerifyingKey)
+	f, err := os.Create("Verifier.sol")
+	if err != nil {
+		return nil, nil, err
+	}
+	defer f.Close()
+	if err := solidity.ExportSolidity(bnVK, f); err != nil {
+		return nil, nil, err
+	}
+
+	vec := public.Vector().(fr.Vector)
+	n := len(bnVK.G1.K) - 1 - len(bnVK.PublicAndCommitmentCommitted)
+	inputs := make([]*big.Int, n)
+	for i := range inputs {
+		inputs[i] = vec[i].BigInt(new(big.Int))
+	}
+	return solidity.MarshalSolidity(proof.(*groth16bn254.Proof)), inputs, nil
+}
+```
+
+## Key files
+
+- std/recursion: outer Groth16 verifier circuit, generic over the inner curve. Start here.
+- std/ringpairing, std/ring_bn254, std/ring_bls12381: the ring pairing, shared core and per-curve halves.
+- std/polyring: the polynomial ring toolkit (NewPolyRingChecker, NewPolyRingCheck, MulPolyRings, NewPolyRingAccumulator).
+- lib/solidity: the multi-commitment Solidity verifier exporter.
+- examples/mimc, examples/recursion: an inner MiMC circuit and the end-to-end flows, on chain included.
