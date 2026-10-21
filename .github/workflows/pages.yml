@@ -32,7 +32,7 @@ jobs:
         run: |
           mkdir -p _site
           cp -r docs/assets _site/
-          cp docs/index.html docs/llms.txt docs/sitemap.xml docs/og.png docs/paper.pdf _site/
+          cp docs/*.html docs/llms.txt docs/sitemap.xml docs/robots.txt docs/og.png docs/CNAME _site/
 
       - uses: actions/upload-pages-artifact@v3
         with:

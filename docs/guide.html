@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Guide: verify a Groth16 proof inside a gnark circuit | polyring</title>
 <meta name="description" content="Eight steps, with tested code, to verify a BN254 or BLS12-381 Groth16 proof inside your gnark circuit and check the result on chain with polyring.">
-<link rel="canonical" href="https://mistcash.github.io/polyring/guide.html">
+<link rel="canonical" href="https://polyring.mist.cash/guide.html">
 <meta name="author" content="Shramee Srivastav">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -16,8 +16,8 @@
 <meta property="og:site_name" content="polyring by MIST.cash">
 <meta property="og:title" content="Verify a Groth16 proof inside a gnark circuit">
 <meta property="og:description" content="Eight steps with tested code, from an inner proof to an on-chain verifier.">
-<meta property="og:url" content="https://mistcash.github.io/polyring/guide.html">
-<meta property="og:image" content="https://mistcash.github.io/polyring/og.png">
+<meta property="og:url" content="https://polyring.mist.cash/guide.html">
+<meta property="og:image" content="https://polyring.mist.cash/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -264,7 +264,7 @@ go test ./examples/recursion/ -run TestOuterOnChain -v      # prove, deploy, ver
         <div class="code-head"><span>prompt</span><button class="copy" type="button">Copy</button></div>
 <pre><code class="lang-text">You are adding recursive Groth16 verification to a Go project with polyring
 (github.com/mistcash/polyring), a gnark library. Read
-https://mistcash.github.io/polyring/llms.txt first, then follow these rules.
+https://polyring.mist.cash/llms.txt first, then follow these rules.
 
 1. go.mod: require github.com/mistcash/polyring and copy polyring's gnark
    replace directive verbatim from its go.mod. Go ignores replace directives

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://mistcash.github.io/polyring/</loc></url>
-  <url><loc>https://mistcash.github.io/polyring/guide.html</loc></url>
-  <url><loc>https://mistcash.github.io/polyring/paper.html</loc></url>
-  <url><loc>https://mistcash.github.io/polyring/llms.txt</loc></url>
+  <url><loc>https://polyring.mist.cash/</loc><lastmod>2026-10-21</lastmod></url>
+  <url><loc>https://polyring.mist.cash/guide.html</loc><lastmod>2026-10-21</lastmod></url>
+  <url><loc>https://polyring.mist.cash/paper.html</loc><lastmod>2026-10-21</lastmod></url>
+  <url><loc>https://polyring.mist.cash/llms.txt</loc><lastmod>2026-10-21</lastmod></url>
 </urlset>
