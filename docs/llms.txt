@@ -4,7 +4,8 @@
 
 Repository: https://github.com/mistcash/polyring
 Landing page: https://mistcash.github.io/polyring/
-Paper: https://mistcash.github.io/polyring/paper.pdf
+Guide: https://mistcash.github.io/polyring/guide.html
+Paper: https://mistcash.github.io/polyring/paper.html (PDF: https://mistcash.github.io/polyring/paper.pdf)
 Artifact guide (paper to code, every number to its source): https://github.com/mistcash/polyring/blob/main/ARTIFACT.md
 
 ## What it is for

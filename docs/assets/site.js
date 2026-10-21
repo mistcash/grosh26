@@ -1,9 +1,10 @@
-// polyring landing page: curve filter, chart tooltips, copy buttons and a
-// small Go / shell highlighter. Everything on the page reads without it.
+// polyring site: curve toggles, copy buttons, a small Go / shell highlighter,
+// the guide's table of contents, and the hero's Miller loop ring. Every page
+// reads without it.
 (function () {
   "use strict";
 
-  // Curve filter: one row above the charts, scoping every chart in the section.
+  // Curve toggle: scopes every [data-curve] element inside its target.
   document.querySelectorAll("[data-filter]").forEach(function (group) {
     var scope = document.getElementById(group.getAttribute("data-filter"));
     if (!scope) return;
@@ -16,55 +17,6 @@
       });
     });
   });
-
-  // Axis ticks: spread evenly, each label centred on its gridline.
-  document.querySelectorAll(".axis .ticks").forEach(function (ticks) {
-    var labels = ticks.children, n = labels.length - 1;
-    if (n < 1) return;
-    ticks.classList.add("pos");
-    for (var i = 0; i <= n; i++) labels[i].style.left = (i / n) * 100 + "%";
-  });
-
-  // Tooltips: every mark with data-tip gets one on hover and on focus. The
-  // values are also printed beside the marks and in the tables, so the
-  // tooltip only adds detail.
-  var tip = document.createElement("div");
-  tip.className = "tip";
-  tip.setAttribute("role", "tooltip");
-  document.body.appendChild(tip);
-
-  function show(el, x, y) {
-    var lines = el.getAttribute("data-tip").split("|");
-    tip.textContent = "";
-    var head = document.createElement("b");
-    head.textContent = lines[0];
-    tip.appendChild(head);
-    for (var i = 1; i < lines.length; i++) {
-      var line = document.createElement("div");
-      line.textContent = lines[i];
-      tip.appendChild(line);
-    }
-    var r = tip.getBoundingClientRect();
-    var left = Math.min(Math.max(8, x + 14), window.innerWidth - r.width - 8);
-    var top = y - r.height - 12;
-    if (top < 8) top = y + 18;
-    tip.style.left = left + "px";
-    tip.style.top = top + "px";
-    tip.classList.add("on");
-  }
-  function hide() { tip.classList.remove("on"); }
-
-  document.querySelectorAll("[data-tip]").forEach(function (el) {
-    if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "0");
-    el.addEventListener("pointermove", function (e) { show(el, e.clientX, e.clientY); });
-    el.addEventListener("pointerleave", hide);
-    el.addEventListener("focus", function () {
-      var r = el.getBoundingClientRect();
-      show(el, r.left + r.width / 2, r.top);
-    });
-    el.addEventListener("blur", hide);
-  });
-  window.addEventListener("scroll", hide, { passive: true });
 
   // Highlighting: comments, strings and a few keywords. Works on text nodes
   // only, so nothing in a code block is ever parsed as HTML.
@@ -88,27 +40,135 @@
     code.appendChild(out);
   });
 
-  // Copy buttons copy the block's text exactly as shown.
-  document.querySelectorAll(".code").forEach(function (block) {
-    var btn = block.querySelector(".copy");
-    var code = block.querySelector("pre");
-    if (!btn || !code) return;
+  // Copy buttons copy the text exactly as shown.
+  function copier(btn, source) {
+    var label = btn.textContent;
     btn.addEventListener("click", function () {
-      var text = code.textContent.replace(/\n$/, "");
+      var text = source.textContent.replace(/\n$/, "");
       var done = function () {
         btn.textContent = "Copied";
-        setTimeout(function () { btn.textContent = "Copy"; }, 1500);
+        setTimeout(function () { btn.textContent = label; }, 1500);
       };
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(text).then(done, function () { btn.textContent = "Select and copy"; });
-      } else {
+      var select = function () {
         var range = document.createRange();
-        range.selectNodeContents(code);
+        range.selectNodeContents(source);
         var sel = window.getSelection();
         sel.removeAllRanges();
         sel.addRange(range);
         btn.textContent = "Press Ctrl/Cmd+C";
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done, select);
+      } else {
+        select();
       }
     });
+  }
+  document.querySelectorAll(".code").forEach(function (block) {
+    var btn = block.querySelector(".copy"), pre = block.querySelector("pre");
+    if (btn && pre) copier(btn, pre);
   });
+  document.querySelectorAll(".install").forEach(function (row) {
+    var btn = row.querySelector("button"), code = row.querySelector("code");
+    if (btn && code) copier(btn, code);
+  });
+
+  // Guide: mark the step in view in the table of contents.
+  var toc = document.querySelectorAll(".toc a[href^='#']");
+  if (toc.length && "IntersectionObserver" in window) {
+    var byId = {};
+    toc.forEach(function (a) { byId[a.getAttribute("href").slice(1)] = a; });
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        toc.forEach(function (a) { a.classList.remove("on"); });
+        var a = byId[e.target.id];
+        if (a) a.classList.add("on");
+      });
+    }, { rootMargin: "-30% 0px -60% 0px" });
+    Object.keys(byId).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) io.observe(el);
+    });
+  }
+
+  // Hero ring: the 66 signed digits of BN254's Miller loop parameter 6x+2,
+  // one tick per loop step (+1 outward, -1 inward, 0 a dot). A sweep walks the
+  // loop; when it closes, the inner ring of 12 coefficients (one F_p^12
+  // remainder) lights once: every step, one batched check.
+  var canvas = document.getElementById("ring");
+  if (!canvas || !canvas.getContext) return;
+  var NAF = [1,0,-1,0,1,0,0,0,-1,0,-1,0,0,0,-1,0,1,0,-1,0,0,-1,0,0,0,0,0,1,0,0,-1,0,1,0,0,-1,0,0,0,0,-1,0,1,0,0,0,-1,0,-1,0,0,1,0,0,0,-1,0,0,-1,0,1,0,1,0,0,0];
+  var N = NAF.length, ctx = canvas.getContext("2d"), size = 0, dpr = 1;
+  var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var STEP_MS = 70, PAUSE = 26; // pause, in steps, after each lap
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    size = canvas.clientWidth;
+    canvas.width = canvas.height = Math.round(size * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function draw(head) {
+    var c = size / 2, R = size * 0.4, lap = N + PAUSE;
+    var pos = head % lap, closing = pos >= N ? (pos - N) / PAUSE : -1;
+    ctx.clearRect(0, 0, size, size);
+
+    // outer guide circle
+    ctx.strokeStyle = "rgba(143,166,186,0.18)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(c, c, R, 0, Math.PI * 2); ctx.stroke();
+
+    for (var i = 0; i < N; i++) {
+      var a = -Math.PI / 2 + (i / N) * Math.PI * 2;
+      var cos = Math.cos(a), sin = Math.sin(a);
+      // brightness: trailing glow behind the head; whole ring dims while closing
+      var age = pos < N ? pos - i : N + 99;
+      var glow = age >= 0 && age < 18 ? 1 - age / 18 : 0;
+      if (still) glow = 0.35;
+      var done = pos >= N || (age >= 0);
+      var alpha = 0.22 + (done ? 0.18 : 0) + glow * 0.6;
+      var col = glow > 0.05 ? "rgba(92,139,255," + (0.35 + glow * 0.65) + ")" : "rgba(172,196,214," + alpha + ")";
+      var d = NAF[i];
+      if (d === 0) {
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(c + cos * R, c + sin * R, size * 0.006 + glow * 2, 0, Math.PI * 2); ctx.fill();
+      } else {
+        var len = size * 0.07, r0 = d > 0 ? R : R - len, r1 = d > 0 ? R + len : R;
+        ctx.strokeStyle = col;
+        ctx.lineWidth = size * 0.007 + glow * 1.5;
+        ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(c + cos * r0, c + sin * r0); ctx.lineTo(c + cos * r1, c + sin * r1); ctx.stroke();
+      }
+    }
+
+    // inner ring: 12 coefficients of the remainder R(x)
+    var flash = still ? 0.5 : closing >= 0 ? Math.sin(Math.min(1, closing * 1.6) * Math.PI) : 0;
+    var r2 = size * 0.25;
+    ctx.strokeStyle = "rgba(92,139,255," + (0.18 + flash * 0.6) + ")";
+    ctx.lineWidth = 1 + flash * 1.5;
+    ctx.beginPath(); ctx.arc(c, c, r2, 0, Math.PI * 2); ctx.stroke();
+    for (var k = 0; k < 12; k++) {
+      var b = -Math.PI / 2 + (k / 12) * Math.PI * 2;
+      ctx.fillStyle = flash > 0.05 ? "rgba(127,163,255," + (0.5 + flash * 0.5) + ")" : "rgba(172,196,214,0.45)";
+      ctx.beginPath(); ctx.arc(c + Math.cos(b) * r2, c + Math.sin(b) * r2, size * 0.008 + flash * 2, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // head marker
+    if (!still && pos < N) {
+      var ah = -Math.PI / 2 + (pos / N) * Math.PI * 2;
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath(); ctx.arc(c + Math.cos(ah) * R, c + Math.sin(ah) * R, size * 0.011, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  resize();
+  if ("ResizeObserver" in window) new ResizeObserver(function () { resize(); if (still) draw(N); }).observe(canvas);
+  if (still) { draw(N); return; }
+  var t0 = performance.now();
+  (function frame(now) {
+    draw((now - t0) / STEP_MS);
+    requestAnimationFrame(frame);
+  })(t0);
 })();
