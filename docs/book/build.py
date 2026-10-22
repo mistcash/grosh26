@@ -70,8 +70,8 @@ CHAPTERS = [
     Chapter(
         1,
         "Overview",
-        "polyring is the Polynomial Ring Toolkit for gnark. Its first use is recursion: verify a "
-        "Groth16 proof inside your circuit with up to 38% fewer constraints than gnark's own pairing.",
+        "Fast polynomial ring multiplications in gnark. Verify a Groth16 proof inside your circuit "
+        "with up to 38% fewer constraints than gnark's own pairing.",
         "index.html",
     ),
     Chapter(
@@ -108,6 +108,7 @@ def clean_main(main: str, chapter: Chapter) -> str:
     # interactive bits that make no sense on paper
     main = re.sub(r'<div class="btns"[^>]*>.*?</div>', "", main, flags=re.S)
     main = re.sub(r'<div class="toggle"[^>]*>.*?</div>', "", main, flags=re.S)
+    main = re.sub(r'<section class="subscribe".*?</section>', "", main, flags=re.S)
     main = re.sub(r'<button class="copy"[^>]*>.*?</button>', "", main, flags=re.S)
     main = re.sub(r'<button type="button">Copy</button>', "", main, flags=re.S)
     main = re.sub(r"<script\b.*?</script>", "", main, flags=re.S)
@@ -191,7 +192,7 @@ def contents_html(chapters: list[Chapter], pages: dict[str, int] | None) -> str:
         return str(pages.get(key, "–"))
 
     rows = ['<section class="contents">']
-    rows.append('<span class="eyebrow">polyring toolkit</span>')
+    rows.append('<span class="eyebrow">polyring</span>')
     rows.append("<h1>Contents</h1>")
     for chapter in chapters:
         rows.append(
@@ -238,7 +239,7 @@ def cover_html() -> str:
   <svg class="brand" viewBox="0 0 2013 337" aria-label="MIST.cash"><use href="#mist-cash"/></svg>
   <div class="spacer"></div>
   <span class="kicker">Documentation · Guide · Paper</span>
-  <h1>polyring<br>toolkit</h1>
+  <h1>polyring</h1>
   <p class="sub">Fast polynomial ring multiplications in gnark. Verify a Groth16 proof inside your
     circuit with up to 38% fewer constraints.</p>
   <div class="rule"></div>
@@ -253,7 +254,7 @@ def cover_html() -> str:
 COLOPHON = """
 <section class="colophon">
   <span class="eyebrow">Colophon</span>
-  <h2>polyring toolkit</h2>
+  <h2>polyring</h2>
   <p>This book collects the polyring website: the overview, the step-by-step guide, and the paper
     summary. The library is Apache-2.0 licensed. Version 0.1 is unaudited; use it for research and
     on testnets.</p>
@@ -262,6 +263,8 @@ COLOPHON = """
     <dt>Website</dt><dd>polyring.mist.cash</dd>
     <dt>Paper</dt><dd>IACR TCHES 2027 · polyring.mist.cash/paper.pdf</dd>
     <dt>Author</dt><dd>Shramee Srivastav, MIST.cash</dd>
+    <dt>MIST.cash</dt><dd>Privacy infrastructure for payments · mist.cash</dd>
+    <dt>Follow</dt><dd>x.com/_mistcash · github.com/mistcash · t.me/shramee · mist.cash/blog</dd>
     <dt>Type</dt><dd>Josefin Sans and Sen, set in the MIST design system</dd>
   </dl>
 </section>
@@ -275,7 +278,7 @@ def build_html(chapters: list[Chapter], pages: dict[str, int] | None) -> str:
         "<head>",
         '<meta charset="utf-8">',
         '<meta name="robots" content="noindex">',
-        "<title>polyring toolkit — documentation</title>",
+        "<title>polyring — documentation</title>",
         '<link rel="preconnect" href="https://fonts.googleapis.com">',
         '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
         '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Josefin+Sans:wght@600;700&family=Sen:wght@400;600;700;800&display=swap">',
@@ -377,7 +380,7 @@ def stamp_folios(pdf: Path, chrome: str, out: Path) -> list[int]:
     rows = []
     for page in range(2, total + 1):
         rows.append(
-            '<div class="folio"><span>polyring toolkit</span>'
+            '<div class="folio"><span>polyring</span>'
             f"<span>{page}</span></div>"
         )
     doc = f"""<!doctype html><html><head><meta charset="utf-8">
@@ -444,7 +447,7 @@ def finish(pdf: Path, out: Path, chapters: list[Chapter], chrome: str) -> None:
 
     writer.add_metadata(
         {
-            "/Title": "polyring toolkit — documentation",
+            "/Title": "polyring — documentation",
             "/Author": "Shramee Srivastav, MIST.cash",
             "/Subject": "Fast polynomial ring multiplications in gnark; Groth16 recursion",
             "/Keywords": "polyring, gnark, Groth16, pairing, recursion, BN254, BLS12-381",
