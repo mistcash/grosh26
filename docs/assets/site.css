@@ -594,21 +594,28 @@ pre {
   display: grid;
   place-content: center;
   text-align: center;
-  gap: 10px;
+  gap: 4px;
   padding: 26%;
   pointer-events: none;
 }
 
-.ring .core .id {
-  font: 600 clamp(14px, 1.9vw, 18px)/1.4 var(--text);
+.ring .core .id,
+.ring .core .cap {
+  font: 600 clamp(18px, 2.2vw, 24px)/1.25 var(--text);
   color: var(--hero-head);
   white-space: nowrap;
 }
 
-.ring .core .cap {
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--hero-muted);
+.ring .core .cap sub {
+  font-size: 0.72em;
+  vertical-align: -0.3em;
+  line-height: 0;
+}
+
+.ring .core .cap sub sup {
+  font-size: 0.8em;
+  vertical-align: 0.55em;
+  line-height: 0;
 }
 
 .ring .core .id sub {
