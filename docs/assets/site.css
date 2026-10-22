@@ -33,7 +33,7 @@
   --track: #eef3f8;
   /* hero */
   --hero: #e3edf5;
-  --hero-head: #081019;
+  --hero-head: #33414f;
   --hero-lead: #33414f;
   --hero-muted: #4a5a6b;
   --hero-line: #acc4d6;
@@ -72,7 +72,7 @@
     --gnark: #5b7389;
     --track: #13202e;
     --hero: #050b12;
-    --hero-head: #ffffff;
+    --hero-head: #c4d4e1;
     --hero-lead: #c4d4e1;
     --hero-muted: #8fa6ba;
     --hero-line: #22344a;
@@ -105,7 +105,7 @@
   --gnark: #5b7389;
   --track: #13202e;
   --hero: #050b12;
-  --hero-head: #ffffff;
+  --hero-head: #c4d4e1;
   --hero-lead: #c4d4e1;
   --hero-muted: #8fa6ba;
   --hero-line: #22344a;
@@ -594,21 +594,28 @@ pre {
   display: grid;
   place-content: center;
   text-align: center;
-  gap: 10px;
+  gap: 4px;
   padding: 26%;
   pointer-events: none;
 }
 
-.ring .core .id {
-  font: 600 clamp(14px, 1.9vw, 18px)/1.4 var(--text);
+.ring .core .id,
+.ring .core .cap {
+  font: 600 clamp(18px, 2.2vw, 24px)/1.25 var(--text);
   color: var(--hero-head);
   white-space: nowrap;
 }
 
-.ring .core .cap {
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--hero-muted);
+.ring .core .cap sub {
+  font-size: 0.72em;
+  vertical-align: -0.3em;
+  line-height: 0;
+}
+
+.ring .core .cap sub sup {
+  font-size: 0.8em;
+  vertical-align: 0.55em;
+  line-height: 0;
 }
 
 .ring .core .id sub {
@@ -1167,6 +1174,67 @@ pre {
 
 .subscribe p {
   color: var(--ink-2);
+}
+
+.subscribe p {
+  max-width: 44ch;
+}
+
+.socials {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.socials .head {
+  flex-basis: 100%;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.socials a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 14px;
+  color: var(--ink-2);
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.socials a:hover {
+  color: var(--ink);
+  border-color: var(--link);
+}
+
+.socials svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* On mobile the profile links become icon-only buttons: bigger icons, larger tap
+   targets. Blog keeps its label. */
+@media (max-width: 560px) {
+  .socials {
+    gap: 10px;
+  }
+
+  .socials a {
+    padding: 12px;
+  }
+
+  .socials svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .socials a.icon-only .lbl {
+    display: none;
+  }
 }
 
 .signup .row {
