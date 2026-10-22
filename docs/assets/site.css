@@ -1188,7 +1188,7 @@ pre {
   margin-top: 18px;
 }
 
-.socials span {
+.socials .head {
   flex-basis: 100%;
   font-size: 14px;
   color: var(--muted);
@@ -1214,6 +1214,27 @@ pre {
 .socials svg {
   width: 15px;
   height: 15px;
+}
+
+/* On mobile the profile links become icon-only buttons: bigger icons, larger tap
+   targets. Blog keeps its label. */
+@media (max-width: 560px) {
+  .socials {
+    gap: 10px;
+  }
+
+  .socials a {
+    padding: 12px;
+  }
+
+  .socials svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .socials a.icon-only .lbl {
+    display: none;
+  }
 }
 
 .signup .row {
